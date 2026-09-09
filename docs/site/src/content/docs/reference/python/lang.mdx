@@ -1,6 +1,6 @@
 ---
 title: "eqiora.lang"
-description: "Public signatures and source-traced summaries for eqiora.lang."
+description: "Functions, classes, and signatures for eqiora.lang."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,21 +9,15 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Bounded Python authoring through the compiler-owned Eqiora Module graph.
+Author Eqiora Modules, Components, expressions, and equations in Python.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
-
-This module publishes **50** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-lang-equal"></a>
 
 ## `equal`
 
 Author a typed equal predicate.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::equal</ExactSourceLink>
 
 ```python
 def equal(left: object, right: object) -> Expression: ...
@@ -35,8 +29,6 @@ def equal(left: object, right: object) -> Expression: ...
 
 Author a typed not equal predicate.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::not_equal</ExactSourceLink>
-
 ```python
 def not_equal(left: object, right: object) -> Expression: ...
 ```
@@ -46,8 +38,6 @@ def not_equal(left: object, right: object) -> Expression: ...
 ## `less`
 
 Author a typed less predicate.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::less</ExactSourceLink>
 
 ```python
 def less(left: object, right: object) -> Expression: ...
@@ -59,8 +49,6 @@ def less(left: object, right: object) -> Expression: ...
 
 Author a typed less equal predicate.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::less_equal</ExactSourceLink>
-
 ```python
 def less_equal(left: object, right: object) -> Expression: ...
 ```
@@ -70,8 +58,6 @@ def less_equal(left: object, right: object) -> Expression: ...
 ## `greater`
 
 Author a typed greater predicate.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::greater</ExactSourceLink>
 
 ```python
 def greater(left: object, right: object) -> Expression: ...
@@ -83,8 +69,6 @@ def greater(left: object, right: object) -> Expression: ...
 
 Author a typed greater equal predicate.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::greater_equal</ExactSourceLink>
-
 ```python
 def greater_equal(left: object, right: object) -> Expression: ...
 ```
@@ -94,8 +78,6 @@ def greater_equal(left: object, right: object) -> Expression: ...
 ## `logical_not`
 
 Author a typed logical not predicate.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::logical_not</ExactSourceLink>
 
 ```python
 def logical_not(value: object) -> Expression: ...
@@ -107,8 +89,6 @@ def logical_not(value: object) -> Expression: ...
 
 Author a typed logical and predicate.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::logical_and</ExactSourceLink>
-
 ```python
 def logical_and(left: object, right: object) -> Expression: ...
 ```
@@ -118,8 +98,6 @@ def logical_and(left: object, right: object) -> Expression: ...
 ## `logical_or`
 
 Author a typed logical or predicate.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::logical_or</ExactSourceLink>
 
 ```python
 def logical_or(left: object, right: object) -> Expression: ...
@@ -131,8 +109,6 @@ def logical_or(left: object, right: object) -> Expression: ...
 
 Identify one nominal periodic clock in its exact Component.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Clock</ExactSourceLink>
-
 ```python
 @final
 class Clock:
@@ -143,9 +119,7 @@ class Clock:
 
 ## `Component`
 
-Author one bounded public Component and an admitted exact instance binding.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Component</ExactSourceLink>
+Author a public Component and bind an instance of it.
 
 ```python
 @final
@@ -184,8 +158,6 @@ class Component:
 
 Immutable reference to one public Component in an explicit import.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ComponentRef</ExactSourceLink>
-
 ```python
 @final
 class ComponentRef:
@@ -198,8 +170,6 @@ class ComponentRef:
 ## `Equation`
 
 Immutable ordered mathematical equality, never a Python truth value.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Equation</ExactSourceLink>
 
 ```python
 @final
@@ -215,9 +185,7 @@ class Equation:
 
 ## `equation`
 
-Construct an explicit equality from typed expressions and admitted literals.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::equation</ExactSourceLink>
+Construct an explicit equality from typed expressions and literals.
 
 ```python
 def equation(lhs: object, rhs: object) -> Equation: ...
@@ -228,8 +196,6 @@ def equation(lhs: object, rhs: object) -> Equation: ...
 ## `Expression`
 
 Compose a closed expression without overloading equality as an equation.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Expression</ExactSourceLink>
 
 ```python
 @final
@@ -260,8 +226,6 @@ class Expression:
 
 A closed enum declaration shared within its Module.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Enum</ExactSourceLink>
-
 ```python
 @final
 class Enum:
@@ -280,8 +244,6 @@ class Enum:
 
 Identify a crossing event in its exact Component.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Event</ExactSourceLink>
-
 ```python
 @final
 class Event:
@@ -294,8 +256,6 @@ class Event:
 
 Identify one immutable typed material composition in its exact Module.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::MaterialComposition</ExactSourceLink>
-
 ```python
 @final
 class MaterialComposition:
@@ -306,9 +266,7 @@ class MaterialComposition:
 
 ## `Notation`
 
-Native-validated, immutable declaration notation; accepts one complete `@{...}` island.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/notation.rs" kind="blob">crates/eqiora-python/src/notation.rs::PyNotation</ExactSourceLink>
+Validated, immutable declaration notation; accepts one complete `@{...}` island.
 
 ```python
 @final
@@ -325,8 +283,6 @@ class Notation:
 
 An immutable typed operator declared by one Module; call with named arguments.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Operator</ExactSourceLink>
-
 ```python
 @final
 class Operator:
@@ -338,8 +294,6 @@ class Operator:
 ## `PropertyContract`
 
 Identify one typed property contract in its exact Module.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::PropertyContract</ExactSourceLink>
 
 ```python
 @final
@@ -353,8 +307,6 @@ class PropertyContract:
 
 Identify one exact constant scalar release in its exact Module.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::PropertyRelease</ExactSourceLink>
-
 ```python
 @final
 class PropertyRelease:
@@ -367,8 +319,6 @@ class PropertyRelease:
 
 Identify one relation declaration in its exact Module.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Relation</ExactSourceLink>
-
 ```python
 @final
 class Relation:
@@ -380,8 +330,6 @@ class Relation:
 ## `Module`
 
 Own a compiler-backed module graph and freeze declarations on emission or compilation.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Module</ExactSourceLink>
 
 ```python
 @final
@@ -407,9 +355,7 @@ class Module:
 
 ## `ModuleError`
 
-Reject a structurally invalid bounded Module draft.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ModuleError</ExactSourceLink>
+Reject a structurally invalid Module draft.
 
 ```python
 @final
@@ -423,8 +369,6 @@ class ModuleError(ValueError):
 
 An explicit module import with immutable Component references.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ModuleRef</ExactSourceLink>
-
 ```python
 @final
 class ModuleRef:
@@ -436,8 +380,6 @@ class ModuleRef:
 ## `Support`
 
 Identify one volume or parent-boundary declaration in its exact Module.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Support</ExactSourceLink>
 
 ```python
 @final
@@ -451,8 +393,6 @@ class Support:
 
 Construct channel arrays with exact ordered components.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::array</ExactSourceLink>
-
 ```python
 def array(values: Sequence[object]) -> Expression: ...
 ```
@@ -462,8 +402,6 @@ def array(values: Sequence[object]) -> Expression: ...
 ## `case`
 
 Author ordered closed-member cases; compiler checks exhaustiveness and types.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::case</ExactSourceLink>
 
 ```python
 def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -475,8 +413,6 @@ def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression
 
 Return one indexed spatial-coordinate expression.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::coordinate</ExactSourceLink>
-
 ```python
 def coordinate(axis: int) -> Expression: ...
 ```
@@ -486,8 +422,6 @@ def coordinate(axis: int) -> Expression: ...
 ## `dot`
 
 Return the inner product of two authored expressions.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::dot</ExactSourceLink>
 
 ```python
 def dot(left: Expression | float | int | complex, right: Expression | float | int | complex) -> Expression: ...
@@ -499,8 +433,6 @@ def dot(left: Expression | float | int | complex, right: Expression | float | in
 
 Return the language divergence of one expression.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::div</ExactSourceLink>
-
 ```python
 def div(value: Expression) -> Expression: ...
 ```
@@ -510,8 +442,6 @@ def div(value: Expression) -> Expression: ...
 ## `grad`
 
 Return the language gradient of one expression.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::grad</ExactSourceLink>
 
 ```python
 def grad(value: Expression) -> Expression: ...
@@ -523,8 +453,6 @@ def grad(value: Expression) -> Expression: ...
 
 Return one volume integral over an exact Module Support.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::integrate</ExactSourceLink>
-
 ```python
 def integrate(domain: Support, integrand: Expression | float | int | complex) -> Expression: ...
 ```
@@ -534,8 +462,6 @@ def integrate(domain: Support, integrand: Expression | float | int | complex) ->
 ## `if_else`
 
 Author a conditional with all operands checked and one branch executed.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::if_else</ExactSourceLink>
 
 ```python
 def if_else(condition: object, then_value: object, else_value: object) -> Expression: ...
@@ -547,8 +473,6 @@ def if_else(condition: object, then_value: object, else_value: object) -> Expres
 
 Return the language isotropic tensor lift of one expression.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::isotropic_lift</ExactSourceLink>
-
 ```python
 def isotropic_lift(value: Expression) -> Expression: ...
 ```
@@ -558,8 +482,6 @@ def isotropic_lift(value: Expression) -> Expression: ...
 ## `math`
 
 Exact language constants used by Module expressions.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::math</ExactSourceLink>
 
 ```python
 math: _Math
@@ -571,8 +493,6 @@ math: _Math
 
 Return the language outward-normal contraction of one expression.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::normal</ExactSourceLink>
-
 ```python
 def normal(value: Expression) -> Expression: ...
 ```
@@ -582,8 +502,6 @@ def normal(value: Expression) -> Expression: ...
 ## `ordinal`
 
 Explicitly project an index's ordinary integer ordinal.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ordinal</ExactSourceLink>
 
 ```python
 def ordinal(value: Expression) -> Expression: ...
@@ -595,8 +513,6 @@ def ordinal(value: Expression) -> Expression: ...
 
 Read a State's pre-tick value; compiler checks clock and context.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::pre</ExactSourceLink>
-
 ```python
 def pre(value: Expression) -> Expression: ...
 ```
@@ -606,8 +522,6 @@ def pre(value: Expression) -> Expression: ...
 ## `next`
 
 Name a State's next-tick value; compiler checks clock and context.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::next</ExactSourceLink>
 
 ```python
 def next(value: Expression) -> Expression: ...
@@ -619,8 +533,6 @@ def next(value: Expression) -> Expression: ...
 
 Author an input quantity; the compiler owns conversion to coherent SI.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::quantity</ExactSourceLink>
-
 ```python
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 ```
@@ -630,8 +542,6 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 ## `quotient`
 
 Return the checked integer quotient truncated toward zero.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::quotient</ExactSourceLink>
 
 ```python
 def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
@@ -643,8 +553,6 @@ def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
 
 Return the integer remainder with the dividend's sign.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::remainder</ExactSourceLink>
-
 ```python
 def remainder(left: Expression | int, right: Expression | int) -> Expression: ...
 ```
@@ -654,8 +562,6 @@ def remainder(left: Expression | int, right: Expression | int) -> Expression: ..
 ## `to_real`
 
 Explicitly convert an integer to a real, with possible precision loss.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::to_real</ExactSourceLink>
 
 ```python
 def to_real(value: Expression | int) -> Expression: ...
@@ -667,8 +573,6 @@ def to_real(value: Expression | int) -> Expression: ...
 
 Convert an integral finite dimensionless real within the signed integer range.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::to_integer</ExactSourceLink>
-
 ```python
 def to_integer(value: Expression | float | int) -> Expression: ...
 ```
@@ -679,8 +583,6 @@ def to_integer(value: Expression | float | int) -> Expression: ...
 
 Return the language symmetric part of one expression.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::symmetric_part</ExactSourceLink>
-
 ```python
 def symmetric_part(value: Expression) -> Expression: ...
 ```
@@ -690,8 +592,6 @@ def symmetric_part(value: Expression) -> Expression: ...
 ## `test`
 
 Return the test function associated with one Module Field.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::test</ExactSourceLink>
 
 ```python
 def test(field: Expression) -> Expression: ...
@@ -706,8 +606,6 @@ Construct a uniform spatial value using this Component's explicit frame.
 The compiler checks shape, scalar domain, units, and frame eligibility.
 Channel axes remain explicit array constructions.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::tensor_value</ExactSourceLink>
-
 ```python
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression: ...
 ```
@@ -717,8 +615,6 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
 ## `trace`
 
 Return the language boundary trace of one expression.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::trace</ExactSourceLink>
 
 ```python
 def trace(value: Expression) -> Expression: ...

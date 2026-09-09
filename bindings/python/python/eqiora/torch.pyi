@@ -1,4 +1,4 @@
-"""PyTorch autograd projection of Eqiora differentiable programs.
+"""Use Eqiora differentiable programs with PyTorch autograd.
 
 Authority: ``bindings/python/python/eqiora/torch.py``.
 """

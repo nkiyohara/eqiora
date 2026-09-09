@@ -1,4 +1,4 @@
-"""Compiler-owned unit catalog for deterministic Source quantity authoring.
+"""Unit catalog for authoring Source quantities.
 
 Authority: ``bindings/python/python/eqiora/units.py``.
 """
@@ -7,7 +7,7 @@ from typing import Final, final
 
 @final
 class Unit:
-    """Compose an immutable bounded structural input-unit expression.
+    """Compose an immutable input-unit expression.
 
     Authority: ``bindings/python/python/eqiora/units.py::Unit``.
     """
@@ -16,112 +16,112 @@ class Unit:
     def __pow__(self, exponent: int | Fraction, /) -> Unit: ...
     def prefixed(self, prefix: str) -> Unit: ...
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 kg: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 m: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 s: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 A: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 K: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 mol: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 cd: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 Hz: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 N: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 Pa: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 J: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 W: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 C: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 V: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 Ohm: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 S: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 F: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 H: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 Wb: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 T: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 g: Final[Unit]
 
-#: Compiler-owned input-unit symbol.
+#: Input-unit symbol.
 #:
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 one: Final[Unit]

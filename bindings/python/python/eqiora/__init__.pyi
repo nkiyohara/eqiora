@@ -1,4 +1,4 @@
-"""Python ergonomics over Eqiora's canonical Rust implementation.
+"""Model authoring, numerical plans, execution, and results.
 
 Authority: ``bindings/python/python/eqiora/__init__.py``.
 """
@@ -112,7 +112,7 @@ class CapabilityError(EqioraError):
     ...
 
 class ExecutionError(EqioraError):
-    """Failure of an admitted execution.
+    """Failure during execution.
 
     Authority: ``crates/eqiora-python/src/error.rs::ExecutionError``.
     """
@@ -171,7 +171,7 @@ class PackageConformanceReport(NamedTuple):
 
 @final
 class PropertyBinding:
-    """Exact package-owned typed constant property binding inspection.
+    """Inspect a typed constant property binding in a package.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyPropertyBinding``.
     """
@@ -615,7 +615,7 @@ class Array:
 
 @final
 class Revision:
-    """Exact identity of one immutable canonical model artifact.
+    """Identity of an immutable model artifact.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyRevision``.
     """
@@ -663,7 +663,7 @@ class ValueEdit:
 
 @final
 class ParameterRef:
-    """Exact canonical parameter selected from one immutable model.
+    """Parameter selected from an immutable model.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyModelParameterRef``.
     """
@@ -681,7 +681,7 @@ class ParameterRef:
 
 @final
 class FieldRef:
-    """Exact canonical field selected from one immutable model.
+    """Field selected from an immutable model.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyModelFieldRef``.
     """
@@ -695,7 +695,7 @@ class FieldRef:
 
 @final
 class DomainRef:
-    """Exact canonical Domain selected from one immutable Model.
+    """Domain selected from an immutable Model.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyModelDomainRef``.
     """
@@ -883,7 +883,7 @@ class MathRendering:
 
 @final
 class Model:
-    """Immutable canonical model artifact, admitted when semantically closed.
+    """Immutable model artifact with all semantic references resolved.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyModel``.
     """
@@ -997,7 +997,7 @@ class FormulationKind:
 
 @final
 class FormulationSelectionMode:
-    """Whether resolution selected or admitted an exact Formulation.
+    """Whether a Formulation was selected automatically or supplied explicitly.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode``.
     """
@@ -1030,9 +1030,9 @@ class FormulationView:
 
 @final
 class Plan:
-    """Immutable common numerical Plan owning an exact Model and applicable resources.
+    """Immutable numerical Plan containing a Model and its resources.
 
-    The Model alone determines the admitted physics. ``capability`` exposes
+    The Model determines the physics. ``capability`` exposes
     capability-specific field roles and policies through one closed typed view;
     ``fields`` remains the capability-neutral exact FieldRef inventory.
 
@@ -1090,7 +1090,7 @@ class Plan:
 
 @final
 class State:
-    """Accepted physical state owned by one exact common Plan.
+    """Physical state associated with one Plan.
 
     Authority: ``crates/eqiora-python/src/trajectory.rs::PyState``.
     """
@@ -1166,7 +1166,7 @@ class ConvergenceReason:
 
 @final
 class LinearSolveSummary:
-    """Bounded projection of an independently accepted linear-solve report.
+    """Linear-solve convergence report.
 
     Authority: ``crates/eqiora-python/src/realization.rs::PyLinearSolveSummary``.
     """
@@ -1375,7 +1375,7 @@ class DifferentiableProgram:
 
 @final
 class EvaluationMapCancellation:
-    """Cooperative native cancellation between ordered occurrences.
+    """Cooperative cancellation between ordered occurrences.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation``.
     """
@@ -1417,7 +1417,7 @@ class EvaluationMapPlan:
 
 @final
 class CompleteEvaluationMap:
-    """Complete native batch retaining every accepted occurrence and linearization.
+    """Batch retaining every accepted occurrence and linearization.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap``.
     """
@@ -1467,7 +1467,7 @@ class EvaluationMapTerminalReport:
 
 @final
 class EvaluationMapJvp:
-    """Native mapped JVPs in explicit point/seed order, preserving member evidence.
+    """Mapped JVPs in explicit point/seed order, with per-member reports.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp``.
     """
@@ -1488,7 +1488,7 @@ class EvaluationMapJvp:
 
 @final
 class EvaluationMapVjp:
-    """Native mapped VJPs; globally shared cotangents sum over point axes.
+    """Mapped VJPs; globally shared cotangents sum over point axes.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp``.
     """
@@ -1580,7 +1580,7 @@ class Result:
 
 @final
 class RunStatus:
-    """Monotone public state of one native execution occurrence.
+    """Monotone state of one execution occurrence.
 
     Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunStatus``.
     """
@@ -1627,7 +1627,7 @@ class TransientRunCancellation:
 _RunResultT = TypeVar("_RunResultT", bound=Result)
 
 class Run(Generic[_RunResultT]):
-    """Awaitable owner of one native execution occurrence.
+    """Awaitable handle for one execution occurrence.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::Run``.
     """
@@ -1711,7 +1711,7 @@ def compile_package(
     geometry: geometry.Geometry | None = None,
     bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None = None,
 ) -> Model:
-    """Compile one locked Model or one Component against caller-owned Geometry.
+    """Compile one locked Model or one Component using the supplied Geometry.
 
     Authority: ``crates/eqiora-python/src/package.rs::compile_package``.
     """
@@ -1792,7 +1792,7 @@ def add_bundled_dependency(
     ...
 
 def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes:
-    """Add an immutable Git package through the shared native project transaction.
+    """Add an immutable Git package to the project.
 
     Authority: ``crates/eqiora-python/src/package.rs::add_git_dependency``.
     """
@@ -1903,7 +1903,7 @@ def run(
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
 ) -> Result:
-    """Execute one steady or explicitly bounded transient common Plan synchronously.
+    """Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """
@@ -1919,7 +1919,7 @@ def submit(
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
 ) -> Run[Result]:
-    """Submit one steady or explicitly bounded transient common Plan.
+    """Submit a steady Plan or a transient Plan with a specified time interval.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
     """

@@ -1,4 +1,4 @@
-"""Closed algebraic solve policies.
+"""Linear and nonlinear solver policies.
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
@@ -31,7 +31,7 @@ LowMemory: Final[SolverPlanningObjective]
 
 @final
 class Linear:
-    """Linear-solve controls resolved against Model-owned operator meaning.
+    """Linear-solve controls for the Model operator.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
     """
@@ -57,7 +57,7 @@ class Linear:
 
 @final
 class Newton:
-    """Bounded Newton policy owning exact nested linear controls.
+    """Newton solver policy with nested linear-solve controls.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyNewton``.
     """

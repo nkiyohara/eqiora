@@ -1,6 +1,6 @@
 ---
 title: "eqiora.fluid"
-description: "Public signatures and source-traced summaries for eqiora.fluid."
+description: "Functions, classes, and signatures for eqiora.fluid."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,21 +9,15 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Narrow fluid applications composed by Eqiora's shared native layer.
+Configure incompressible flow and inspect its results.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py" kind="blob">bindings/python/python/eqiora/fluid.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/fluid.pyi" kind="blob">bindings/python/python/eqiora/fluid.pyi</ExactSourceLink>
-
-This module publishes **13** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/fluid.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-fluid-IncompressibleFlowPlanView"></a>
 
 ## `IncompressibleFlowPlanView`
 
 Resolved incompressible-flow roles, spaces, gauge, and scales.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyIncompressibleFlowPlanView</ExactSourceLink>
 
 ```python
 @final
@@ -50,9 +44,7 @@ class IncompressibleFlowPlanView:
 
 ## `IncompressibleScales`
 
-Immutable effective 2D incompressible scales owned by a resolved Plan.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales</ExactSourceLink>
+Immutable effective 2D incompressible scales for a resolved Plan.
 
 ```python
 @final
@@ -77,8 +69,6 @@ Optional manual components for exact-cylinder incompressible scaling.
 
 `None` leaves that component under deterministic resolver ownership.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScaling</ExactSourceLink>
-
 ```python
 @final
 class IncompressibleScaling:
@@ -98,8 +88,6 @@ class IncompressibleScaling:
 ## `IncompressibleScalingAuthority2d`
 
 Immutable typed authoritative observation.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthority2d</ExactSourceLink>
 
 ```python
 @final
@@ -130,8 +118,6 @@ class IncompressibleScalingAuthority2d:
 
 Closed kind of authoritative scaling observation.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthorityKind</ExactSourceLink>
-
 ```python
 @final
 class IncompressibleScalingAuthorityKind:
@@ -151,8 +137,6 @@ class IncompressibleScalingAuthorityKind:
 
 Closed intrinsic-2D scaling component.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponent2d</ExactSourceLink>
-
 ```python
 @final
 class IncompressibleScalingComponent2d:
@@ -170,8 +154,6 @@ class IncompressibleScalingComponent2d:
 ## `IncompressibleScalingComponentRecord2d`
 
 Immutable effective value and provenance for one component.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponentRecord2d</ExactSourceLink>
 
 ```python
 @final
@@ -198,8 +180,6 @@ class IncompressibleScalingComponentRecord2d:
 
 Closed provenance mode for one effective scaling component.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyScalingMode</ExactSourceLink>
-
 ```python
 @final
 class IncompressibleScalingMode:
@@ -215,8 +195,6 @@ class IncompressibleScalingMode:
 ## `IncompressibleScalingReceipt2d`
 
 Immutable five-component receipt with exact resource lineage.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScalingReceipt2d</ExactSourceLink>
 
 ```python
 @final
@@ -253,8 +231,6 @@ class IncompressibleScalingReceipt2d:
 
 Closed rule used to resolve one intrinsic-2D component.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/scaling.rs" kind="blob">crates/eqiora-python/src/common_plan/scaling.rs::PyScalingRule2d</ExactSourceLink>
-
 ```python
 @final
 class IncompressibleScalingRule2d:
@@ -277,8 +253,6 @@ class IncompressibleScalingRule2d:
 
 Closed pressure representative selected by transient resolution.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d</ExactSourceLink>
-
 ```python
 @final
 class PressureGauge2d:
@@ -293,8 +267,6 @@ class PressureGauge2d:
 ## `SteadyStokesEvidence`
 
 Scientific evidence selected from an accepted steady-Stokes result.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/steady_stokes.rs" kind="blob">crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesEvidence</ExactSourceLink>
 
 ```python
 @final
@@ -334,8 +306,6 @@ class SteadyStokesEvidence:
 ## `steady_stokes_evidence`
 
 Select typed steady-Stokes evidence from its accepted result.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/steady_stokes.rs" kind="blob">crates/eqiora-python/src/steady_stokes.rs::steady_stokes_evidence</ExactSourceLink>
 
 ```python
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence: ...

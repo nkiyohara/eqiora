@@ -1,4 +1,4 @@
-"""Accepted implicit differentiation over exact Eqiora programs.
+"""Implicit differentiation of Eqiora programs.
 
 Authority: ``bindings/python/python/eqiora/diff.py``.
 """

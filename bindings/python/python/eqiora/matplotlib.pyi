@@ -1,4 +1,4 @@
-"""Matplotlib presentation adapters for accepted Eqiora results.
+"""Plot Eqiora results with Matplotlib.
 
 Authority: ``bindings/python/python/eqiora/matplotlib.py``.
 """

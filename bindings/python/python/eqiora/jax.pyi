@@ -1,4 +1,4 @@
-"""JAX typed-FFI projection of Eqiora differentiable programs.
+"""Use Eqiora differentiable programs with JAX.
 
 Authority: ``bindings/python/python/eqiora/jax.py``.
 """

@@ -1,4 +1,4 @@
-"""Mathematical Formulation requests and resolved-selection inspection.
+"""Choose a mathematical formulation and inspect the resolved choice.
 
 Authority: ``bindings/python/python/eqiora/formulation.py``.
 """

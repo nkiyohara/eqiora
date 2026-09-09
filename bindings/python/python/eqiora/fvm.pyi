@@ -1,4 +1,4 @@
-"""Closed finite-volume spatial policies.
+"""Finite-volume discretization policies.
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa``.
 """

@@ -2,46 +2,53 @@
 
 # Eqiora Python API
 
-This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
+Browse the modules below for classes, functions, and signatures. Start with the [Python guide](README.md) for installation and a first model.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 251 canonical declaration summaries are source-traced; non-dunder member coverage remains **24 authoritative summaries and 747 signature-only entries under documented owning types**.
+## Modules
 
-Inventory: 19 modules, 289 literal public spellings, 251 canonical grouped declarations, 1005 visible method signatures (771 non-dunder and 234 dunder), and 76 visible class assignments.
-
-Regenerate with:
-
-```console
-python3 tools/docs/generate_python_api.py
-python3 tools/docs/generate_python_api.py --check
-```
+| Module | Summary |
+| --- | --- |
+| [`eqiora`](#module-eqiora) | Model authoring, numerical plans, execution, and results. |
+| [`eqiora.geometry`](#module-eqiora-geometry) | Construct exact geometry values and select regions and boundaries. |
+| [`eqiora.lang`](#module-eqiora-lang) | Author Eqiora Modules, Components, expressions, and equations in Python. |
+| [`eqiora.units`](#module-eqiora-units) | Unit catalog for authoring Source quantities. |
+| [`eqiora.meshing`](#module-eqiora-meshing) | Plan and generate meshes from geometry. |
+| [`eqiora.formulation`](#module-eqiora-formulation) | Choose a mathematical formulation and inspect the resolved choice. |
+| [`eqiora.fem`](#module-eqiora-fem) | Finite-element discretization policies. |
+| [`eqiora.fvm`](#module-eqiora-fvm) | Finite-volume discretization policies. |
+| [`eqiora.solve`](#module-eqiora-solve) | Linear and nonlinear solver policies. |
+| [`eqiora.time`](#module-eqiora-time) | Time-integration policies for numerical plans. |
+| [`eqiora.fluid`](#module-eqiora-fluid) | Configure incompressible flow and inspect its results. |
+| [`eqiora.trajectory`](#module-eqiora-trajectory) | Read spatial trajectories and derived fields. |
+| [`eqiora.fsi`](#module-eqiora-fsi) | Inspect fluid–structure interaction results. |
+| [`eqiora.solid`](#module-eqiora-solid) | Configure linear elasticity and inspect structural results. |
+| [`eqiora.viewer`](#module-eqiora-viewer) | Compose read-only views of geometry, meshes, and fields. |
+| [`eqiora.matplotlib`](#module-eqiora-matplotlib) | Plot Eqiora results with Matplotlib. |
+| [`eqiora.diff`](#module-eqiora-diff) | Implicit differentiation of Eqiora programs. |
+| [`eqiora.torch`](#module-eqiora-torch) | Use Eqiora differentiable programs with PyTorch autograd. |
+| [`eqiora.jax`](#module-eqiora-jax) | Use Eqiora differentiable programs with JAX. |
 
 <a id="module-eqiora"></a>
 
 ## `eqiora`
 
-Python ergonomics over Eqiora's canonical Rust implementation.
+Model authoring, numerical plans, execution, and results.
 
-Module authority: [`bindings/python/python/eqiora/__init__.py`](../../bindings/python/python/eqiora/__init__.py)
-
-Shipped stub: [`bindings/python/python/eqiora/__init__.pyi`](../../bindings/python/python/eqiora/__init__.pyi)
+[View source](../../bindings/python/python/eqiora/__init__.pyi)
 
 <a id="api-eqiora-Module"></a>
 
 ### `eqiora.Module`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.lang.Module`](#api-eqiora-lang-Module).
+See [`eqiora.lang.Module`](#api-eqiora-lang-Module).
 
 Own a compiler-backed module graph and freeze declarations on emission or compilation.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Module`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 <a id="api-eqiora-equal"></a>
 
 ### `eqiora.equal`
 
 Author a typed equal predicate.
-
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
 
 ```python
 def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -53,8 +60,6 @@ def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 Author a typed not equal predicate.
 
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::not_equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
-
 ```python
 def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -64,8 +69,6 @@ def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ### `eqiora.less`
 
 Author a typed less predicate.
-
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::less`](../../crates/eqiora-python/src/modeling/predicates.rs)
 
 ```python
 def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -77,8 +80,6 @@ def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 Author a typed less equal predicate.
 
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::less_equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
-
 ```python
 def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -88,8 +89,6 @@ def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ### `eqiora.greater`
 
 Author a typed greater predicate.
-
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::greater`](../../crates/eqiora-python/src/modeling/predicates.rs)
 
 ```python
 def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -101,8 +100,6 @@ def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 Author a typed greater equal predicate.
 
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::greater_equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
-
 ```python
 def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -112,8 +109,6 @@ def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: 
 ### `eqiora.logical_not`
 
 Author a typed logical not predicate.
-
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::logical_not`](../../crates/eqiora-python/src/modeling/predicates.rs)
 
 ```python
 def logical_not(value: _ExpressionLike) -> Expression: ...
@@ -125,8 +120,6 @@ def logical_not(value: _ExpressionLike) -> Expression: ...
 
 Author a typed logical and predicate.
 
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::logical_and`](../../crates/eqiora-python/src/modeling/predicates.rs)
-
 ```python
 def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -137,8 +130,6 @@ def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ..
 
 Author a typed logical or predicate.
 
-Authority: [`crates/eqiora-python/src/modeling/predicates.rs::logical_or`](../../crates/eqiora-python/src/modeling/predicates.rs)
-
 ```python
 def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -147,7 +138,7 @@ def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.__version__`
 
-**Version export.** The current value is intentionally not hard-coded here.
+Installed Eqiora version.
 
 ```python
 __version__: str
@@ -158,8 +149,6 @@ __version__: str
 ### `eqiora.Array`
 
 Immutable dense one-dimensional CPU `float64` result buffer.
-
-Authority: [`crates/eqiora-python/src/array.rs::PyArrayBuffer`](../../crates/eqiora-python/src/array.rs)
 
 ```python
 @final
@@ -200,8 +189,6 @@ class Array:
 
 Fresh-compile authored scalar primal Formulation inspection.
 
-Authority: [`crates/eqiora-python/src/model/authored_formulation.rs`](../../crates/eqiora-python/src/model/authored_formulation.rs)
-
 ```python
 @final
 class AuthoredFormulation:
@@ -227,8 +214,6 @@ class AuthoredFormulation:
 
 Closed orientation of one Cartesian boundary domain.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyBoundarySide`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 @final
 class BoundarySide:
@@ -244,8 +229,6 @@ class BoundarySide:
 
 Failure reporting cancellation of an Eqiora operation.
 
-Authority: [`crates/eqiora-python/src/error.rs::CancellationError`](../../crates/eqiora-python/src/error.rs)
-
 ```python
 class CancellationError(EqioraError):
     ...
@@ -256,8 +239,6 @@ class CancellationError(EqioraError):
 ### `eqiora.CapabilityError`
 
 Failure caused by an adapter lacking a required capability.
-
-Authority: [`crates/eqiora-python/src/error.rs::CapabilityError`](../../crates/eqiora-python/src/error.rs)
 
 ```python
 class CapabilityError(EqioraError):
@@ -270,8 +251,6 @@ class CapabilityError(EqioraError):
 
 Failure caused by an incompatible versioned or persisted value.
 
-Authority: [`crates/eqiora-python/src/error.rs::CompatibilityError`](../../crates/eqiora-python/src/error.rs)
-
 ```python
 class CompatibilityError(EqioraError):
     ...
@@ -282,8 +261,6 @@ class CompatibilityError(EqioraError):
 ### `eqiora.Connection`
 
 Immutable anonymous conserving connection declaration.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::PyConnection`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
@@ -296,8 +273,6 @@ class Connection:
 ### `eqiora.ClockDomain`
 
 An immutable standalone nominal clock with exact rational seconds.
-
-Authority: [`crates/eqiora-python/src/clock.rs::PyClockDomain`](../../crates/eqiora-python/src/clock.rs)
 
 ```python
 @final
@@ -316,8 +291,6 @@ class ClockDomain:
 ### `eqiora.ExecutionSession`
 
 Reference execution through fully stabilized boundaries with explicit input tables.
-
-Authority: [`crates/eqiora-python/src/execution_session.rs::PyExecutionSession`](../../crates/eqiora-python/src/execution_session.rs)
 
 ```python
 @final
@@ -343,8 +316,6 @@ class ExecutionSession:
 
 An immutable in-memory reference checkpoint bound to its complete Model.
 
-Authority: [`crates/eqiora-python/src/execution_session.rs::PyExecutionCheckpoint`](../../crates/eqiora-python/src/execution_session.rs)
-
 ```python
 @final
 class ExecutionCheckpoint:
@@ -356,8 +327,6 @@ class ExecutionCheckpoint:
 ### `eqiora.ConservingPort`
 
 Immutable scalar conserving-port declaration.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::PyConservingPort`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
@@ -375,8 +344,6 @@ class ConservingPort:
 
 Accepted reason for linear-solve convergence.
 
-Authority: [`crates/eqiora-python/src/realization.rs::PyConvergenceReason`](../../crates/eqiora-python/src/realization.rs)
-
 ```python
 @final
 class ConvergenceReason:
@@ -392,8 +359,6 @@ class ConvergenceReason:
 
 Source of the derivative action used by an occurrence.
 
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDerivativeImplementation`](../../crates/eqiora-python/src/differentiation.rs)
-
 ```python
 @final
 class DerivativeImplementation:
@@ -407,8 +372,6 @@ class DerivativeImplementation:
 ### `eqiora.Diagnostic`
 
 Immutable lossless projection of a current Rust diagnostic.
-
-Authority: [`crates/eqiora-python/src/error.rs::PyDiagnostic`](../../crates/eqiora-python/src/error.rs)
 
 ```python
 @final
@@ -435,8 +398,6 @@ class Diagnostic:
 
 Immutable accepted evaluation at one numerical parameter point.
 
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableEvaluation`](../../crates/eqiora-python/src/differentiation.rs)
-
 ```python
 @final
 class DifferentiableEvaluation:
@@ -452,8 +413,6 @@ class DifferentiableEvaluation:
 ### `eqiora.DifferentiableJvp`
 
 Accepted primary field and its forward tangent.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp`](../../crates/eqiora-python/src/differentiation.rs)
 
 ```python
 @final
@@ -472,8 +431,6 @@ class DifferentiableJvp:
 
 Accepted complete primary field from a primal evaluation.
 
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiablePrimal`](../../crates/eqiora-python/src/differentiation.rs)
-
 ```python
 @final
 class DifferentiablePrimal:
@@ -488,8 +445,6 @@ class DifferentiablePrimal:
 ### `eqiora.DifferentiableProgram`
 
 Immutable program over one fixed input-coordinate set.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgram`](../../crates/eqiora-python/src/differentiation.rs)
 
 ```python
 @final
@@ -525,8 +480,6 @@ class DifferentiableProgram:
 
 Accepted primary field and its reverse input cotangent.
 
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp`](../../crates/eqiora-python/src/differentiation.rs)
-
 ```python
 @final
 class DifferentiableVjp:
@@ -542,9 +495,7 @@ class DifferentiableVjp:
 
 ### `eqiora.CompleteEvaluationMap`
 
-Complete native batch retaining every accepted occurrence and linearization.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
+Batch retaining every accepted occurrence and linearization.
 
 ```python
 @final
@@ -566,8 +517,6 @@ class CompleteEvaluationMap:
 ### `eqiora.EvaluationMapPlan`
 
 Frozen complete points; planning validates metadata without solving.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan`](../../crates/eqiora-python/src/differentiation/batch.rs)
 
 ```python
 @final
@@ -600,8 +549,6 @@ class EvaluationMapPlan:
 
 Inspectable failed or cancelled prefix, never a complete primal or product.
 
-Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
-
 ```python
 @final
 class EvaluationMapTerminalReport:
@@ -624,9 +571,7 @@ class EvaluationMapTerminalReport:
 
 ### `eqiora.EvaluationMapCancellation`
 
-Cooperative native cancellation between ordered occurrences.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation`](../../crates/eqiora-python/src/differentiation/batch.rs)
+Cooperative cancellation between ordered occurrences.
 
 ```python
 @final
@@ -641,9 +586,7 @@ class EvaluationMapCancellation:
 
 ### `eqiora.EvaluationMapJvp`
 
-Native mapped JVPs in explicit point/seed order, preserving member evidence.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+Mapped JVPs in explicit point/seed order, with per-member reports.
 
 ```python
 @final
@@ -667,9 +610,7 @@ class EvaluationMapJvp:
 
 ### `eqiora.EvaluationMapVjp`
 
-Native mapped VJPs; globally shared cotangents sum over point axes.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+Mapped VJPs; globally shared cotangents sum over point axes.
 
 ```python
 @final
@@ -700,8 +641,6 @@ class EvaluationMapVjp:
 ### `eqiora.DifferentiationEvidence`
 
 Typed in-memory provenance for one differentiation occurrence.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiationEvidence`](../../crates/eqiora-python/src/differentiation.rs)
 
 ```python
 @final
@@ -738,8 +677,6 @@ class DifferentiationEvidence:
 
 Primal, JVP, or VJP occurrence kind.
 
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiationMode`](../../crates/eqiora-python/src/differentiation.rs)
-
 ```python
 @final
 class DifferentiationMode:
@@ -756,8 +693,6 @@ class DifferentiationMode:
 
 SI base-dimension exponents in M, L, T, I, Θ, N, J order.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyDimension`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 @final
 class Dimension:
@@ -773,8 +708,6 @@ class Dimension:
 ### `eqiora.ValueType`
 
 Exact scalar domain, dimension, channel axes and spatial frame.
-
-Authority: [`crates/eqiora-python/src/modeling/value_type.rs::PyValueType`](../../crates/eqiora-python/src/modeling/value_type.rs)
 
 ```python
 @final
@@ -821,8 +754,6 @@ class ValueType:
 
 An exact closed enum declaration; replay may have no retained lexical name.
 
-Authority: [`crates/eqiora-python/src/modeling/enumeration.rs::PyEnum`](../../crates/eqiora-python/src/modeling/enumeration.rs)
-
 ```python
 @final
 class Enum:
@@ -844,8 +775,6 @@ class Enum:
 
 An immutable nominal enum member without numeric or Boolean coercion.
 
-Authority: [`crates/eqiora-python/src/modeling/enumeration.rs::PyEnumValue`](../../crates/eqiora-python/src/modeling/enumeration.rs)
-
 ```python
 @final
 class EnumValue:
@@ -861,8 +790,6 @@ class EnumValue:
 ### `eqiora.FiniteSpace`
 
 Exact nominal ordered basis, distinct from a numerical discretization space.
-
-Authority: [`crates/eqiora-python/src/modeling/nominal.rs::PyFiniteSpace`](../../crates/eqiora-python/src/modeling/nominal.rs)
 
 ```python
 @final
@@ -882,8 +809,6 @@ class FiniteSpace:
 
 An exact nominal zero-based set with a positive constant integer extent.
 
-Authority: [`crates/eqiora-python/src/modeling/nominal.rs::PyIndexSet`](../../crates/eqiora-python/src/modeling/nominal.rs)
-
 ```python
 @final
 class IndexSet:
@@ -900,9 +825,7 @@ class IndexSet:
 
 ### `eqiora.DomainRef`
 
-Exact canonical Domain selected from one immutable Model.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModelDomainRef`](../../crates/eqiora-python/src/model.rs)
+Domain selected from an immutable Model.
 
 ```python
 @final
@@ -920,8 +843,6 @@ class DomainRef:
 ### `eqiora.Domain`
 
 Immutable draft-local Cartesian volume or oriented boundary.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::PyDomain`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
@@ -949,8 +870,6 @@ class Domain:
 
 Base failure for an Eqiora operation rejected with diagnostics.
 
-Authority: [`crates/eqiora-python/src/error.rs::EqioraError`](../../crates/eqiora-python/src/error.rs)
-
 ```python
 class EqioraError(Exception):
     category: str
@@ -961,9 +880,7 @@ class EqioraError(Exception):
 
 ### `eqiora.ExecutionError`
 
-Failure of an admitted execution.
-
-Authority: [`crates/eqiora-python/src/error.rs::ExecutionError`](../../crates/eqiora-python/src/error.rs)
+Failure during execution.
 
 ```python
 class ExecutionError(EqioraError):
@@ -975,8 +892,6 @@ class ExecutionError(EqioraError):
 ### `eqiora.Expression`
 
 Immutable symbolic expression whose shape and support Rust infers.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::PyExpression`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
@@ -999,8 +914,6 @@ class Expression:
 ### `eqiora.Field`
 
 Immutable typed field declaration.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::PyField`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
@@ -1035,8 +948,6 @@ class Field:
 
 Immutable coefficients for one exact Model Field on one exact Mesh.
 
-Authority: [`crates/eqiora-python/src/result/field_output.rs::PyFieldOutput`](../../crates/eqiora-python/src/result/field_output.rs)
-
 ```python
 @final
 class FieldOutput:
@@ -1061,9 +972,7 @@ class FieldOutput:
 
 ### `eqiora.FieldRef`
 
-Exact canonical field selected from one immutable model.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModelFieldRef`](../../crates/eqiora-python/src/model.rs)
+Field selected from an immutable model.
 
 ```python
 @final
@@ -1081,8 +990,6 @@ class FieldRef:
 ### `eqiora.FormulationView`
 
 Effective mathematical form selected between Model and Realization.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 ```python
 @final
@@ -1108,8 +1015,6 @@ class FormulationView:
 
 Closed mathematical Formulation families accepted by exact override.
 
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
-
 ```python
 @final
 class FormulationKind:
@@ -1124,9 +1029,7 @@ class FormulationKind:
 
 ### `eqiora.FormulationSelectionMode`
 
-Whether resolution selected or admitted an exact Formulation.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+Whether a Formulation was selected automatically or supplied explicitly.
 
 ```python
 @final
@@ -1144,8 +1047,6 @@ class FormulationSelectionMode:
 
 Immutable exact-Field-bound coherent-SI initial coefficients.
 
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyInitialField`](../../crates/eqiora-python/src/trajectory.rs)
-
 ```python
 @final
 class InitialField:
@@ -1160,8 +1061,6 @@ class InitialField:
 
 Internal failure that does not expose implementation details.
 
-Authority: [`crates/eqiora-python/src/error.rs::InternalError`](../../crates/eqiora-python/src/error.rs)
-
 ```python
 class InternalError(EqioraError):
     ...
@@ -1171,9 +1070,7 @@ class InternalError(EqioraError):
 
 ### `eqiora.LinearSolveSummary`
 
-Bounded projection of an independently accepted linear-solve report.
-
-Authority: [`crates/eqiora-python/src/realization.rs::PyLinearSolveSummary`](../../crates/eqiora-python/src/realization.rs)
+Linear-solve convergence report.
 
 ```python
 @final
@@ -1218,8 +1115,6 @@ class LinearSolveSummary:
 
 Whether an accepted linearization was established or reused.
 
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyLinearizationState`](../../crates/eqiora-python/src/differentiation.rs)
-
 ```python
 @final
 class LinearizationState:
@@ -1234,8 +1129,6 @@ class LinearizationState:
 ### `eqiora.MathReference`
 
 Exact semantic targets shared by every mathematical presentation profile.
-
-Authority: [`crates/eqiora-python/src/model/rendering.rs::PyMathReference`](../../crates/eqiora-python/src/model/rendering.rs)
 
 ```python
 @final
@@ -1259,8 +1152,6 @@ Immutable equation or type presentation with accessible text and exact reference
 
 If `used_fallback` is true, `text` is plain text rather than rich markup.
 
-Authority: [`crates/eqiora-python/src/model/rendering.rs::PyMathRendering`](../../crates/eqiora-python/src/model/rendering.rs)
-
 ```python
 @final
 class MathRendering:
@@ -1283,9 +1174,7 @@ class MathRendering:
 
 ### `eqiora.Model`
 
-Immutable canonical model artifact, admitted when semantically closed.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModel`](../../crates/eqiora-python/src/model.rs)
+Immutable model artifact with all semantic references resolved.
 
 ```python
 @final
@@ -1338,8 +1227,6 @@ class Model:
 
 Identity fields for one package in a conformance report.
 
-Authority: [`bindings/python/python/eqiora/__init__.py::check_package_conformance`](../../bindings/python/python/eqiora/__init__.py)
-
 ```python
 class PackageConformancePackage(NamedTuple):
     name: str
@@ -1353,8 +1240,6 @@ class PackageConformancePackage(NamedTuple):
 ### `eqiora.PackageConformanceReport`
 
 Structural-conformance report for one locked package closure.
-
-Authority: [`bindings/python/python/eqiora/__init__.py::check_package_conformance`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
 class PackageConformanceReport(NamedTuple):
@@ -1385,8 +1270,6 @@ Immutable complete typed parameter declaration.
 Nonzero spatial values require an explicit frame Domain registered in the
 native Model. This is a uniform coefficient, not a distributed Field.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyParameter`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 @final
 class Parameter:
@@ -1416,9 +1299,7 @@ class Parameter:
 
 ### `eqiora.ParameterRef`
 
-Exact canonical parameter selected from one immutable model.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModelParameterRef`](../../crates/eqiora-python/src/model.rs)
+Parameter selected from an immutable model.
 
 ```python
 @final
@@ -1441,8 +1322,6 @@ class ParameterRef:
 
 Immutable nominal scalar physical domain with explicitly named quantities.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyPhysicalDomain`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 @final
 class PhysicalDomain:
@@ -1463,9 +1342,7 @@ class PhysicalDomain:
 
 ### `eqiora.PropertyBinding`
 
-Exact package-owned typed constant property binding inspection.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyPropertyBinding`](../../crates/eqiora-python/src/model.rs)
+Inspect a typed constant property binding in a package.
 
 ```python
 @final
@@ -1498,8 +1375,6 @@ class PropertyBinding:
 
 Immutable label for one exact occurrence in a full Model rendering scope.
 
-Authority: [`crates/eqiora-python/src/model/notation.rs::PyQuantityLabel`](../../crates/eqiora-python/src/model/notation.rs)
-
 ```python
 @final
 class QuantityLabel:
@@ -1530,13 +1405,11 @@ class QuantityLabel:
 
 ### `eqiora.Plan`
 
-Immutable common numerical Plan owning an exact Model and applicable resources.
+Immutable numerical Plan containing a Model and its resources.
 
-The Model alone determines the admitted physics. `capability` exposes
+The Model determines the physics. `capability` exposes
 capability-specific field roles and policies through one closed typed view;
 `fields` remains the capability-neutral exact FieldRef inventory.
-
-Authority: [`crates/eqiora-python/src/common_plan.rs::PyPlan`](../../crates/eqiora-python/src/common_plan.rs)
 
 ```python
 @final
@@ -1598,8 +1471,6 @@ class Plan:
 
 Author-declared evolution role independent of spatial support.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyFieldRole`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 @final
 class FieldRole:
@@ -1615,8 +1486,6 @@ class FieldRole:
 
 Simultaneous fresh-initialization equations with explicit sides.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyInitial`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 @final
 class Initial:
@@ -1630,8 +1499,6 @@ class Initial:
 ### `eqiora.Relation`
 
 Immutable continuous equations with explicit typed sides.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::PyRelation`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
@@ -1650,8 +1517,6 @@ class Relation:
 ### `eqiora.Result`
 
 Accepted execution occurrence with typed output relationships.
-
-Authority: [`crates/eqiora-python/src/result.rs::PyRunResult`](../../crates/eqiora-python/src/result.rs)
 
 ```python
 @final
@@ -1693,9 +1558,7 @@ class Result:
 
 ### `eqiora.Revision`
 
-Exact identity of one immutable canonical model artifact.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyRevision`](../../crates/eqiora-python/src/model.rs)
+Identity of an immutable model artifact.
 
 ```python
 @final
@@ -1715,8 +1578,6 @@ class Revision:
 ### `eqiora.ResolvedExecution`
 
 Exact scalar, layout, schedule, provider, and placement selected for execution.
-
-Authority: [`crates/eqiora-python/src/common_plan/resolved_execution.rs::PyResolvedExecution`](../../crates/eqiora-python/src/common_plan/resolved_execution.rs)
 
 ```python
 @final
@@ -1744,8 +1605,6 @@ class ResolvedExecution:
 
 Scalar-valued Fields resolved from one Model.
 
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyScalarPlanView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
-
 ```python
 @final
 class ScalarPlanView:
@@ -1763,9 +1622,7 @@ class ScalarPlanView:
 
 ### `eqiora.Run`
 
-Awaitable owner of one native execution occurrence.
-
-Authority: [`bindings/python/python/eqiora/__init__.py::Run`](../../bindings/python/python/eqiora/__init__.py)
+Awaitable handle for one execution occurrence.
 
 ```python
 class Run(Generic[_RunResultT]):
@@ -1803,9 +1660,7 @@ class Run(Generic[_RunResultT]):
 
 ### `eqiora.RunStatus`
 
-Monotone public state of one native execution occurrence.
-
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyRunStatus`](../../crates/eqiora-python/src/execution/evidence.rs)
+Monotone state of one execution occurrence.
 
 ```python
 @final
@@ -1827,8 +1682,6 @@ class RunStatus:
 ### `eqiora.Series`
 
 Read-only field-local sampled series in SI units.
-
-Authority: [`crates/eqiora-python/src/result.rs::PySeries`](../../crates/eqiora-python/src/result.rs)
 
 ```python
 @final
@@ -1853,9 +1706,7 @@ class Series:
 
 ### `eqiora.State`
 
-Accepted physical state owned by one exact common Plan.
-
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyState`](../../crates/eqiora-python/src/trajectory.rs)
+Physical state associated with one Plan.
 
 ```python
 @final
@@ -1908,8 +1759,6 @@ class State:
 
 Exact accepted common transient boundary where cancellation terminated.
 
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation`](../../crates/eqiora-python/src/execution/evidence.rs)
-
 ```python
 @final
 class TransientRunCancellation:
@@ -1926,8 +1775,6 @@ class TransientRunCancellation:
 ### `eqiora.TransientRunProgress`
 
 Last fully accepted common transient step boundary.
-
-Authority: [`crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress`](../../crates/eqiora-python/src/execution/evidence.rs)
 
 ```python
 @final
@@ -1946,8 +1793,6 @@ class TransientRunProgress:
 
 Alpha-normalized comparison evidence, not exact model identity.
 
-Authority: [`crates/eqiora-python/src/model.rs::PyStructuralSemanticFingerprint`](../../crates/eqiora-python/src/model.rs)
-
 ```python
 @final
 class StructuralSemanticFingerprint:
@@ -1965,8 +1810,6 @@ class StructuralSemanticFingerprint:
 
 Failure caused by a model or request violating a typed contract.
 
-Authority: [`crates/eqiora-python/src/error.rs::ValidationError`](../../crates/eqiora-python/src/error.rs)
-
 ```python
 class ValidationError(EqioraError):
     ...
@@ -1977,8 +1820,6 @@ class ValidationError(EqioraError):
 ### `eqiora.ValueEdit`
 
 Immutable exact-base value edit prepared by the Rust facade.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyValueEdit`](../../crates/eqiora-python/src/model.rs)
 
 ```python
 @final
@@ -1999,19 +1840,15 @@ class ValueEdit:
 
 ### `eqiora.View`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.viewer.View`](#api-eqiora-viewer-View).
+See [`eqiora.viewer.View`](#api-eqiora-viewer-View).
 
 Disposable typed viewer scene; its transport is private and unstable.
-
-Authority: [`bindings/python/python/eqiora/viewer.py::View`](../../bindings/python/python/eqiora/viewer.py)
 
 <a id="api-eqiora-across"></a>
 
 ### `eqiora.across`
 
 Return the across variable of a scalar conserving port.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::across`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 def across(port: ConservingPort) -> Expression: ...
@@ -2023,8 +1860,6 @@ def across(port: ConservingPort) -> Expression: ...
 
 Check one exact locked package closure by deterministic replay.
 
-Authority: [`crates/eqiora-python/src/package.rs::_check_package_conformance`](../../crates/eqiora-python/src/package.rs)
-
 ```python
 def check_package_conformance(store_root: str | os.PathLike[str], resolution_bytes: bytes, *, entry_model: str, profile: str) -> PackageConformanceReport: ...
 ```
@@ -2035,8 +1870,6 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 Compile one source and its optional exact Geometry closure.
 
-Authority: [`bindings/python/python/eqiora/__init__.py::compile`](../../bindings/python/python/eqiora/__init__.py)
-
 ```python
 def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
 ```
@@ -2045,9 +1878,7 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | Module | Non
 
 ### `eqiora.compile_package`
 
-Compile one locked Model or one Component against caller-owned Geometry.
-
-Authority: [`crates/eqiora-python/src/package.rs::compile_package`](../../crates/eqiora-python/src/package.rs)
+Compile one locked Model or one Component using the supplied Geometry.
 
 ```python
 def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry: str, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None=None) -> Model: ...
@@ -2059,8 +1890,6 @@ def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry
 
 Build an anonymous conserving connection declaration.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::connect`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 def connect(*ports: ConservingPort) -> Connection: ...
 ```
@@ -2070,8 +1899,6 @@ def connect(*ports: ConservingPort) -> Connection: ...
 ### `eqiora.derivative`
 
 Return the time derivative of a field.
-
-Authority: [`crates/eqiora-python/src/modeling.rs::derivative`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 def derivative(field: Field) -> Expression: ...
@@ -2083,8 +1910,6 @@ def derivative(field: Field) -> Expression: ...
 
 Return the spatial divergence of a symbolic expression.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::div`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 def div(value: _ExpressionLike) -> Expression: ...
 ```
@@ -2095,8 +1920,6 @@ def div(value: _ExpressionLike) -> Expression: ...
 
 Return the spatial gradient of a symbolic expression.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::grad`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 def grad(value: _ExpressionLike) -> Expression: ...
 ```
@@ -2105,21 +1928,17 @@ def grad(value: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.lang`
 
-**Module export.** Continue to [`eqiora.lang`](#module-eqiora-lang).
+See module [`eqiora.lang`](#module-eqiora-lang).
 
-Bounded Python authoring through the compiler-owned Eqiora Module graph.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
+Author Eqiora Modules, Components, expressions, and equations in Python.
 
 <a id="api-eqiora-units"></a>
 
 ### `eqiora.units`
 
-**Module export.** Continue to [`eqiora.units`](#module-eqiora-units).
+See module [`eqiora.units`](#module-eqiora-units).
 
-Compiler-owned unit catalog for deterministic Source quantity authoring.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Unit catalog for authoring Source quantities.
 
 <a id="api-eqiora-resolve"></a>
 
@@ -2132,8 +1951,6 @@ resolved Plan retains the exact caller Model and every applicable caller
 resource. Spatial paths retain their exact Mesh without regeneration;
 structural no-Mesh ODE paths reject spatial resources.
 
-Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings/python/python/eqiora/__init__.py)
-
 ```python
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
@@ -2143,8 +1960,6 @@ def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | f
 ### `eqiora.ProjectUpdate`
 
 A validated selection that can be inspected and committed once.
-
-Authority: [`crates/eqiora-python/src/package/update.rs::PyProjectUpdate`](../../crates/eqiora-python/src/package/update.rs)
 
 ```python
 class ProjectUpdate:
@@ -2164,8 +1979,6 @@ class ProjectUpdate:
 
 Preview the validated selection without installing or publishing it.
 
-Authority: [`crates/eqiora-python/src/package/update.rs::preview_local_project`](../../crates/eqiora-python/src/package/update.rs)
-
 ```python
 def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: ...
 ```
@@ -2175,8 +1988,6 @@ def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: .
 ### `eqiora.resolve_local_project`
 
 Resolve a local package project, write `eqiora.lock`, and populate a store.
-
-Authority: [`crates/eqiora-python/src/package.rs::resolve_local_project`](../../crates/eqiora-python/src/package.rs)
 
 ```python
 def resolve_local_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2188,8 +1999,6 @@ def resolve_local_project(project_root: str | PathLike[str], store_root: str | P
 
 Add or replace a dependency request and publish its exact selection.
 
-Authority: [`crates/eqiora-python/src/package.rs::add_local_dependency`](../../crates/eqiora-python/src/package.rs)
-
 ```python
 def add_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, path: str) -> bytes: ...
 ```
@@ -2200,8 +2009,6 @@ def add_local_dependency(project_root: str | PathLike[str], store_root: str | Pa
 
 Remove a direct dependency and publish the validated manifest and lock.
 
-Authority: [`crates/eqiora-python/src/package.rs::remove_local_dependency`](../../crates/eqiora-python/src/package.rs)
-
 ```python
 def remove_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str) -> bytes: ...
 ```
@@ -2210,9 +2017,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 
 ### `eqiora.run`
 
-Execute one steady or explicitly bounded transient common Plan synchronously.
-
-Authority: [`bindings/python/python/eqiora/__init__.py::run`](../../bindings/python/python/eqiora/__init__.py)
+Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
 ```python
 def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None) -> Result: ...
@@ -2222,9 +2027,7 @@ def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, out
 
 ### `eqiora.submit`
 
-Submit one steady or explicitly bounded transient common Plan.
-
-Authority: [`bindings/python/python/eqiora/__init__.py::submit`](../../bindings/python/python/eqiora/__init__.py)
+Submit a steady Plan or a transient Plan with a specified time interval.
 
 ```python
 def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None) -> Run[Result]: ...
@@ -2236,8 +2039,6 @@ def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, 
 
 Return the through variable of a scalar conserving port.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::through`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 def through(port: ConservingPort) -> Expression: ...
 ```
@@ -2248,8 +2049,6 @@ def through(port: ConservingPort) -> Expression: ...
 
 Return the boundary trace of a symbolic expression.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::trace`](../../crates/eqiora-python/src/modeling.rs)
-
 ```python
 def trace(value: _ExpressionLike) -> Expression: ...
 ```
@@ -2258,129 +2057,103 @@ def trace(value: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.diff`
 
-**Module export.** Continue to [`eqiora.diff`](#module-eqiora-diff).
+See module [`eqiora.diff`](#module-eqiora-diff).
 
-Accepted implicit differentiation over exact Eqiora programs.
-
-Authority: [`bindings/python/python/eqiora/diff.py`](../../bindings/python/python/eqiora/diff.py)
+Implicit differentiation of Eqiora programs.
 
 <a id="api-eqiora-fem"></a>
 
 ### `eqiora.fem`
 
-**Module export.** Continue to [`eqiora.fem`](#module-eqiora-fem).
+See module [`eqiora.fem`](#module-eqiora-fem).
 
-Closed finite-element spatial policies.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates/eqiora-python/src/common_plan/policy.rs)
+Finite-element discretization policies.
 
 <a id="api-eqiora-fluid"></a>
 
 ### `eqiora.fluid`
 
-**Module export.** Continue to [`eqiora.fluid`](#module-eqiora-fluid).
+See module [`eqiora.fluid`](#module-eqiora-fluid).
 
-Narrow fluid applications composed by Eqiora's shared native layer.
-
-Authority: [`bindings/python/python/eqiora/fluid.py`](../../bindings/python/python/eqiora/fluid.py)
+Configure incompressible flow and inspect its results.
 
 <a id="api-eqiora-formulation"></a>
 
 ### `eqiora.formulation`
 
-**Module export.** Continue to [`eqiora.formulation`](#module-eqiora-formulation).
+See module [`eqiora.formulation`](#module-eqiora-formulation).
 
-Mathematical Formulation requests and resolved-selection inspection.
-
-Authority: [`bindings/python/python/eqiora/formulation.py`](../../bindings/python/python/eqiora/formulation.py)
+Choose a mathematical formulation and inspect the resolved choice.
 
 <a id="api-eqiora-fsi"></a>
 
 ### `eqiora.fsi`
 
-**Module export.** Continue to [`eqiora.fsi`](#module-eqiora-fsi).
+See module [`eqiora.fsi`](#module-eqiora-fsi).
 
-Observation-only evidence for common FSI Results.
-
-Authority: [`bindings/python/python/eqiora/fsi.py`](../../bindings/python/python/eqiora/fsi.py)
+Inspect fluid–structure interaction results.
 
 <a id="api-eqiora-fvm"></a>
 
 ### `eqiora.fvm`
 
-**Module export.** Continue to [`eqiora.fvm`](#module-eqiora-fvm).
+See module [`eqiora.fvm`](#module-eqiora-fvm).
 
-Closed finite-volume spatial policies.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan/policy.rs)
+Finite-volume discretization policies.
 
 <a id="api-eqiora-geometry"></a>
 
 ### `eqiora.geometry`
 
-**Module export.** Continue to [`eqiora.geometry`](#module-eqiora-geometry).
+See module [`eqiora.geometry`](#module-eqiora-geometry).
 
-Bounded exact geometry values owned by the native implementation.
-
-Authority: [`bindings/python/python/eqiora/geometry.py`](../../bindings/python/python/eqiora/geometry.py)
+Construct exact geometry values and select regions and boundaries.
 
 <a id="api-eqiora-meshing"></a>
 
 ### `eqiora.meshing`
 
-**Module export.** Continue to [`eqiora.meshing`](#module-eqiora-meshing).
+See module [`eqiora.meshing`](#module-eqiora-meshing).
 
-Immutable geometry-to-mesh planning owned by the native implementation.
-
-Authority: [`bindings/python/python/eqiora/meshing.py`](../../bindings/python/python/eqiora/meshing.py)
+Plan and generate meshes from geometry.
 
 <a id="api-eqiora-solid"></a>
 
 ### `eqiora.solid`
 
-**Module export.** Continue to [`eqiora.solid`](#module-eqiora-solid).
+See module [`eqiora.solid`](#module-eqiora-solid).
 
-Typed structural intents, plans, and scientific evidence.
-
-Authority: [`bindings/python/python/eqiora/solid.py`](../../bindings/python/python/eqiora/solid.py)
+Configure linear elasticity and inspect structural results.
 
 <a id="api-eqiora-solve"></a>
 
 ### `eqiora.solve`
 
-**Module export.** Continue to [`eqiora.solve`](#module-eqiora-solve).
+See module [`eqiora.solve`](#module-eqiora-solve).
 
-Closed algebraic solve policies.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../crates/eqiora-python/src/common_plan/policy.rs)
+Linear and nonlinear solver policies.
 
 <a id="api-eqiora-time"></a>
 
 ### `eqiora.time`
 
-**Module export.** Continue to [`eqiora.time`](#module-eqiora-time).
+See module [`eqiora.time`](#module-eqiora-time).
 
-Closed temporal policies projected by the native Eqiora resolver.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](../../crates/eqiora-python/src/common_plan/policy.rs)
+Time-integration policies for numerical plans.
 
 <a id="api-eqiora-trajectory"></a>
 
 ### `eqiora.trajectory`
 
-**Module export.** Continue to [`eqiora.trajectory`](#module-eqiora-trajectory).
+See module [`eqiora.trajectory`](#module-eqiora-trajectory).
 
-Read-only projections of accepted Eqiora spatial trajectories.
-
-Authority: [`bindings/python/python/eqiora/trajectory.py`](../../bindings/python/python/eqiora/trajectory.py)
+Read spatial trajectories and derived fields.
 
 <a id="api-eqiora-add_bundled_dependency"></a>
 
 ### `eqiora.add_bundled_dependency`
 
 Add one exact bundled package through the shared manifest/lock transaction.
-
-Authority: [`crates/eqiora-python/src/package.rs::add_bundled_dependency`](../../crates/eqiora-python/src/package.rs)
 
 ```python
 def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
@@ -2390,9 +2163,7 @@ def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | 
 
 ### `eqiora.add_git_dependency`
 
-Add an immutable Git package through the shared native project transaction.
-
-Authority: [`crates/eqiora-python/src/package.rs::add_git_dependency`](../../crates/eqiora-python/src/package.rs)
+Add an immutable Git package to the project.
 
 ```python
 def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes: ...
@@ -2404,8 +2175,6 @@ def add_git_dependency(project_root: str | PathLike[str], store_root: str | Path
 
 Materialize the accepted lock from explicit sources without updating it.
 
-Authority: [`crates/eqiora-python/src/package.rs::fetch_project`](../../crates/eqiora-python/src/package.rs)
-
 ```python
 def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
 ```
@@ -2415,8 +2184,6 @@ def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[
 ### `eqiora.open_project`
 
 Validate the current root and exact closure using only the supplied offline store.
-
-Authority: [`crates/eqiora-python/src/package.rs::open_project`](../../crates/eqiora-python/src/package.rs)
 
 ```python
 def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2428,8 +2195,6 @@ def open_project(project_root: str | PathLike[str], store_root: str | PathLike[s
 
 Re-derive the exact lock from current explicit sources and requests.
 
-Authority: [`crates/eqiora-python/src/package.rs::update_project`](../../crates/eqiora-python/src/package.rs)
-
 ```python
 def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
 ```
@@ -2440,8 +2205,6 @@ def update_project(project_root: str | PathLike[str], store_root: str | PathLike
 
 Copy the validated accepted closure to an explicit offline store.
 
-Authority: [`crates/eqiora-python/src/package.rs::vendor_project`](../../crates/eqiora-python/src/package.rs)
-
 ```python
 def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes: ...
 ```
@@ -2450,19 +2213,15 @@ def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike
 
 ## `eqiora.geometry`
 
-Bounded exact geometry values owned by the native implementation.
+Construct exact geometry values and select regions and boundaries.
 
-Module authority: [`bindings/python/python/eqiora/geometry.py`](../../bindings/python/python/eqiora/geometry.py)
-
-Shipped stub: [`bindings/python/python/eqiora/geometry.pyi`](../../bindings/python/python/eqiora/geometry.pyi)
+[View source](../../bindings/python/python/eqiora/geometry.pyi)
 
 <a id="api-eqiora-geometry-Geometry"></a>
 
 ### `eqiora.geometry.Geometry`
 
 Immutable exact geometry produced by an accepted authored graph.
-
-Authority: [`crates/eqiora-python/src/geometry.rs::PyGeometry`](../../crates/eqiora-python/src/geometry.rs)
 
 ```python
 @final
@@ -2490,9 +2249,7 @@ class Geometry:
 
 ### `eqiora.geometry.GeometryBoundaryHandle`
 
-Direct construction-owned handle to one exact boundary.
-
-Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle`](../../crates/eqiora-python/src/planar_operation.rs)
+Handle to one exact boundary returned by geometry construction.
 
 ```python
 @final
@@ -2506,9 +2263,7 @@ class GeometryBoundaryHandle:
 
 ### `eqiora.geometry.GeometryBuildReceipt`
 
-Read-only receipt from an admitted solid build.
-
-Authority: [`crates/eqiora-python/src/cad_authored.rs::PyGeometryBuildReceipt`](../../crates/eqiora-python/src/cad_authored.rs)
+Read-only result of a solid build.
 
 ```python
 @final
@@ -2552,8 +2307,6 @@ class GeometryBuildReceipt:
 
 Exact solid-face handle bound to one graph session and revision.
 
-Authority: [`crates/eqiora-python/src/cad_authored.rs::PyGeometryFaceHandle`](../../crates/eqiora-python/src/cad_authored.rs)
-
 ```python
 @final
 class GeometryFaceHandle:
@@ -2572,8 +2325,6 @@ class GeometryFaceHandle:
 ### `eqiora.geometry.GeometryGraph`
 
 Common owner of exact Cartesian, planar, and solid authoring operations.
-
-Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph`](../../crates/eqiora-python/src/planar_operation.rs)
 
 ```python
 @final
@@ -2606,8 +2357,6 @@ Immutable result of one exact primitive or Boolean operation.
 `(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
 and subtract returns the four outer boundaries followed by the created cut.
 
-Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryOperation`](../../crates/eqiora-python/src/planar_operation.rs)
-
 ```python
 @final
 class GeometryOperation:
@@ -2622,9 +2371,7 @@ class GeometryOperation:
 
 ### `eqiora.geometry.GeometryRegionHandle`
 
-Direct construction-owned handle to one exact region.
-
-Authority: [`crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle`](../../crates/eqiora-python/src/planar_operation.rs)
+Handle to one exact region returned by geometry construction.
 
 ```python
 @final
@@ -2639,8 +2386,6 @@ class GeometryRegionHandle:
 ### `eqiora.geometry.GeometrySelection`
 
 Immutable named selection bound to one exact Geometry revision.
-
-Authority: [`crates/eqiora-python/src/geometry.rs::PyGeometrySelection`](../../crates/eqiora-python/src/geometry.rs)
 
 ```python
 @final
@@ -2661,8 +2406,6 @@ class GeometrySelection:
 ### `eqiora.geometry.GeometrySolidOperation`
 
 Immutable solid operation owned by one `GeometryGraph`.
-
-Authority: [`crates/eqiora-python/src/cad_authored.rs::PyGeometrySolidOperation`](../../crates/eqiora-python/src/cad_authored.rs)
 
 ```python
 @final
@@ -2724,19 +2467,15 @@ class GeometrySolidOperation:
 
 ## `eqiora.lang`
 
-Bounded Python authoring through the compiler-owned Eqiora Module graph.
+Author Eqiora Modules, Components, expressions, and equations in Python.
 
-Module authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
-
-Shipped stub: [`bindings/python/python/eqiora/lang/__init__.pyi`](../../bindings/python/python/eqiora/lang/__init__.pyi)
+[View source](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
 <a id="api-eqiora-lang-equal"></a>
 
 ### `eqiora.lang.equal`
 
 Author a typed equal predicate.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::equal`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def equal(left: object, right: object) -> Expression: ...
@@ -2748,8 +2487,6 @@ def equal(left: object, right: object) -> Expression: ...
 
 Author a typed not equal predicate.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::not_equal`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def not_equal(left: object, right: object) -> Expression: ...
 ```
@@ -2759,8 +2496,6 @@ def not_equal(left: object, right: object) -> Expression: ...
 ### `eqiora.lang.less`
 
 Author a typed less predicate.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::less`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def less(left: object, right: object) -> Expression: ...
@@ -2772,8 +2507,6 @@ def less(left: object, right: object) -> Expression: ...
 
 Author a typed less equal predicate.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::less_equal`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def less_equal(left: object, right: object) -> Expression: ...
 ```
@@ -2783,8 +2516,6 @@ def less_equal(left: object, right: object) -> Expression: ...
 ### `eqiora.lang.greater`
 
 Author a typed greater predicate.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::greater`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def greater(left: object, right: object) -> Expression: ...
@@ -2796,8 +2527,6 @@ def greater(left: object, right: object) -> Expression: ...
 
 Author a typed greater equal predicate.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::greater_equal`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def greater_equal(left: object, right: object) -> Expression: ...
 ```
@@ -2807,8 +2536,6 @@ def greater_equal(left: object, right: object) -> Expression: ...
 ### `eqiora.lang.logical_not`
 
 Author a typed logical not predicate.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::logical_not`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def logical_not(value: object) -> Expression: ...
@@ -2820,8 +2547,6 @@ def logical_not(value: object) -> Expression: ...
 
 Author a typed logical and predicate.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::logical_and`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def logical_and(left: object, right: object) -> Expression: ...
 ```
@@ -2831,8 +2556,6 @@ def logical_and(left: object, right: object) -> Expression: ...
 ### `eqiora.lang.logical_or`
 
 Author a typed logical or predicate.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::logical_or`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def logical_or(left: object, right: object) -> Expression: ...
@@ -2844,8 +2567,6 @@ def logical_or(left: object, right: object) -> Expression: ...
 
 Identify one nominal periodic clock in its exact Component.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Clock`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class Clock:
@@ -2856,9 +2577,7 @@ class Clock:
 
 ### `eqiora.lang.Component`
 
-Author one bounded public Component and an admitted exact instance binding.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Component`](../../bindings/python/python/eqiora/lang/__init__.py)
+Author a public Component and bind an instance of it.
 
 ```python
 @final
@@ -2897,8 +2616,6 @@ class Component:
 
 Immutable reference to one public Component in an explicit import.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::ComponentRef`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class ComponentRef:
@@ -2911,8 +2628,6 @@ class ComponentRef:
 ### `eqiora.lang.Equation`
 
 Immutable ordered mathematical equality, never a Python truth value.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Equation`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
@@ -2928,9 +2643,7 @@ class Equation:
 
 ### `eqiora.lang.equation`
 
-Construct an explicit equality from typed expressions and admitted literals.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::equation`](../../bindings/python/python/eqiora/lang/__init__.py)
+Construct an explicit equality from typed expressions and literals.
 
 ```python
 def equation(lhs: object, rhs: object) -> Equation: ...
@@ -2941,8 +2654,6 @@ def equation(lhs: object, rhs: object) -> Equation: ...
 ### `eqiora.lang.Expression`
 
 Compose a closed expression without overloading equality as an equation.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Expression`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
@@ -2973,8 +2684,6 @@ class Expression:
 
 A closed enum declaration shared within its Module.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Enum`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class Enum:
@@ -2993,8 +2702,6 @@ class Enum:
 
 Identify a crossing event in its exact Component.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Event`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class Event:
@@ -3007,8 +2714,6 @@ class Event:
 
 Identify one immutable typed material composition in its exact Module.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::MaterialComposition`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class MaterialComposition:
@@ -3019,9 +2724,7 @@ class MaterialComposition:
 
 ### `eqiora.lang.Notation`
 
-Native-validated, immutable declaration notation; accepts one complete `@{...}` island.
-
-Authority: [`crates/eqiora-python/src/notation.rs::PyNotation`](../../crates/eqiora-python/src/notation.rs)
+Validated, immutable declaration notation; accepts one complete `@{...}` island.
 
 ```python
 @final
@@ -3038,8 +2741,6 @@ class Notation:
 
 An immutable typed operator declared by one Module; call with named arguments.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Operator`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class Operator:
@@ -3051,8 +2752,6 @@ class Operator:
 ### `eqiora.lang.PropertyContract`
 
 Identify one typed property contract in its exact Module.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyContract`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
@@ -3066,8 +2765,6 @@ class PropertyContract:
 
 Identify one exact constant scalar release in its exact Module.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyRelease`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class PropertyRelease:
@@ -3080,8 +2777,6 @@ class PropertyRelease:
 
 Identify one relation declaration in its exact Module.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Relation`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class Relation:
@@ -3093,8 +2788,6 @@ class Relation:
 ### `eqiora.lang.Module`
 
 Own a compiler-backed module graph and freeze declarations on emission or compilation.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Module`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
@@ -3120,9 +2813,7 @@ class Module:
 
 ### `eqiora.lang.ModuleError`
 
-Reject a structurally invalid bounded Module draft.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::ModuleError`](../../bindings/python/python/eqiora/lang/__init__.py)
+Reject a structurally invalid Module draft.
 
 ```python
 @final
@@ -3136,8 +2827,6 @@ class ModuleError(ValueError):
 
 An explicit module import with immutable Component references.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::ModuleRef`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 @final
 class ModuleRef:
@@ -3149,8 +2838,6 @@ class ModuleRef:
 ### `eqiora.lang.Support`
 
 Identify one volume or parent-boundary declaration in its exact Module.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Support`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
@@ -3164,8 +2851,6 @@ class Support:
 
 Construct channel arrays with exact ordered components.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::array`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def array(values: Sequence[object]) -> Expression: ...
 ```
@@ -3175,8 +2860,6 @@ def array(values: Sequence[object]) -> Expression: ...
 ### `eqiora.lang.case`
 
 Author ordered closed-member cases; compiler checks exhaustiveness and types.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::case`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -3188,8 +2871,6 @@ def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression
 
 Return one indexed spatial-coordinate expression.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::coordinate`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def coordinate(axis: int) -> Expression: ...
 ```
@@ -3199,8 +2880,6 @@ def coordinate(axis: int) -> Expression: ...
 ### `eqiora.lang.dot`
 
 Return the inner product of two authored expressions.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::dot`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def dot(left: Expression | float | int | complex, right: Expression | float | int | complex) -> Expression: ...
@@ -3212,8 +2891,6 @@ def dot(left: Expression | float | int | complex, right: Expression | float | in
 
 Return the language divergence of one expression.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::div`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def div(value: Expression) -> Expression: ...
 ```
@@ -3223,8 +2900,6 @@ def div(value: Expression) -> Expression: ...
 ### `eqiora.lang.grad`
 
 Return the language gradient of one expression.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::grad`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def grad(value: Expression) -> Expression: ...
@@ -3236,8 +2911,6 @@ def grad(value: Expression) -> Expression: ...
 
 Return one volume integral over an exact Module Support.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::integrate`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def integrate(domain: Support, integrand: Expression | float | int | complex) -> Expression: ...
 ```
@@ -3247,8 +2920,6 @@ def integrate(domain: Support, integrand: Expression | float | int | complex) ->
 ### `eqiora.lang.if_else`
 
 Author a conditional with all operands checked and one branch executed.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::if_else`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def if_else(condition: object, then_value: object, else_value: object) -> Expression: ...
@@ -3260,8 +2931,6 @@ def if_else(condition: object, then_value: object, else_value: object) -> Expres
 
 Return the language isotropic tensor lift of one expression.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::isotropic_lift`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def isotropic_lift(value: Expression) -> Expression: ...
 ```
@@ -3271,8 +2940,6 @@ def isotropic_lift(value: Expression) -> Expression: ...
 ### `eqiora.lang.math`
 
 Exact language constants used by Module expressions.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::math`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 math: _Math
@@ -3284,8 +2951,6 @@ math: _Math
 
 Return the language outward-normal contraction of one expression.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::normal`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def normal(value: Expression) -> Expression: ...
 ```
@@ -3295,8 +2960,6 @@ def normal(value: Expression) -> Expression: ...
 ### `eqiora.lang.ordinal`
 
 Explicitly project an index's ordinary integer ordinal.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::ordinal`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def ordinal(value: Expression) -> Expression: ...
@@ -3308,8 +2971,6 @@ def ordinal(value: Expression) -> Expression: ...
 
 Read a State's pre-tick value; compiler checks clock and context.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::pre`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def pre(value: Expression) -> Expression: ...
 ```
@@ -3319,8 +2980,6 @@ def pre(value: Expression) -> Expression: ...
 ### `eqiora.lang.next`
 
 Name a State's next-tick value; compiler checks clock and context.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::next`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def next(value: Expression) -> Expression: ...
@@ -3332,8 +2991,6 @@ def next(value: Expression) -> Expression: ...
 
 Author an input quantity; the compiler owns conversion to coherent SI.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::quantity`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 ```
@@ -3343,8 +3000,6 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 ### `eqiora.lang.quotient`
 
 Return the checked integer quotient truncated toward zero.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::quotient`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
@@ -3356,8 +3011,6 @@ def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
 
 Return the integer remainder with the dividend's sign.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::remainder`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def remainder(left: Expression | int, right: Expression | int) -> Expression: ...
 ```
@@ -3367,8 +3020,6 @@ def remainder(left: Expression | int, right: Expression | int) -> Expression: ..
 ### `eqiora.lang.to_real`
 
 Explicitly convert an integer to a real, with possible precision loss.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::to_real`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def to_real(value: Expression | int) -> Expression: ...
@@ -3380,8 +3031,6 @@ def to_real(value: Expression | int) -> Expression: ...
 
 Convert an integral finite dimensionless real within the signed integer range.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::to_integer`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def to_integer(value: Expression | float | int) -> Expression: ...
 ```
@@ -3392,8 +3041,6 @@ def to_integer(value: Expression | float | int) -> Expression: ...
 
 Return the language symmetric part of one expression.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::symmetric_part`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def symmetric_part(value: Expression) -> Expression: ...
 ```
@@ -3403,8 +3050,6 @@ def symmetric_part(value: Expression) -> Expression: ...
 ### `eqiora.lang.test`
 
 Return the test function associated with one Module Field.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::test`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 def test(field: Expression) -> Expression: ...
@@ -3419,8 +3064,6 @@ Construct a uniform spatial value using this Component's explicit frame.
 The compiler checks shape, scalar domain, units, and frame eligibility.
 Channel axes remain explicit array constructions.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::tensor_value`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression: ...
 ```
@@ -3431,8 +3074,6 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
 
 Return the language boundary trace of one expression.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::trace`](../../bindings/python/python/eqiora/lang/__init__.py)
-
 ```python
 def trace(value: Expression) -> Expression: ...
 ```
@@ -3441,19 +3082,15 @@ def trace(value: Expression) -> Expression: ...
 
 ## `eqiora.units`
 
-Compiler-owned unit catalog for deterministic Source quantity authoring.
+Unit catalog for authoring Source quantities.
 
-Module authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
-
-Shipped stub: [`bindings/python/python/eqiora/units.pyi`](../../bindings/python/python/eqiora/units.pyi)
+[View source](../../bindings/python/python/eqiora/units.pyi)
 
 <a id="api-eqiora-units-Unit"></a>
 
 ### `eqiora.units.Unit`
 
-Compose an immutable bounded structural input-unit expression.
-
-Authority: [`bindings/python/python/eqiora/units.py::Unit`](../../bindings/python/python/eqiora/units.py)
+Compose an immutable input-unit expression.
 
 ```python
 @final
@@ -3468,9 +3105,7 @@ class Unit:
 
 ### `eqiora.units.kg`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 kg: Final[Unit]
@@ -3480,9 +3115,7 @@ kg: Final[Unit]
 
 ### `eqiora.units.m`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 m: Final[Unit]
@@ -3492,9 +3125,7 @@ m: Final[Unit]
 
 ### `eqiora.units.s`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 s: Final[Unit]
@@ -3504,9 +3135,7 @@ s: Final[Unit]
 
 ### `eqiora.units.A`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 A: Final[Unit]
@@ -3516,9 +3145,7 @@ A: Final[Unit]
 
 ### `eqiora.units.K`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 K: Final[Unit]
@@ -3528,9 +3155,7 @@ K: Final[Unit]
 
 ### `eqiora.units.mol`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 mol: Final[Unit]
@@ -3540,9 +3165,7 @@ mol: Final[Unit]
 
 ### `eqiora.units.cd`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 cd: Final[Unit]
@@ -3552,9 +3175,7 @@ cd: Final[Unit]
 
 ### `eqiora.units.Hz`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 Hz: Final[Unit]
@@ -3564,9 +3185,7 @@ Hz: Final[Unit]
 
 ### `eqiora.units.N`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 N: Final[Unit]
@@ -3576,9 +3195,7 @@ N: Final[Unit]
 
 ### `eqiora.units.Pa`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 Pa: Final[Unit]
@@ -3588,9 +3205,7 @@ Pa: Final[Unit]
 
 ### `eqiora.units.J`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 J: Final[Unit]
@@ -3600,9 +3215,7 @@ J: Final[Unit]
 
 ### `eqiora.units.W`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 W: Final[Unit]
@@ -3612,9 +3225,7 @@ W: Final[Unit]
 
 ### `eqiora.units.C`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 C: Final[Unit]
@@ -3624,9 +3235,7 @@ C: Final[Unit]
 
 ### `eqiora.units.V`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 V: Final[Unit]
@@ -3636,9 +3245,7 @@ V: Final[Unit]
 
 ### `eqiora.units.Ohm`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 Ohm: Final[Unit]
@@ -3648,9 +3255,7 @@ Ohm: Final[Unit]
 
 ### `eqiora.units.S`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 S: Final[Unit]
@@ -3660,9 +3265,7 @@ S: Final[Unit]
 
 ### `eqiora.units.F`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 F: Final[Unit]
@@ -3672,9 +3275,7 @@ F: Final[Unit]
 
 ### `eqiora.units.H`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 H: Final[Unit]
@@ -3684,9 +3285,7 @@ H: Final[Unit]
 
 ### `eqiora.units.Wb`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 Wb: Final[Unit]
@@ -3696,9 +3295,7 @@ Wb: Final[Unit]
 
 ### `eqiora.units.T`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 T: Final[Unit]
@@ -3708,9 +3305,7 @@ T: Final[Unit]
 
 ### `eqiora.units.g`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 g: Final[Unit]
@@ -3720,9 +3315,7 @@ g: Final[Unit]
 
 ### `eqiora.units.one`
 
-Compiler-owned input-unit symbol.
-
-Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+Input-unit symbol.
 
 ```python
 one: Final[Unit]
@@ -3732,11 +3325,9 @@ one: Final[Unit]
 
 ## `eqiora.meshing`
 
-Immutable geometry-to-mesh planning owned by the native implementation.
+Plan and generate meshes from geometry.
 
-Module authority: [`bindings/python/python/eqiora/meshing.py`](../../bindings/python/python/eqiora/meshing.py)
-
-Shipped stub: [`bindings/python/python/eqiora/meshing.pyi`](../../bindings/python/python/eqiora/meshing.pyi)
+[View source](../../bindings/python/python/eqiora/meshing.pyi)
 
 <a id="api-eqiora-meshing-AffineTriangleMesher"></a>
 
@@ -3744,10 +3335,8 @@ Shipped stub: [`bindings/python/python/eqiora/meshing.pyi`](../../bindings/pytho
 
 Select deterministic rectangle affine-triangle meshing.
 
-Every structured cell uses the provider-owned lower-left to upper-right
+Every structured cell uses the lower-left to upper-right
 diagonal; callers select only the positive subdivision counts.
-
-Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
 
 ```python
 @final
@@ -3767,8 +3356,6 @@ class AffineTriangleMesher:
 
 Select deterministic structured Cartesian meshing.
 
-Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
-
 ```python
 @final
 class CartesianMesher:
@@ -3784,8 +3371,6 @@ class CartesianMesher:
 ### `eqiora.meshing.GmshMesher`
 
 Select the exact external Gmsh provider.
-
-Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher`](../../crates/eqiora-python/src/meshing/plan.rs)
 
 ```python
 @final
@@ -3808,8 +3393,6 @@ class GmshMesher:
 ### `eqiora.meshing.Mesh`
 
 Immutable source-bound accepted mesh.
-
-Authority: [`crates/eqiora-python/src/meshing/mesh.rs::PyMesh`](../../crates/eqiora-python/src/meshing/mesh.rs)
 
 ```python
 @final
@@ -3855,8 +3438,6 @@ class Mesh:
 
 Complete provider plan bound to one exact geometry.
 
-Authority: [`crates/eqiora-python/src/meshing/plan.rs::PyMeshPlan`](../../crates/eqiora-python/src/meshing/plan.rs)
-
 ```python
 @final
 class MeshPlan:
@@ -3873,8 +3454,6 @@ class MeshPlan:
 
 Execute a resolved provider plan and publish its accepted mesh.
 
-Authority: [`crates/eqiora-python/src/meshing/mesh.rs::generate`](../../crates/eqiora-python/src/meshing/mesh.rs)
-
 ```python
 def generate(plan: MeshPlan, /) -> Mesh: ...
 ```
@@ -3885,8 +3464,6 @@ def generate(plan: MeshPlan, /) -> Mesh: ...
 
 Resolve a provider plan for the exact supplied geometry.
 
-Authority: [`crates/eqiora-python/src/meshing/plan.rs::resolve`](../../crates/eqiora-python/src/meshing/plan.rs)
-
 ```python
 def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> MeshPlan: ...
 ```
@@ -3895,49 +3472,39 @@ def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher
 
 ## `eqiora.formulation`
 
-Mathematical Formulation requests and resolved-selection inspection.
+Choose a mathematical formulation and inspect the resolved choice.
 
-Module authority: [`bindings/python/python/eqiora/formulation.py`](../../bindings/python/python/eqiora/formulation.py)
-
-Shipped stub: [`bindings/python/python/eqiora/formulation.pyi`](../../bindings/python/python/eqiora/formulation.pyi)
+[View source](../../bindings/python/python/eqiora/formulation.pyi)
 
 <a id="api-eqiora-formulation-FormulationKind"></a>
 
 ### `eqiora.formulation.FormulationKind`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.FormulationKind`](#api-eqiora-FormulationKind).
+See [`eqiora.FormulationKind`](#api-eqiora-FormulationKind).
 
 Closed mathematical Formulation families accepted by exact override.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 <a id="api-eqiora-formulation-FormulationSelectionMode"></a>
 
 ### `eqiora.formulation.FormulationSelectionMode`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.FormulationSelectionMode`](#api-eqiora-FormulationSelectionMode).
+See [`eqiora.FormulationSelectionMode`](#api-eqiora-FormulationSelectionMode).
 
-Whether resolution selected or admitted an exact Formulation.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
+Whether a Formulation was selected automatically or supplied explicitly.
 
 <a id="api-eqiora-formulation-FormulationView"></a>
 
 ### `eqiora.formulation.FormulationView`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.FormulationView`](#api-eqiora-FormulationView).
+See [`eqiora.FormulationView`](#api-eqiora-FormulationView).
 
 Effective mathematical form selected between Model and Realization.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 <a id="api-eqiora-formulation-PrimalGalerkin"></a>
 
 ### `eqiora.formulation.PrimalGalerkin`
 
 Primal Galerkin form used by scalar and displacement fields.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 ```python
 PrimalGalerkin: Final[FormulationKind]
@@ -3949,8 +3516,6 @@ PrimalGalerkin: Final[FormulationKind]
 
 Mixed Galerkin form used by coupled velocity-pressure fields.
 
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
-
 ```python
 MixedGalerkin: Final[FormulationKind]
 ```
@@ -3961,8 +3526,6 @@ MixedGalerkin: Final[FormulationKind]
 
 Integral-conservative form used by face-flux finite volumes.
 
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
-
 ```python
 IntegralConservative: Final[FormulationKind]
 ```
@@ -3971,19 +3534,15 @@ IntegralConservative: Final[FormulationKind]
 
 ## `eqiora.fem`
 
-Closed finite-element spatial policies.
+Finite-element discretization policies.
 
-Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
-Shipped stub: [`bindings/python/python/eqiora/fem.pyi`](../../bindings/python/python/eqiora/fem.pyi)
+[View source](../../bindings/python/python/eqiora/fem.pyi)
 
 <a id="api-eqiora-fem-MiniP1"></a>
 
 ### `eqiora.fem.MiniP1`
 
 Mixed MINI velocity and continuous P1 pressure spatial policy.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyMiniP1`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
@@ -4009,8 +3568,6 @@ class MiniP1:
 
 Continuous simplex P1 Galerkin spatial policy.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyP1`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 @final
 class P1:
@@ -4033,8 +3590,6 @@ class P1:
 
 Continuous tensor-product Q1 Galerkin spatial policy.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyQ1`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 @final
 class Q1:
@@ -4056,8 +3611,6 @@ class Q1:
 
 One exact Model-Domain-bound spatial policy.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyScopedSpatialBinding`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 @final
 class ScopedSpatialPolicy:
@@ -4075,19 +3628,15 @@ class ScopedSpatialPolicy:
 
 ## `eqiora.fvm`
 
-Closed finite-volume spatial policies.
+Finite-volume discretization policies.
 
-Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
-Shipped stub: [`bindings/python/python/eqiora/fvm.pyi`](../../bindings/python/python/eqiora/fvm.pyi)
+[View source](../../bindings/python/python/eqiora/fvm.pyi)
 
 <a id="api-eqiora-fvm-CellCentered"></a>
 
 ### `eqiora.fvm.CellCentered`
 
 Collocated cell-centred incompressible-flow spatial policy.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCentered`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
@@ -4112,8 +3661,6 @@ class CellCentered:
 
 Cell-centred orthogonal two-point-flux spatial policy.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 @final
 class CellCenteredTpfa:
@@ -4133,19 +3680,15 @@ class CellCenteredTpfa:
 
 ## `eqiora.solve`
 
-Closed algebraic solve policies.
+Linear and nonlinear solver policies.
 
-Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
-Shipped stub: [`bindings/python/python/eqiora/solve.pyi`](../../bindings/python/python/eqiora/solve.pyi)
+[View source](../../bindings/python/python/eqiora/solve.pyi)
 
 <a id="api-eqiora-solve-SolverPlanningObjective"></a>
 
 ### `eqiora.solve.SolverPlanningObjective`
 
 Preference consumed by the versioned host-serial solver planner.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
@@ -4163,8 +3706,6 @@ class SolverPlanningObjective:
 
 Prefer the reproducible-reduction catalog member.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 Robust: Final[SolverPlanningObjective]
 ```
@@ -4174,8 +3715,6 @@ Robust: Final[SolverPlanningObjective]
 ### `eqiora.solve.Fast`
 
 Prefer Fast reduction and then the direct catalog member.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 Fast: Final[SolverPlanningObjective]
@@ -4187,8 +3726,6 @@ Fast: Final[SolverPlanningObjective]
 
 Prefer the fixed-vector Krylov catalog member.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 LowMemory: Final[SolverPlanningObjective]
 ```
@@ -4197,9 +3734,7 @@ LowMemory: Final[SolverPlanningObjective]
 
 ### `eqiora.solve.Linear`
 
-Linear-solve controls resolved against Model-owned operator meaning.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyLinear`](../../crates/eqiora-python/src/common_plan/policy.rs)
+Linear-solve controls for the Model operator.
 
 ```python
 @final
@@ -4222,9 +3757,7 @@ class Linear:
 
 ### `eqiora.solve.Newton`
 
-Bounded Newton policy owning exact nested linear controls.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyNewton`](../../crates/eqiora-python/src/common_plan/policy.rs)
+Newton solver policy with nested linear-solve controls.
 
 ```python
 @final
@@ -4250,8 +3783,6 @@ class Newton:
 ### `eqiora.solve.ResolvedLinear`
 
 Exact linear algorithm, operator class, and provider selected by resolution.
-
-Authority: [`crates/eqiora-python/src/common_plan/resolved_solve.rs::PyResolvedLinear`](../../crates/eqiora-python/src/common_plan/resolved_solve.rs)
 
 ```python
 @final
@@ -4293,8 +3824,6 @@ class ResolvedLinear:
 
 Exact Newton policy and nested resolved linear solver.
 
-Authority: [`crates/eqiora-python/src/common_plan/resolved_solve.rs::PyResolvedNewton`](../../crates/eqiora-python/src/common_plan/resolved_solve.rs)
-
 ```python
 @final
 class ResolvedNewton:
@@ -4315,19 +3844,15 @@ class ResolvedNewton:
 
 ## `eqiora.time`
 
-Closed temporal policies projected by the native Eqiora resolver.
+Time-integration policies for numerical plans.
 
-Module authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
-Shipped stub: [`bindings/python/python/eqiora/time.pyi`](../../bindings/python/python/eqiora/time.pyi)
+[View source](../../bindings/python/python/eqiora/time.pyi)
 
 <a id="api-eqiora-time-BackwardEuler"></a>
 
 ### `eqiora.time.BackwardEuler`
 
 Positive Backward-Euler operator step.
-
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler`](../../crates/eqiora-python/src/common_plan/policy.rs)
 
 ```python
 @final
@@ -4343,8 +3868,6 @@ class BackwardEuler:
 ### `eqiora.time.OdePlanView`
 
 Resolved no-Mesh ODE capability.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyOdePlanView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 ```python
 @final
@@ -4364,8 +3887,6 @@ class OdePlanView:
 
 Adaptive explicit ODE integration with exact Field-bound SI tolerances.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 @final
 class Tsitouras45:
@@ -4383,19 +3904,15 @@ class Tsitouras45:
 
 ## `eqiora.fluid`
 
-Narrow fluid applications composed by Eqiora's shared native layer.
+Configure incompressible flow and inspect its results.
 
-Module authority: [`bindings/python/python/eqiora/fluid.py`](../../bindings/python/python/eqiora/fluid.py)
-
-Shipped stub: [`bindings/python/python/eqiora/fluid.pyi`](../../bindings/python/python/eqiora/fluid.pyi)
+[View source](../../bindings/python/python/eqiora/fluid.pyi)
 
 <a id="api-eqiora-fluid-IncompressibleFlowPlanView"></a>
 
 ### `eqiora.fluid.IncompressibleFlowPlanView`
 
 Resolved incompressible-flow roles, spaces, gauge, and scales.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyIncompressibleFlowPlanView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 ```python
 @final
@@ -4422,9 +3939,7 @@ class IncompressibleFlowPlanView:
 
 ### `eqiora.fluid.IncompressibleScales`
 
-Immutable effective 2D incompressible scales owned by a resolved Plan.
-
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales`](../../crates/eqiora-python/src/common_plan/scaling.rs)
+Immutable effective 2D incompressible scales for a resolved Plan.
 
 ```python
 @final
@@ -4449,8 +3964,6 @@ Optional manual components for exact-cylinder incompressible scaling.
 
 `None` leaves that component under deterministic resolver ownership.
 
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScaling`](../../crates/eqiora-python/src/common_plan/scaling.rs)
-
 ```python
 @final
 class IncompressibleScaling:
@@ -4470,8 +3983,6 @@ class IncompressibleScaling:
 ### `eqiora.fluid.IncompressibleScalingAuthority2d`
 
 Immutable typed authoritative observation.
-
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthority2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
 
 ```python
 @final
@@ -4502,8 +4013,6 @@ class IncompressibleScalingAuthority2d:
 
 Closed kind of authoritative scaling observation.
 
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthorityKind`](../../crates/eqiora-python/src/common_plan/scaling.rs)
-
 ```python
 @final
 class IncompressibleScalingAuthorityKind:
@@ -4523,8 +4032,6 @@ class IncompressibleScalingAuthorityKind:
 
 Closed intrinsic-2D scaling component.
 
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponent2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
-
 ```python
 @final
 class IncompressibleScalingComponent2d:
@@ -4542,8 +4049,6 @@ class IncompressibleScalingComponent2d:
 ### `eqiora.fluid.IncompressibleScalingComponentRecord2d`
 
 Immutable effective value and provenance for one component.
-
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponentRecord2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
 
 ```python
 @final
@@ -4570,8 +4075,6 @@ class IncompressibleScalingComponentRecord2d:
 
 Closed provenance mode for one effective scaling component.
 
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingMode`](../../crates/eqiora-python/src/common_plan/scaling.rs)
-
 ```python
 @final
 class IncompressibleScalingMode:
@@ -4587,8 +4090,6 @@ class IncompressibleScalingMode:
 ### `eqiora.fluid.IncompressibleScalingReceipt2d`
 
 Immutable five-component receipt with exact resource lineage.
-
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScalingReceipt2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
 
 ```python
 @final
@@ -4625,8 +4126,6 @@ class IncompressibleScalingReceipt2d:
 
 Closed rule used to resolve one intrinsic-2D component.
 
-Authority: [`crates/eqiora-python/src/common_plan/scaling.rs::PyScalingRule2d`](../../crates/eqiora-python/src/common_plan/scaling.rs)
-
 ```python
 @final
 class IncompressibleScalingRule2d:
@@ -4649,8 +4148,6 @@ class IncompressibleScalingRule2d:
 
 Closed pressure representative selected by transient resolution.
 
-Authority: [`crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d`](../../crates/eqiora-python/src/common_plan/policy.rs)
-
 ```python
 @final
 class PressureGauge2d:
@@ -4665,8 +4162,6 @@ class PressureGauge2d:
 ### `eqiora.fluid.SteadyStokesEvidence`
 
 Scientific evidence selected from an accepted steady-Stokes result.
-
-Authority: [`crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesEvidence`](../../crates/eqiora-python/src/steady_stokes.rs)
 
 ```python
 @final
@@ -4707,8 +4202,6 @@ class SteadyStokesEvidence:
 
 Select typed steady-Stokes evidence from its accepted result.
 
-Authority: [`crates/eqiora-python/src/steady_stokes.rs::steady_stokes_evidence`](../../crates/eqiora-python/src/steady_stokes.rs)
-
 ```python
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence: ...
 ```
@@ -4717,19 +4210,15 @@ def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence: ...
 
 ## `eqiora.trajectory`
 
-Read-only projections of accepted Eqiora spatial trajectories.
+Read spatial trajectories and derived fields.
 
-Module authority: [`bindings/python/python/eqiora/trajectory.py`](../../bindings/python/python/eqiora/trajectory.py)
-
-Shipped stub: [`bindings/python/python/eqiora/trajectory.pyi`](../../bindings/python/python/eqiora/trajectory.pyi)
+[View source](../../bindings/python/python/eqiora/trajectory.pyi)
 
 <a id="api-eqiora-trajectory-BoundaryForce"></a>
 
 ### `eqiora.trajectory.BoundaryForce`
 
 Signed intrinsic-2D force pair on one authenticated boundary.
-
-Authority: [`crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryForce`](../../crates/eqiora-python/src/trajectory/observation.rs)
 
 ```python
 @final
@@ -4764,8 +4253,6 @@ class BoundaryForce:
 
 Signed intrinsic-2D volume flux on one authenticated boundary.
 
-Authority: [`crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryFlux`](../../crates/eqiora-python/src/trajectory/observation.rs)
-
 ```python
 @final
 class BoundaryFlux:
@@ -4794,8 +4281,6 @@ class BoundaryFlux:
 ### `eqiora.trajectory.DerivedFieldSnapshot`
 
 Typed mathematical result derived from one accepted spatial Field.
-
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyDerivedFieldSnapshot`](../../crates/eqiora-python/src/trajectory.rs)
 
 ```python
 @final
@@ -4834,8 +4319,6 @@ class DerivedFieldSnapshot:
 
 Typed continuous-Field sample at one physical point.
 
-Authority: [`crates/eqiora-python/src/trajectory/observation.rs::PyFieldSample`](../../crates/eqiora-python/src/trajectory/observation.rs)
-
 ```python
 @final
 class FieldSample:
@@ -4866,8 +4349,6 @@ class FieldSample:
 ### `eqiora.trajectory.FieldSnapshot`
 
 Exact semantic field observation in an accepted trajectory state.
-
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyFieldSnapshot`](../../crates/eqiora-python/src/trajectory.rs)
 
 ```python
 @final
@@ -4901,8 +4382,6 @@ class FieldSnapshot:
 ### `eqiora.trajectory.Trajectory`
 
 Immutable installed-Python projection of an accepted trajectory.
-
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyTrajectory`](../../crates/eqiora-python/src/trajectory.rs)
 
 ```python
 @final
@@ -4948,29 +4427,23 @@ class Trajectory:
 
 ### `eqiora.trajectory.State`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.State`](#api-eqiora-State).
+See [`eqiora.State`](#api-eqiora-State).
 
-Accepted physical state owned by one exact common Plan.
-
-Authority: [`crates/eqiora-python/src/trajectory.rs::PyState`](../../crates/eqiora-python/src/trajectory.rs)
+Physical state associated with one Plan.
 
 <a id="module-eqiora-fsi"></a>
 
 ## `eqiora.fsi`
 
-Observation-only evidence for common FSI Results.
+Inspect fluid–structure interaction results.
 
-Module authority: [`bindings/python/python/eqiora/fsi.py`](../../bindings/python/python/eqiora/fsi.py)
-
-Shipped stub: [`bindings/python/python/eqiora/fsi.pyi`](../../bindings/python/python/eqiora/fsi.pyi)
+[View source](../../bindings/python/python/eqiora/fsi.pyi)
 
 <a id="api-eqiora-fsi-FixedReferenceFsiPlanView"></a>
 
 ### `eqiora.fsi.FixedReferenceFsiPlanView`
 
 Resolved field roles and scales for fixed-reference FSI.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyFixedReferenceFsiPlanView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 ```python
 @final
@@ -4997,8 +4470,6 @@ class FixedReferenceFsiPlanView:
 
 Observation-only partition and per-State evidence for a common FSI Result.
 
-Authority: [`crates/eqiora-python/src/fsi_evidence.rs::PyFsiEvidence`](../../crates/eqiora-python/src/fsi_evidence.rs)
-
 ```python
 @final
 class FsiEvidence:
@@ -5020,8 +4491,6 @@ class FsiEvidence:
 ### `eqiora.fsi.FsiStateEvidence`
 
 Numerical observations for one exact accepted common FSI State.
-
-Authority: [`crates/eqiora-python/src/fsi_evidence.rs::PyFsiStateEvidence`](../../crates/eqiora-python/src/fsi_evidence.rs)
 
 ```python
 @final
@@ -5076,8 +4545,6 @@ class FsiStateEvidence:
 
 Select observation-only FSI evidence from an accepted common Result.
 
-Authority: [`crates/eqiora-python/src/fsi_evidence.rs::evidence`](../../crates/eqiora-python/src/fsi_evidence.rs)
-
 ```python
 def evidence(result: Result) -> FsiEvidence: ...
 ```
@@ -5086,19 +4553,15 @@ def evidence(result: Result) -> FsiEvidence: ...
 
 ## `eqiora.solid`
 
-Typed structural intents, plans, and scientific evidence.
+Configure linear elasticity and inspect structural results.
 
-Module authority: [`bindings/python/python/eqiora/solid.py`](../../bindings/python/python/eqiora/solid.py)
-
-Shipped stub: [`bindings/python/python/eqiora/solid.pyi`](../../bindings/python/python/eqiora/solid.pyi)
+[View source](../../bindings/python/python/eqiora/solid.pyi)
 
 <a id="api-eqiora-solid-ElasticityPlanView"></a>
 
 ### `eqiora.solid.ElasticityPlanView`
 
 Resolved linear-elasticity field roles.
-
-Authority: [`crates/eqiora-python/src/common_plan/capability_view.rs::PyElasticityPlanView`](../../crates/eqiora-python/src/common_plan/capability_view.rs)
 
 ```python
 @final
@@ -5114,8 +4577,6 @@ class ElasticityPlanView:
 ### `eqiora.solid.LinearElasticityEvidence`
 
 Scientific evidence selected from an accepted structural result.
-
-Authority: [`crates/eqiora-python/src/elasticity.rs::PyLinearElasticityEvidence`](../../crates/eqiora-python/src/elasticity.rs)
 
 ```python
 @final
@@ -5142,8 +4603,6 @@ class LinearElasticityEvidence:
 
 Select typed linear-elasticity evidence from its result.
 
-Authority: [`crates/eqiora-python/src/elasticity.rs::linear_elasticity_evidence`](../../crates/eqiora-python/src/elasticity.rs)
-
 ```python
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...
 ```
@@ -5152,19 +4611,15 @@ def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: .
 
 ## `eqiora.viewer`
 
-Composable read-only viewer for accepted Eqiora values.
+Compose read-only views of geometry, meshes, and fields.
 
-Module authority: [`bindings/python/python/eqiora/viewer.py`](../../bindings/python/python/eqiora/viewer.py)
-
-Shipped stub: [`bindings/python/python/eqiora/viewer.pyi`](../../bindings/python/python/eqiora/viewer.pyi)
+[View source](../../bindings/python/python/eqiora/viewer.pyi)
 
 <a id="api-eqiora-viewer-View"></a>
 
 ### `eqiora.viewer.View`
 
 Disposable typed viewer scene; its transport is private and unstable.
-
-Authority: [`bindings/python/python/eqiora/viewer.py::View`](../../bindings/python/python/eqiora/viewer.py)
 
 ```python
 class View:
@@ -5181,19 +4636,15 @@ class View:
 
 ## `eqiora.matplotlib`
 
-Matplotlib presentation adapters for accepted Eqiora results.
+Plot Eqiora results with Matplotlib.
 
-Module authority: [`bindings/python/python/eqiora/matplotlib.py`](../../bindings/python/python/eqiora/matplotlib.py)
-
-Shipped stub: [`bindings/python/python/eqiora/matplotlib.pyi`](../../bindings/python/python/eqiora/matplotlib.pyi)
+[View source](../../bindings/python/python/eqiora/matplotlib.pyi)
 
 <a id="api-eqiora-matplotlib-plot_deformed_field"></a>
 
 ### `eqiora.matplotlib.plot_deformed_field`
 
 Compare exact reference and scaled-deformed support geometry.
-
-Authority: [`bindings/python/python/eqiora/matplotlib.py::plot_deformed_field`](../../bindings/python/python/eqiora/matplotlib.py)
 
 ```python
 @overload
@@ -5209,8 +4660,6 @@ def plot_deformed_field(result: Result, /, *, field: FieldRef, scale: float=1.0)
 
 Plot one accepted vertex field or cell-associated derived scalar.
 
-Authority: [`bindings/python/python/eqiora/matplotlib.py::plot_scalar_field`](../../bindings/python/python/eqiora/matplotlib.py)
-
 ```python
 @overload
 def plot_scalar_field(trajectory: Trajectory, /, *, step: int, field: FieldRef | DerivedFieldSnapshot) -> Figure: ...
@@ -5223,189 +4672,151 @@ def plot_scalar_field(result: Result, /, *, field: FieldRef) -> Figure: ...
 
 ## `eqiora.diff`
 
-Accepted implicit differentiation over exact Eqiora programs.
+Implicit differentiation of Eqiora programs.
 
-Module authority: [`bindings/python/python/eqiora/diff.py`](../../bindings/python/python/eqiora/diff.py)
-
-Shipped stub: [`bindings/python/python/eqiora/diff.pyi`](../../bindings/python/python/eqiora/diff.pyi)
+[View source](../../bindings/python/python/eqiora/diff.pyi)
 
 <a id="api-eqiora-diff-DerivativeImplementation"></a>
 
 ### `eqiora.diff.DerivativeImplementation`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DerivativeImplementation`](#api-eqiora-DerivativeImplementation).
+See [`eqiora.DerivativeImplementation`](#api-eqiora-DerivativeImplementation).
 
 Source of the derivative action used by an occurrence.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDerivativeImplementation`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-DifferentiableEvaluation"></a>
 
 ### `eqiora.diff.DifferentiableEvaluation`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiableEvaluation`](#api-eqiora-DifferentiableEvaluation).
+See [`eqiora.DifferentiableEvaluation`](#api-eqiora-DifferentiableEvaluation).
 
 Immutable accepted evaluation at one numerical parameter point.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableEvaluation`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-DifferentiableJvp"></a>
 
 ### `eqiora.diff.DifferentiableJvp`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiableJvp`](#api-eqiora-DifferentiableJvp).
+See [`eqiora.DifferentiableJvp`](#api-eqiora-DifferentiableJvp).
 
 Accepted primary field and its forward tangent.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-DifferentiablePrimal"></a>
 
 ### `eqiora.diff.DifferentiablePrimal`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiablePrimal`](#api-eqiora-DifferentiablePrimal).
+See [`eqiora.DifferentiablePrimal`](#api-eqiora-DifferentiablePrimal).
 
 Accepted complete primary field from a primal evaluation.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiablePrimal`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-DifferentiableProgram"></a>
 
 ### `eqiora.diff.DifferentiableProgram`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiableProgram`](#api-eqiora-DifferentiableProgram).
+See [`eqiora.DifferentiableProgram`](#api-eqiora-DifferentiableProgram).
 
 Immutable program over one fixed input-coordinate set.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgram`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-DifferentiableVjp"></a>
 
 ### `eqiora.diff.DifferentiableVjp`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiableVjp`](#api-eqiora-DifferentiableVjp).
+See [`eqiora.DifferentiableVjp`](#api-eqiora-DifferentiableVjp).
 
 Accepted primary field and its reverse input cotangent.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-CompleteEvaluationMap"></a>
 
 ### `eqiora.diff.CompleteEvaluationMap`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.CompleteEvaluationMap`](#api-eqiora-CompleteEvaluationMap).
+See [`eqiora.CompleteEvaluationMap`](#api-eqiora-CompleteEvaluationMap).
 
-Complete native batch retaining every accepted occurrence and linearization.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
+Batch retaining every accepted occurrence and linearization.
 
 <a id="api-eqiora-diff-EvaluationMapPlan"></a>
 
 ### `eqiora.diff.EvaluationMapPlan`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapPlan`](#api-eqiora-EvaluationMapPlan).
+See [`eqiora.EvaluationMapPlan`](#api-eqiora-EvaluationMapPlan).
 
 Frozen complete points; planning validates metadata without solving.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan`](../../crates/eqiora-python/src/differentiation/batch.rs)
 
 <a id="api-eqiora-diff-EvaluationMapTerminalReport"></a>
 
 ### `eqiora.diff.EvaluationMapTerminalReport`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapTerminalReport`](#api-eqiora-EvaluationMapTerminalReport).
+See [`eqiora.EvaluationMapTerminalReport`](#api-eqiora-EvaluationMapTerminalReport).
 
 Inspectable failed or cancelled prefix, never a complete primal or product.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
 
 <a id="api-eqiora-diff-EvaluationMapCancellation"></a>
 
 ### `eqiora.diff.EvaluationMapCancellation`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapCancellation`](#api-eqiora-EvaluationMapCancellation).
+See [`eqiora.EvaluationMapCancellation`](#api-eqiora-EvaluationMapCancellation).
 
-Cooperative native cancellation between ordered occurrences.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation`](../../crates/eqiora-python/src/differentiation/batch.rs)
+Cooperative cancellation between ordered occurrences.
 
 <a id="api-eqiora-diff-EvaluationMapJvp"></a>
 
 ### `eqiora.diff.EvaluationMapJvp`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapJvp`](#api-eqiora-EvaluationMapJvp).
+See [`eqiora.EvaluationMapJvp`](#api-eqiora-EvaluationMapJvp).
 
-Native mapped JVPs in explicit point/seed order, preserving member evidence.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+Mapped JVPs in explicit point/seed order, with per-member reports.
 
 <a id="api-eqiora-diff-EvaluationMapVjp"></a>
 
 ### `eqiora.diff.EvaluationMapVjp`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapVjp`](#api-eqiora-EvaluationMapVjp).
+See [`eqiora.EvaluationMapVjp`](#api-eqiora-EvaluationMapVjp).
 
-Native mapped VJPs; globally shared cotangents sum over point axes.
-
-Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+Mapped VJPs; globally shared cotangents sum over point axes.
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 
 ### `eqiora.diff.DifferentiationEvidence`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiationEvidence`](#api-eqiora-DifferentiationEvidence).
+See [`eqiora.DifferentiationEvidence`](#api-eqiora-DifferentiationEvidence).
 
 Typed in-memory provenance for one differentiation occurrence.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiationEvidence`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-DifferentiationMode"></a>
 
 ### `eqiora.diff.DifferentiationMode`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.DifferentiationMode`](#api-eqiora-DifferentiationMode).
+See [`eqiora.DifferentiationMode`](#api-eqiora-DifferentiationMode).
 
 Primal, JVP, or VJP occurrence kind.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiationMode`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-FieldRef"></a>
 
 ### `eqiora.diff.FieldRef`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.FieldRef`](#api-eqiora-FieldRef).
+See [`eqiora.FieldRef`](#api-eqiora-FieldRef).
 
-Exact canonical field selected from one immutable model.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModelFieldRef`](../../crates/eqiora-python/src/model.rs)
+Field selected from an immutable model.
 
 <a id="api-eqiora-diff-LinearizationState"></a>
 
 ### `eqiora.diff.LinearizationState`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.LinearizationState`](#api-eqiora-LinearizationState).
+See [`eqiora.LinearizationState`](#api-eqiora-LinearizationState).
 
 Whether an accepted linearization was established or reused.
-
-Authority: [`crates/eqiora-python/src/differentiation.rs::PyLinearizationState`](../../crates/eqiora-python/src/differentiation.rs)
 
 <a id="api-eqiora-diff-ParameterRef"></a>
 
 ### `eqiora.diff.ParameterRef`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.ParameterRef`](#api-eqiora-ParameterRef).
+See [`eqiora.ParameterRef`](#api-eqiora-ParameterRef).
 
-Exact canonical parameter selected from one immutable model.
-
-Authority: [`crates/eqiora-python/src/model.rs::PyModelParameterRef`](../../crates/eqiora-python/src/model.rs)
+Parameter selected from an immutable model.
 
 <a id="api-eqiora-diff-compile"></a>
 
 ### `eqiora.diff.compile`
 
 Compile a program over an ordered parameter-coordinate set.
-
-Authority: [`bindings/python/python/eqiora/diff.py::compile`](../../bindings/python/python/eqiora/diff.py)
 
 ```python
 def compile(plan: Plan, *, inputs: Sequence[ParameterRef], output: FieldRef) -> DifferentiableProgram: ...
@@ -5415,19 +4826,15 @@ def compile(plan: Plan, *, inputs: Sequence[ParameterRef], output: FieldRef) -> 
 
 ## `eqiora.torch`
 
-PyTorch autograd projection of Eqiora differentiable programs.
+Use Eqiora differentiable programs with PyTorch autograd.
 
-Module authority: [`bindings/python/python/eqiora/torch.py`](../../bindings/python/python/eqiora/torch.py)
-
-Shipped stub: [`bindings/python/python/eqiora/torch.pyi`](../../bindings/python/python/eqiora/torch.pyi)
+[View source](../../bindings/python/python/eqiora/torch.pyi)
 
 <a id="api-eqiora-torch-TorchProgram"></a>
 
 ### `eqiora.torch.TorchProgram`
 
 Process-local functional PyTorch view of one Eqiora program.
-
-Authority: [`bindings/python/python/eqiora/torch.py::TorchProgram`](../../bindings/python/python/eqiora/torch.py)
 
 ```python
 class TorchProgram:
@@ -5447,8 +4854,6 @@ class TorchProgram:
 
 Bind a program to a process-local PyTorch operator.
 
-Authority: [`bindings/python/python/eqiora/torch.py::bind`](../../bindings/python/python/eqiora/torch.py)
-
 ```python
 def bind(program: DifferentiableProgram) -> TorchProgram: ...
 ```
@@ -5457,19 +4862,15 @@ def bind(program: DifferentiableProgram) -> TorchProgram: ...
 
 ## `eqiora.jax`
 
-JAX typed-FFI projection of Eqiora differentiable programs.
+Use Eqiora differentiable programs with JAX.
 
-Module authority: [`bindings/python/python/eqiora/jax.py`](../../bindings/python/python/eqiora/jax.py)
-
-Shipped stub: [`bindings/python/python/eqiora/jax.pyi`](../../bindings/python/python/eqiora/jax.pyi)
+[View source](../../bindings/python/python/eqiora/jax.pyi)
 
 <a id="api-eqiora-jax-JaxProgram"></a>
 
 ### `eqiora.jax.JaxProgram`
 
 Process-local JAX view with native first-order `vmap` composition.
-
-Authority: [`bindings/python/python/eqiora/jax.py::JaxProgram`](../../bindings/python/python/eqiora/jax.py)
 
 ```python
 class JaxProgram:
@@ -5488,8 +4889,6 @@ class JaxProgram:
 ### `eqiora.jax.bind`
 
 Bind a framework-neutral program to the typed JAX/XLA FFI.
-
-Authority: [`bindings/python/python/eqiora/jax.py::bind`](../../bindings/python/python/eqiora/jax.py)
 
 ```python
 def bind(program: DifferentiableProgram) -> JaxProgram: ...
