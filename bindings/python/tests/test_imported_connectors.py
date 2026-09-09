@@ -113,8 +113,8 @@ public component Exterior(
 
 
 def test_imported_boundary_families_compile_with_the_same_separate_geometry_after_source_roundtrip(tmp_path):
-    library = authored_exterior(library=True)
-    module = eqiora.Module("main")
+    library = authored_exterior(library=True, package="org.example.Exterior")
+    module = eqiora.Module("main", package="org.example.Exterior")
     imported = module.import_module("parts", library)
     root = module.model("Main")
     body = root.volume("body", dimensions=2)
@@ -128,8 +128,8 @@ def test_imported_boundary_families_compile_with_the_same_separate_geometry_afte
         root.connect(wrapper["mechanical"][face], terminal["mechanical"])
     geometry = rectangle()
     direct = eqiora.compile(source=module, geometry=geometry, entry="Main", bindings=bindings(geometry))
-    parsed_library = eqiora.Module.parse("parts", library.to_eqi())
-    parsed_root = eqiora.Module.parse("main", module.to_eqi())
+    parsed_library = eqiora.Module.parse("parts", library.to_eqi(), package="org.example.Exterior")
+    parsed_root = eqiora.Module.parse("main", module.to_eqi(), package="org.example.Exterior")
     parsed_root.import_module("parts", parsed_library)
     replay = eqiora.compile(source=parsed_root, geometry=geometry, entry="Main", bindings=bindings(geometry))
     assert direct.to_bytes() == replay.to_bytes()

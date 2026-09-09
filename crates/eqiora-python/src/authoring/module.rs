@@ -61,6 +61,21 @@ impl PyAstModule {
 
 #[pymethods]
 impl PyAstModule {
+    #[staticmethod]
+    fn namespace(package: &str, name: &str) -> PyResult<String> {
+        let package = eqiora::package::QualifiedName::parse(package)
+            .map_err(|error| syntax_error(error.to_string()))?;
+        let namespace = eqiora::compiler::CompilationNamespaceId::new([package.as_str()])
+            .map_err(|error| syntax_error(error.message()))?;
+        eqiora::compiler::ResolvedSourceUnit::new(
+            namespace,
+            format!("src/{}.eqi", name.replace('.', "/")),
+            "",
+        )
+        .map_err(|error| syntax_error(error.message()))?;
+        Ok(package.as_str().to_owned())
+    }
+
     fn same_graph(&self, other: &Self) -> bool {
         self.value == other.value
     }

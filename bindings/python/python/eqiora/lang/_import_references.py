@@ -14,7 +14,8 @@ class DeclarationRef:
         for key, value in (("_module", imported), ("_kind", kind), ("_local_name", name),
                            ("_name", f"{imported._alias}.{name}"), ("_owner", imported._owner),
                            ("_descriptor", descriptor),
-                           ("_identity", ((imported._target if origin is None else origin)._name,
+                           ("_identity", ((imported._target if origin is None else origin)._package,
+                                          (imported._target if origin is None else origin)._name,
                                           kind, name.split(".")[-1]))):
             object.__setattr__(self, key, value)
 

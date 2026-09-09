@@ -24,8 +24,8 @@ def bindings(geometry):
             **{name: (geometry.selection(name), parent) for name in NAMES}}
 
 
-def authored_exterior(*, incomplete=False, distinct=False, library=False):
-    module = eqiora.Module("parts" if library else "main")
+def authored_exterior(*, incomplete=False, distinct=False, library=False, package="eqiora.local_project"):
+    module = eqiora.Module("parts" if library else "main", package=package)
     connector = module.field_connector("MechanicalBoundary", trace=("displacement", DISPLACEMENT),
                                        flux=("traction", TRACTION), spatial_vector=True)
     other = (module.field_connector("OtherBoundary", trace=("displacement", DISPLACEMENT),

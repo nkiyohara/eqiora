@@ -618,6 +618,16 @@ If a process stops during publication, locked compilation reads the previous
 accepted lock. The next explicit update recovers the saved pair before resolving.
 Concurrent project writes are rejected; retry after the other operation finishes.
 
+For portable package source, create modules with their explicit package identity:
+`Module("main", package="org.example.Exterior")` and
+`Module("parts", package="org.example.Exterior")`. `import_module` emits that exact
+package-qualified source import; `Module.parse` accepts the same `package=` when
+reopening emitted source. Standalone modules default to `eqiora.local_project`.
+The existing package and normalized virtual-path validators own these names.
+Attached modules in other packages create explicit direct dependency edges; no
+ambient or transitive import is added. A namespace identifies authored source;
+locked package compilation separately authenticates the bundle, version and digest.
+
 ## Author exact boundary families
 
 `Module.field_connector` declares named trace and flux quantities. Their

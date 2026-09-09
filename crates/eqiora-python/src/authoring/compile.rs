@@ -1,7 +1,9 @@
 //! Module compilation delegates to the existing selected and resolved compiler owners.
 
 use eqiora::api::ModelDocument;
-use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
+use eqiora::compiler::{
+    CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -11,16 +13,18 @@ use crate::geometry::PyGeometry;
 use crate::model::PyModel;
 
 #[pyfunction]
-#[pyo3(signature = (root, units, *, entry=None, geometry=None, bindings=None))]
+#[pyo3(signature = (root, units, dependencies, *, entry=None, geometry=None, bindings=None))]
 pub(super) fn _compile_module(
     py: Python<'_>,
-    root: String,
-    units: Vec<(String, PyRef<'_, PyAstModule>)>,
+    root: (String, String),
+    units: Vec<(String, String, PyRef<'_, PyAstModule>)>,
+    dependencies: Vec<(String, String)>,
     entry: Option<String>,
     geometry: Option<Py<PyGeometry>>,
     bindings: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyModel> {
     panic_boundary(py, || {
+        let (package, root) = root;
         let authority = geometry
             .as_ref()
             .map(|geometry| geometry.borrow(py).geometry().clone());
@@ -31,14 +35,14 @@ pub(super) fn _compile_module(
                 "module closure exceeds 256 units",
             ));
         }
-        for (_, module) in &units {
+        for (_, _, module) in &units {
             module.admit_metadata()?;
         }
         // Module clones share the immutable AST. The resolved owner applies
         // aggregate admission before copying any document for elaboration.
         let units = units
             .into_iter()
-            .map(|(name, module)| (name, module.value.clone()))
+            .map(|(package, name, module)| (package, name, module.value.clone()))
             .collect::<Vec<_>>();
         let document = py
             .detach(move || {
@@ -46,7 +50,9 @@ pub(super) fn _compile_module(
                     .iter()
                     .map(|(name, value)| (name.as_str(), value.borrowed(binding_geometry)))
                     .collect::<Vec<_>>();
-                if let [(name, module)] = units.as_slice()
+                if let [(owner, name, module)] = units.as_slice()
+                    && owner == &package
+                    && package == "eqiora.local_project"
                     && name == &root
                     && module.document().imports().len() == 0
                 {
@@ -60,24 +66,34 @@ pub(super) fn _compile_module(
                 };
                 let entry = entry
                     .ok_or_else(|| error("multi-module compilation requires an explicit entry"))?;
-                let namespace = CompilationNamespaceId::new(["eqiora.local_project"])
-                    .map_err(|error| vec![error])?;
+                let namespace =
+                    CompilationNamespaceId::new([package]).map_err(|error| vec![error])?;
                 let units = units
                     .into_iter()
-                    .map(|(name, module)| {
+                    .map(|(package, name, module)| {
                         ResolvedSourceUnit::from_module(
-                            namespace.clone(),
+                            CompilationNamespaceId::new([package])?,
                             format!("src/{}.eqi", name.replace('.', "/")),
                             module,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|error| vec![error])?;
+                let dependencies = dependencies
+                    .into_iter()
+                    .map(|(declaring, target)| {
+                        Ok(ResolvedDependency::new(
+                            CompilationNamespaceId::new([declaring])?,
+                            CompilationNamespaceId::new([target])?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, eqiora::Diagnostic>>()
+                    .map_err(|error| vec![error])?;
                 let input = ResolvedHierarchyInput::with_root_module(
                     namespace,
                     root.split('.'),
                     units,
-                    vec![],
+                    dependencies,
                 )
                 .map_err(|error| vec![error])?;
                 ModelDocument::compile_modules(input, &entry, &bindings)

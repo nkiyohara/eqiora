@@ -1779,12 +1779,14 @@ class Module:
         "_spaces",
         "_enums",
         "_name",
+        "_package",
         "_imports",
         "_graph",
     )
 
-    def __init__(self, name: str, *declarations: object) -> None:
+    def __init__(self, name: str, *declarations: object, package: str = "eqiora.local_project") -> None:
         self._name = _name_path(name, "module name")
+        self._package = _AstModule.namespace(package, self._name)
         self._imports: dict[str, Module] = {}
         self._graph = None if not declarations else _module_from_declarations(name, *declarations)
         self._owner = object()
@@ -1898,8 +1900,8 @@ class Module:
             raise ModuleError("Module is frozen after emission or compilation")
 
     @classmethod
-    def parse(cls, name: str, source: str) -> Module:
-        module = cls(name)
+    def parse(cls, name: str, source: str, *, package: str = "eqiora.local_project") -> Module:
+        module = cls(name, package=package)
         if not isinstance(source, str):
             raise TypeError("source must be Unicode text")
         module._graph = _AstModule.parse(f"src/{name.replace('.', '/')}.eqi", source)
@@ -1915,7 +1917,7 @@ class Module:
                 raise ModuleError("an imported path must name an explicit .eqi file")
             if path.stat().st_size > _MAX_OUTPUT_BYTES:
                 raise ModuleError("imported source exceeds the source byte limit")
-            module = Module.parse(_name(path.stem), path.read_text(encoding="utf-8"))
+            module = Module.parse(_name(path.stem), path.read_text(encoding="utf-8"), package=self._package)
         if not isinstance(module, Module):
             raise TypeError("import target must be a Module")
         if module is self:
@@ -1925,34 +1927,42 @@ class Module:
             raise ModuleError("import alias already has an attached module")
         if self._graph is not None:
             imports = dict(self._graph.imports())
-            if imports.get(alias) != f"eqiora.local_project.{module._name}":
+            if imports.get(alias) != f"{module._package}.{module._name}":
                 raise ModuleError("a frozen Module only permits attaching an exact existing import")
         self._imports[alias] = module
         return ModuleRef(_CREATE, self._owner, alias, module)
 
-    def _units(self):
+    def _closure(self):
         units, active = {}, set()
         def visit(module):
-            if module._name in active:
+            identity = (module._package, module._name)
+            if identity in active:
                 raise ModuleError("recursive module imports are not supported")
             graph = module._freeze()
-            previous = units.get(module._name)
+            previous = units.get(identity)
             if previous is not None:
-                if not graph.same_graph(previous):
+                if not graph.same_graph(previous._freeze()):
                     raise ModuleError("one logical module name has conflicting contents")
                 return
             if len(units) + len(active) >= _MAX_DECLARATIONS:
                 raise ModuleError("module closure exceeds the bounded module count")
-            active.add(module._name)
+            active.add(identity)
             for alias, target in graph.imports():
                 imported = module._imports.get(alias)
-                if imported is None or f"eqiora.local_project.{imported._name}" != target:
+                if imported is None or f"{imported._package}.{imported._name}" != target:
                     raise ModuleError(f"explicit module import {alias!r} has no matching attached source")
                 visit(imported)
-            active.remove(module._name)
-            units[module._name] = graph
+            active.remove(identity)
+            units[identity] = module
         visit(self)
-        return sorted(units.items())
+        return [module for _, module in sorted(units.items())]
+
+    def _units(self):
+        return [(module._package, module._name, module._freeze()) for module in self._closure()]
+
+    def _dependencies(self):
+        return sorted({(module._package, target._package) for module in self._closure()
+                       for target in module._imports.values() if module._package != target._package})
 
     def _add_top_name(self, name: object) -> str:
         self._ensure_open()
@@ -2159,7 +2169,7 @@ class Module:
                 material._name, [(name, release._name, allocate()) for name, release in material._bindings],
                 allocate(material._doc, self._notations.get(material._name)))
         for alias, module in sorted(self._imports.items()):
-            graph = graph.with_import(f"eqiora.local_project.{module._name}", alias, allocate())
+            graph = graph.with_import(f"{module._package}.{module._name}", alias, allocate())
         for declaration, doc, notation in metadata:
             graph = graph.metadata(declaration, doc, notation)
         graph.check()
