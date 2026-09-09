@@ -11,6 +11,8 @@ use super::linear::data::{Context, Data};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
+mod boundary;
+pub(crate) use boundary::RegionBoundaryLaw;
 mod boundary_integral;
 mod evaluate;
 mod integration;

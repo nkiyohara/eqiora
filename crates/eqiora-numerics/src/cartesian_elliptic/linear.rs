@@ -16,11 +16,11 @@ use eqiora_solver::{
 };
 
 use super::{CartesianBoundaryValue, CartesianQ1Field};
+use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
-use crate::scalar_conservation::ScalarExteriorLaw;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CartesianLinearAssembly {
@@ -161,20 +161,15 @@ impl CartesianLinearAssembly {
         let mut natural = Vec::new();
         let mut natural_integrals = vec![0.0; form.fields().len()];
         for (index, (field, _)) in form.fields().iter().enumerate() {
-            let boundary = |axis, side, coordinates: &[f64]| match &form.boundary_laws()[field]
-                [&boundaries[&(axis, side)]]
-            {
-                ScalarExteriorLaw::PrescribedTrace { value, .. } => {
-                    CartesianBoundaryValue::Essential(
-                        value.evaluate(coordinates).unwrap_or(f64::NAN),
-                    )
-                }
-                ScalarExteriorLaw::PrescribedOutwardFlux { value, .. } => {
-                    CartesianBoundaryValue::Natural(value.evaluate(coordinates).unwrap_or(f64::NAN))
-                }
-                ScalarExteriorLaw::ZeroOutwardFlux { .. } => CartesianBoundaryValue::Natural(0.0),
-                ScalarExteriorLaw::Robin { .. } => {
-                    unreachable!("linear compiler rejects Robin laws")
+            let boundary = |axis, side, coordinates: &[f64]| {
+                let law = &form.boundary_laws()[field][&boundaries[&(axis, side)]];
+                let value = law
+                    .evaluate(coordinates, &[])
+                    .map(|value| value[0])
+                    .unwrap_or(f64::NAN);
+                match law.quantity {
+                    PhysicalBoundaryQuantity::Trace => CartesianBoundaryValue::Essential(value),
+                    PhysicalBoundaryQuantity::Flux => CartesianBoundaryValue::Natural(value),
                 }
             };
             fixed.extend(super::essential_fem_values(mesh, &boundary)?);

@@ -25,7 +25,7 @@ pub(crate) struct CompiledLinearBlockForm {
     relations: Vec<RawId>,
     residual_types: Vec<ValueType>,
     dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
-    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, crate::scalar_conservation::ScalarExteriorLaw>>,
+    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>>,
     volume: BoundRegionForm,
 }
 
@@ -184,7 +184,7 @@ impl CompiledLinearBlockForm {
     }
     pub(crate) fn boundary_laws(
         &self,
-    ) -> &BTreeMap<RawId, BTreeMap<RawId, crate::scalar_conservation::ScalarExteriorLaw>> {
+    ) -> &BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>> {
         &self.boundary_laws
     }
 

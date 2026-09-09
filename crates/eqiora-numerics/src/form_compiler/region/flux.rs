@@ -41,20 +41,6 @@ impl FluxTerm {
     }
 }
 
-impl BoundRegionForm {
-    pub(in crate::form_compiler) fn require_boundary_flux(
-        &self,
-        program: &KernelProgram,
-        boundary: RawId,
-        relation: RawId,
-        field: RawId,
-        normal: ExprId,
-    ) -> Result<(), Diagnostic> {
-        self.form
-            .require_boundary_flux(program, boundary, relation, field, normal)
-    }
-}
-
 impl CompiledRegionForm {
     pub(super) fn require_boundary_flux(
         &self,
