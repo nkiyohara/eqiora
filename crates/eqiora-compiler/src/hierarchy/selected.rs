@@ -177,12 +177,15 @@ fn local_document_in(
             },
         )?;
         selected_bound = bind_model(&elaborator, model.declaration, &prepared)?;
-        elaborator.bind_selected_model(preflight::ModelDefinition {
-            namespace: model.namespace,
-            file: model.file,
-            owned_interfaces: preflight::owned_model_items(&selected_bound),
-            declaration: &selected_bound,
-        });
+        elaborator.bind_selected_model(
+            preflight::ModelDefinition {
+                namespace: model.namespace,
+                file: model.file,
+                owned_interfaces: preflight::owned_model_items(&selected_bound),
+                declaration: &selected_bound,
+            },
+            prepared.supports(),
+        );
     }
     if let Some(entry) = entry
         && !bindings.is_empty()
@@ -566,11 +569,12 @@ fn prepare(
                     .1
                     .push((name, selection, parent_binding));
                 supports.push(match parent_binding {
-                    Some((parent_slot, _)) => ExternalGeometrySupportBinding::boundary(
+                    Some((parent_slot, parent)) => ExternalGeometrySupportBinding::boundary(
                         name,
                         digest,
                         selection.name(),
                         parent_slot,
+                        geometry.cartesian_boundary_embedding(selection, parent),
                     ),
                     None => ExternalGeometrySupportBinding::region(
                         name,

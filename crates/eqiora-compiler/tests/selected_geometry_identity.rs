@@ -113,3 +113,142 @@ fn a_boundary_cannot_borrow_a_parent_from_another_geometry_revision() {
         .is_err()
     );
 }
+
+const EXTERIOR: &str = r#"
+connector BoundaryScalar {
+    trace value: 1; flux flux: 1; shape []; frame invariant;
+    pairing euclidean_boundary_duality; orientation parent_outward;
+}
+component Leaf(support body: volume(ambient_dimension = 2),
+               support exterior: complete_exterior(parent = body),
+               port p[side in exterior]: BoundaryScalar over side) {
+    relation law[side in exterior] on side { p[side = side].flux = 0; }
+}
+component Wrapper(support body: volume(ambient_dimension = 2),
+                  support exterior: complete_exterior(parent = body),
+                  port p[side in exterior]: BoundaryScalar over side) {
+    instance child: Leaf(body = body, exterior = exterior);
+    connect [side in exterior] child.p[side = side], p[side = side];
+}
+component Terminal(support body: volume(ambient_dimension = 2),
+                   support face: boundary(parent = body),
+                   port p: BoundaryScalar over face) {
+    relation law on face { p.value = 0; }
+}
+model M(support body: volume(ambient_dimension = 2),
+        support left: boundary(parent = body), support right: boundary(parent = body),
+        support bottom: boundary(parent = body), support top: boundary(parent = body)) {
+    instance wall: Wrapper(body = body, exterior = boundaries(left, right, bottom, top));
+    instance l: Terminal(body = body, face = left);
+    instance r: Terminal(body = body, face = right);
+    instance b: Terminal(body = body, face = bottom);
+    instance t: Terminal(body = body, face = top);
+    connect wall.p[side = left], l.p;
+    connect wall.p[side = right], r.p;
+    connect wall.p[side = bottom], b.p;
+    connect wall.p[side = top], t.p;
+}
+"#;
+
+fn exterior_bindings(geometry: &CanonicalGeometryV1) -> Vec<(&str, StaticBindingValue<'_>)> {
+    ["body", "left", "right", "bottom", "top"]
+        .into_iter()
+        .map(|name| {
+            (
+                name,
+                selection(geometry, name, (name != "body").then_some("body")),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn exact_geometry_completes_nested_exterior_without_concrete_source_domains() {
+    let geometry = rectangle(false);
+    let bindings = exterior_bindings(&geometry);
+    let direct = CompiledModel::compile_selected("exterior.eqi", EXTERIOR, "M", &bindings)
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let native = eqiora_lang::Module::from_document(
+        eqiora_lang::parse("exterior.eqi", EXTERIOR)
+            .into_document()
+            .unwrap(),
+    );
+    let replay = eqiora_compiler::lower_module(&native, Some("M"), &bindings)
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+    assert_eq!(direct.transaction().ops(), replay.transaction().ops());
+    assert_eq!(direct.symbols(), replay.symbols());
+    for name in ["left", "right", "bottom", "top"] {
+        let boundary = direct.symbols().get(name).unwrap();
+        let body = direct.symbols().get("body").unwrap();
+        assert!(direct.transaction().ops().iter().any(|op| matches!(op,
+            Op::Connect { from, to, edge: EdgeKind::BoundaryOf } if *from == boundary && *to == body
+        )));
+    }
+}
+
+#[test]
+fn incomplete_and_overlapping_external_families_reach_the_completeness_gate() {
+    let geometry = rectangle(false);
+    for (members, expected) in [
+        ("left, right, bottom", "missing Cartesian side"),
+        ("left, right, bottom, bottom", "more than once"),
+    ] {
+        let source = EXTERIOR.replace(
+            "boundaries(left, right, bottom, top)",
+            &format!("boundaries({members})"),
+        );
+        let errors = CompiledModel::compile_selected(
+            "incomplete.eqi",
+            &source,
+            "M",
+            &exterior_bindings(&geometry),
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains(expected)),
+            "{errors:?}"
+        );
+    }
+    let mut bindings = exterior_bindings(&geometry);
+    bindings[2].1 = selection(&geometry, "left", Some("body"));
+    let errors =
+        CompiledModel::compile_selected("overlap.eqi", EXTERIOR, "M", &bindings).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message()
+            .contains("Cartesian side (0, lower) more than once")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn external_family_rejects_foreign_selection_and_parent_before_topology() {
+    let geometry = rectangle(false);
+    let foreign = rectangle(true);
+    for parent_mutant in [false, true] {
+        let mut bindings = exterior_bindings(&geometry);
+        bindings[1].1 = StaticBindingValue::GeometrySupport {
+            geometry: &geometry,
+            selection: if parent_mutant {
+                geometry.entity_set("left").unwrap()
+            } else {
+                foreign.entity_set("left").unwrap()
+            },
+            parent: Some(if parent_mutant {
+                foreign.entity_set("body").unwrap()
+            } else {
+                geometry.entity_set("body").unwrap()
+            }),
+        };
+        let errors =
+            CompiledModel::compile_selected("foreign.eqi", EXTERIOR, "M", &bindings).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("foreign or stale")),
+            "{errors:?}"
+        );
+    }
+}

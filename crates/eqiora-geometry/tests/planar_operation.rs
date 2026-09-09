@@ -273,3 +273,122 @@ fn explicit_adjacent_partition_owns_both_parents_and_complete_frontiers() {
     ]);
     assert!(graph.build(&partition, &incomplete).is_err());
 }
+
+#[test]
+fn primitive_boundary_embeddings_keep_topology_orientation_and_exact_parent() {
+    use eqiora_schema::kernel::BoundarySide::{Lower, Upper};
+    let graph = GeometryGraph::new();
+    let rectangle = graph.rectangle([2.0, 5.0], [-3.0, 7.0]).unwrap();
+    let geometry = graph
+        .build(
+            &rectangle,
+            &named([
+                ("body", vec![rectangle.region().into()]),
+                ("a", vec![rectangle.boundaries()[0].into()]),
+                ("b", vec![rectangle.boundaries()[1].into()]),
+                ("c", vec![rectangle.boundaries()[2].into()]),
+                ("d", vec![rectangle.boundaries()[3].into()]),
+            ]),
+        )
+        .unwrap();
+    let parent = geometry.entity_set("body").unwrap();
+    for (name, axis, side, coordinate, tangent) in [
+        ("a", 0, Lower, 2.0, (-3.0, 7.0)),
+        ("b", 0, Upper, 5.0, (-3.0, 7.0)),
+        ("c", 1, Lower, -3.0, (2.0, 5.0)),
+        ("d", 1, Upper, 7.0, (2.0, 5.0)),
+    ] {
+        let embedding = geometry
+            .cartesian_boundary_embedding(geometry.entity_set(name).unwrap(), parent)
+            .unwrap();
+        assert_eq!(embedding.ambient_dimension(), 2);
+        assert_eq!(embedding.normal_axis(), axis);
+        assert_eq!(embedding.side(), side);
+        assert_eq!(embedding.coordinate(), coordinate);
+        assert_eq!(embedding.tangential_intervals(), &[tangent]);
+    }
+    let boundary = geometry.entity_set("a").unwrap();
+    let replay = CanonicalGeometryV1::decode_planar_rectangle_v2_canonical(
+        geometry.canonical_bytes(),
+        Default::default(),
+    )
+    .unwrap();
+    assert!(
+        geometry
+            .cartesian_boundary_embedding(replay.entity_set("a").unwrap(), parent)
+            .is_none()
+    );
+    assert!(
+        geometry
+            .cartesian_boundary_embedding(boundary, replay.entity_set("body").unwrap())
+            .is_none()
+    );
+    assert!(
+        geometry
+            .cartesian_boundary_embedding(boundary, boundary)
+            .is_none()
+    );
+    assert!(
+        geometry
+            .cartesian_boundary_embedding(parent, parent)
+            .is_none()
+    );
+}
+
+#[test]
+fn primitive_embedding_does_not_turn_a_group_or_curved_region_into_a_box_side() {
+    let graph = GeometryGraph::new();
+    let rectangle = graph.rectangle([0.0, 3.0], [0.0, 2.0]).unwrap();
+    let grouped = graph
+        .build(
+            &rectangle,
+            &named([
+                ("body", vec![rectangle.region().into()]),
+                ("left", vec![rectangle.boundaries()[0].into()]),
+                ("right", vec![rectangle.boundaries()[1].into()]),
+                (
+                    "walls",
+                    vec![
+                        rectangle.boundaries()[2].into(),
+                        rectangle.boundaries()[3].into(),
+                    ],
+                ),
+            ]),
+        )
+        .unwrap();
+    assert!(
+        grouped
+            .cartesian_boundary_embedding(
+                grouped.entity_set("walls").unwrap(),
+                grouped.entity_set("body").unwrap()
+            )
+            .is_none()
+    );
+    let circle = graph.circle([1.0, 1.0], 0.25).unwrap();
+    let cut = graph.subtract(&rectangle, &circle).unwrap();
+    let curved = graph
+        .build(
+            &cut,
+            &named([
+                ("body", vec![cut.region().into()]),
+                ("left", vec![cut.boundaries()[0].into()]),
+                ("right", vec![cut.boundaries()[1].into()]),
+                (
+                    "walls",
+                    vec![cut.boundaries()[2].into(), cut.boundaries()[3].into()],
+                ),
+                ("circle", vec![cut.boundaries()[4].into()]),
+            ]),
+        )
+        .unwrap();
+    for name in ["left", "right", "walls", "circle"] {
+        assert!(
+            curved
+                .cartesian_boundary_embedding(
+                    curved.entity_set(name).unwrap(),
+                    curved.entity_set("body").unwrap()
+                )
+                .is_none()
+        );
+    }
+}

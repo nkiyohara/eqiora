@@ -508,6 +508,17 @@ fn validate_definition_bodies_and_parameters(
                             dimensions,
                             ..
                         } => {
+                            if let Some((axis, side)) = elaborator
+                                .selected_boundary_sides
+                                .get(&(key.clone(), identity.clone()))
+                            {
+                                return Some(CartesianDomain::Boundary {
+                                    exact_parent: parent.clone(),
+                                    ambient_dimension: *dimensions,
+                                    axis: *axis,
+                                    side: *side,
+                                });
+                            }
                             let declaration = definition.declaration.items().iter().find_map(
                                 |item| match item {
                                     Item::Domain(domain) if domain.name() == identity => {
