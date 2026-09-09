@@ -36,7 +36,7 @@ fn notation_survives_package_reopening_but_does_not_change_physical_identity() {
             .iter()
             .next()
             .unwrap()
-            .render(eqiora_lang::NotationProfile::Rich),
+            .render(eqiora_lang::NotationProfile::Latex),
         r"\hat{x}"
     );
     assert_eq!(

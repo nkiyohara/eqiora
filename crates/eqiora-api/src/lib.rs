@@ -19,6 +19,7 @@ mod ml_dataset;
 pub mod package;
 mod parameter_regeneration;
 mod remeshing_trajectory;
+mod rendering;
 mod run_request;
 mod sampling;
 mod value_edit;
@@ -45,6 +46,7 @@ pub use remeshing_trajectory::{
     XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1,
     verify_xdmf_hdf5_trajectory_storage_v1,
 };
+pub use rendering::{MathReference, MathRendering};
 pub use run_request::RunRequest;
 pub use sampling::{
     ParameterSampler, SampledParameterPoint, SamplingCoupling, SamplingGenerator, SamplingIdentity,

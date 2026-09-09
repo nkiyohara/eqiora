@@ -253,7 +253,10 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 264
+ceiling = 266
+# MathReference/MathRendering re-export the same two presentation owners justified
+# by eqiora-api below. Python uses this facade, not a second renderer. Remove the
+# re-exports when those owners are removed or subsumed under the same conditions.
 # #1019 adds exactly EvaluationMapExecutionPolicy and EvaluationMapRetention.
 # The native Q1/TPFA and Python dense adapters need one admitted chunk/host
 # resource policy; native streaming/product consumers must distinguish retained
@@ -270,15 +273,15 @@ removal = "Fold regeneration only into an accepted edit result preserving exact 
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 117
+ceiling = 119
 # #900 ProjectUpdate gives native, CLI and Python consumers one frozen, validated
 # selection to inspect and commit through the existing stale-checked transaction.
 # Fold it only when an existing result retains the same authored requests, exact
 # candidate bytes and one-shot publication without a parallel selection path.
 # Same two #1019 policy owners and deletion condition as the facade above;
 # no duplicate execution implementation or provider/worker registry is added.
-reason = "RunRequest owns common transient request meaning; versioned ML Dataset roles and splits remain in eqiora-artifact. Ordered maps own repeated accepted occurrences and terminal reports. Three first-order product types separate borrowed grid/sharing admission, forward records and reverse shared sums with mapped covectors. Native Q1/TPFA callers reuse the accepted point actions through these owners. Five sampling types keep interval admission, frozen values, full request identity, generator version and explicit coupling separate from Program identity and numerical execution. They serve direct and mapped native callers through one deterministic sampler, not a probability framework. Regeneration and editor snapshots retain their distinct immutable results."
-removal = "Fold the three mapped-product types only when an existing owner preserves exact complete-map/point/seed association, explicit shared reduction and first-order-only results. Fold regeneration only when its exact edit evidence survives, and editor snapshots only when separately transferable immutable results are unnecessary. Fold sampling owners only if full identity, explicit coupling and frozen typed replay remain together without ambient draws. Lower the exact measured count when an owner is removed."
+reason = "RunRequest owns common transient request meaning; versioned ML Dataset roles and splits remain in eqiora-artifact. Ordered maps own repeated accepted occurrences and terminal reports. Three first-order product types separate borrowed grid/sharing admission, forward records and reverse shared sums with mapped covectors. Native Q1/TPFA callers reuse the accepted point actions through these owners. Five sampling types keep interval admission, frozen values, full request identity, generator version and explicit coupling separate from Program identity and numerical execution. They serve direct and mapped native callers through one deterministic sampler, not a probability framework. Regeneration and editor snapshots retain their distinct immutable results. MathRendering and MathReference give native and Python equation, formulation and type consumers one immutable presentation result with accessible fallback and exact semantic targets; declaration labels alone cannot represent complete expressions or their reference sets."
+removal = "Fold the three mapped-product types only when an existing owner preserves exact complete-map/point/seed association, explicit shared reduction and first-order-only results. Fold regeneration only when its exact edit evidence survives, and editor snapshots only when separately transferable immutable results are unnecessary. Fold sampling owners only if full identity, explicit coupling and frozen typed replay remain together without ambient draws. Fold rendering owners only when an existing result retains complete mathematical presentation, accessible fallback and exact reference sets without a second renderer. Lower the exact measured count when an owner is removed."
 
 [[public_surface]]
 crate = "eqiora-artifact"
@@ -435,7 +438,7 @@ ceiling = 45
 crate = "eqiora-lang"
 ceiling = 93
 # #879 adds NotationLabel/NotationProfile for checked generated suffix composition
-# and shared rich/plain/speech declaration-label projection. Source Notation keeps
+# and shared LaTeX/MathML/Unicode/plain/speech labels. Source Notation keeps
 # its admission bounds; native and Python callers use this one projection owner.
 # Remove these types if an existing typed owner preserves generated-label bounds
 # and all profile distinctions without a parallel renderer, then lower the count.

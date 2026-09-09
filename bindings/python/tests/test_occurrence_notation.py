@@ -23,7 +23,7 @@ def test_full_model_labels_and_subviews_share_exact_occurrences():
     assert len({entry.identity for entry in full}) == 2
     assert len({entry.scope for entry in full}) == 1
     assert {entry.selector for entry in full} == {"left", "right"}
-    for profile in ["rich", "plain", "speech"]:
+    for profile in ["latex", "mathml", "unicode", "plain", "speech"]:
         rendered = model.notation_labels(profile)
         assert len({entry.label for entry in rendered}) == 2
         selected = model.notation_labels(profile, identities=[full[1].identity, full[1].identity])

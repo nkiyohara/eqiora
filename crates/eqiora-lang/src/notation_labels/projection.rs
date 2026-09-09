@@ -1,7 +1,12 @@
 use super::NotationProfile;
-use crate::{NotationAtom, NotationNode};
+use crate::{NotationAtom, NotationMark, NotationNode};
 
 pub(super) fn render(node: &NotationNode, profile: NotationProfile) -> String {
+    if matches!(profile, NotationProfile::MathMl | NotationProfile::Unicode) {
+        let mut output = String::new();
+        super::markup::emit(node, profile, &mut |text| output.push_str(text));
+        return output;
+    }
     let size = emitted_len(node, profile);
     let mut output = String::with_capacity(size);
     write(node, profile, &mut output);
@@ -10,10 +15,15 @@ pub(super) fn render(node: &NotationNode, profile: NotationProfile) -> String {
 }
 
 pub(super) fn emitted_len(node: &NotationNode, profile: NotationProfile) -> usize {
-    let rich = profile == NotationProfile::Rich;
+    if matches!(profile, NotationProfile::MathMl | NotationProfile::Unicode) {
+        let mut count = 0;
+        super::markup::emit(node, profile, &mut |text| count += text.len());
+        return count;
+    }
+    let rich = profile == NotationProfile::Latex;
     match node {
         NotationNode::Atom(atom) => atom_name(*atom, rich).len(),
-        NotationNode::Mark(mark) => mark.spelling().len() - usize::from(!rich),
+        NotationNode::Mark(mark) => mark_name(*mark, rich).len(),
         NotationNode::Styled(style, inner) => {
             emitted_len(inner, profile) + if rich { style.spelling().len() + 2 } else { 0 }
         }
@@ -54,13 +64,12 @@ pub(super) fn emitted_len(node: &NotationNode, profile: NotationProfile) -> usiz
 }
 
 fn write(node: &NotationNode, profile: NotationProfile, output: &mut String) {
-    let rich = profile == NotationProfile::Rich;
+    let rich = profile == NotationProfile::Latex;
     let speech = profile == NotationProfile::Speech;
     match node {
         NotationNode::Atom(atom) => output.push_str(&atom_name(*atom, rich)),
         NotationNode::Mark(mark) => {
-            let spelling = mark.spelling();
-            output.push_str(if rich { spelling } else { &spelling[1..] });
+            output.push_str(mark_name(*mark, rich));
         }
         NotationNode::Styled(style, inner) => {
             if rich {
@@ -119,7 +128,7 @@ fn write(node: &NotationNode, profile: NotationProfile, output: &mut String) {
 }
 
 fn grouped_base(mut node: &NotationNode, profile: NotationProfile) -> bool {
-    if profile == NotationProfile::Rich {
+    if profile == NotationProfile::Latex {
         return false;
     }
     while let NotationNode::Styled(_, inner) = node {
@@ -130,7 +139,24 @@ fn grouped_base(mut node: &NotationNode, profile: NotationProfile) -> bool {
 
 fn atom_name(atom: NotationAtom, rich: bool) -> String {
     if rich {
-        return atom.spelling();
+        use NotationAtom::*;
+        return match atom {
+            AlphaUpper => r"\mathrm{A}".into(),
+            BetaUpper => r"\mathrm{B}".into(),
+            EpsilonUpper => r"\mathrm{E}".into(),
+            ZetaUpper => r"\mathrm{Z}".into(),
+            EtaUpper => r"\mathrm{H}".into(),
+            IotaUpper => r"\mathrm{I}".into(),
+            KappaUpper => r"\mathrm{K}".into(),
+            MuUpper => r"\mathrm{M}".into(),
+            NuUpper => r"\mathrm{N}".into(),
+            OmicronUpper => r"\mathrm{O}".into(),
+            RhoUpper => r"\mathrm{P}".into(),
+            TauUpper => r"\mathrm{T}".into(),
+            ChiUpper => r"\mathrm{X}".into(),
+            Omicron => "o".into(),
+            _ => atom.spelling(),
+        };
     }
     // Conservative accessible glyph collapse: variant glyphs lose their style;
     // Greek capitals identical to Latin capitals share their accessible token.
@@ -160,5 +186,17 @@ fn atom_name(atom: NotationAtom, rich: bool) -> String {
         VariantPhi => "phi".into(),
         Ell => "l".into(),
         _ => atom.spelling().trim_start_matches('\\').to_owned(),
+    }
+}
+
+fn mark_name(mark: NotationMark, latex: bool) -> &'static str {
+    if latex {
+        match mark {
+            NotationMark::Plus => "+",
+            NotationMark::Minus => "-",
+            _ => mark.spelling(),
+        }
+    } else {
+        &mark.spelling()[1..]
     }
 }

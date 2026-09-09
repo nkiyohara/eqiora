@@ -307,6 +307,10 @@ class ValueType:
 
     def to_eqi(self) -> str: ...
 
+    def render(
+        self, profile: Literal["latex", "mathml", "unicode", "plain", "speech"] = "latex",
+    ) -> MathRendering: ...
+
     @staticmethod
     def integer() -> ValueType: ...
     @staticmethod
@@ -825,6 +829,46 @@ class QuantityLabel:
     def label(self) -> str: ...
 
 @final
+class MathReference:
+    """Exact semantic targets shared by every mathematical presentation profile.
+
+    Authority: ``crates/eqiora-python/src/model/rendering.rs::PyMathReference``.
+    """
+
+    def __repr__(self) -> str: ...
+    @property
+    def graph_id(self) -> str | None: ...
+    @property
+    def role(self) -> str | None: ...
+    @property
+    def declarations(self) -> tuple[str, ...]: ...
+    @property
+    def operator(self) -> str | None: ...
+
+@final
+class MathRendering:
+    """Immutable equation or type presentation with accessible text and exact references.
+
+    If ``used_fallback`` is true, ``text`` is plain text rather than rich markup.
+
+    Authority: ``crates/eqiora-python/src/model/rendering.rs::PyMathRendering``.
+    """
+
+    def __repr__(self) -> str: ...
+    @property
+    def profile(self) -> str: ...
+    @property
+    def text(self) -> str: ...
+    @property
+    def plain(self) -> str: ...
+    @property
+    def speech(self) -> str: ...
+    @property
+    def used_fallback(self) -> bool: ...
+    @property
+    def references(self) -> tuple[MathReference, ...]: ...
+
+@final
 class Model:
     """Immutable canonical model artifact, admitted when semantically closed.
 
@@ -859,9 +903,16 @@ class Model:
     def field(self, selection: str) -> FieldRef: ...
     def domain(self, selection: str) -> DomainRef: ...
     def notation_labels(
-        self, profile: Literal["rich", "plain", "speech"] = "rich", *,
+        self, profile: Literal["latex", "mathml", "unicode", "plain", "speech"] = "latex", *,
         identities: Sequence[str] | None = None,
     ) -> tuple[QuantityLabel, ...]: ...
+    def render_equations(
+        self, relation: str,
+        profile: Literal["latex", "mathml", "unicode", "plain", "speech"] = "latex",
+    ) -> tuple[MathRendering, ...]: ...
+    def render_formulations(
+        self, profile: Literal["latex", "mathml", "unicode", "plain", "speech"] = "latex",
+    ) -> tuple[MathRendering, ...]: ...
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...
@@ -1943,6 +1994,8 @@ __all__ = [
     "InternalError",
     "LinearSolveSummary",
     "LinearizationState",
+    "MathReference",
+    "MathRendering",
     "Model",
     "PackageConformancePackage",
     "PackageConformanceReport",

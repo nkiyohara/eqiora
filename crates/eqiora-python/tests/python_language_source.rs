@@ -24,7 +24,7 @@ compiled = eqiora.compile(source=source)
 full = compiled.notation_labels()
 assert len(full) == 2
 assert all(isinstance(entry, eqiora.QuantityLabel) for entry in full)
-for profile in ['rich', 'plain', 'speech']:
+for profile in ['latex', 'mathml', 'unicode', 'plain', 'speech']:
     entries = compiled.notation_labels(profile)
     assert len({entry.label for entry in entries}) == 2
     view = compiled.notation_labels(profile, identities=[full[0].identity]*2)

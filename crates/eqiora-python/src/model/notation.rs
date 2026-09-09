@@ -84,16 +84,7 @@ pub(super) fn project(
     profile: &str,
     identities: Option<Vec<String>>,
 ) -> PyResult<Py<PyTuple>> {
-    let profile = match profile {
-        "rich" => NotationProfile::Rich,
-        "plain" => NotationProfile::Plain,
-        "speech" => NotationProfile::Speech,
-        _ => {
-            return Err(PyValueError::new_err(
-                "notation profile must be rich, plain, or speech",
-            ));
-        }
-    };
+    let profile = parse_profile(profile)?;
     let document = model
         .document()
         .map_err(|error| crate::error::diagnostic_error(py, &[error]))?;
@@ -126,4 +117,17 @@ pub(super) fn project(
         ));
     }
     Ok(PyTuple::new(py, entries)?.unbind())
+}
+
+pub(crate) fn parse_profile(profile: &str) -> PyResult<NotationProfile> {
+    match profile {
+        "latex" => Ok(NotationProfile::Latex),
+        "mathml" => Ok(NotationProfile::MathMl),
+        "unicode" => Ok(NotationProfile::Unicode),
+        "plain" => Ok(NotationProfile::Plain),
+        "speech" => Ok(NotationProfile::Speech),
+        _ => Err(PyValueError::new_err(
+            "notation profile must be latex, mathml, unicode, plain, or speech",
+        )),
+    }
 }

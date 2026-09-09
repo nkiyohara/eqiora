@@ -115,6 +115,8 @@ EXPECTED_EQIORA_ALL = [
     "InternalError",
     "LinearSolveSummary",
     "LinearizationState",
+    "MathReference",
+    "MathRendering",
     "Model",
     "PackageConformancePackage",
     "PackageConformanceReport",

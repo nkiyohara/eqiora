@@ -104,7 +104,9 @@ pub(super) fn resolve(specs: Vec<NotationSpec>) -> ModelNotation {
 fn collisions(labels: &BTreeMap<QuantityIdentity, NotationLabel>) -> BTreeSet<QuantityIdentity> {
     let mut collisions = BTreeSet::new();
     for profile in [
-        NotationProfile::Rich,
+        NotationProfile::Latex,
+        NotationProfile::MathMl,
+        NotationProfile::Unicode,
         NotationProfile::Plain,
         NotationProfile::Speech,
     ] {
