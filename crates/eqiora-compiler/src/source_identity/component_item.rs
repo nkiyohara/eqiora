@@ -16,6 +16,10 @@ pub(super) fn encode_component_item(
             encoder.u16(17)?;
             encode_let(&mut encoder, declaration, budget)?;
         }
+        ComponentItem::Observable(declaration) => {
+            encoder.u16(30)?;
+            compile_time::encode_observable(&mut encoder, declaration, budget)?;
+        }
         ComponentItem::Parameter(declaration) => {
             encoder.u16(1)?;
             encode_component_parameter(&mut encoder, declaration, budget)?;

@@ -5,6 +5,8 @@ pub(super) use source::from_source;
 mod contextual;
 mod enumeration;
 mod event;
+mod observable;
+pub(super) use observable::lower_observable;
 mod physical_accessors;
 mod piecewise;
 use super::*;
@@ -527,6 +529,7 @@ impl ExpressionLowerer<'_> {
             Binding::Domain(_, _)
             | Binding::Representation(_)
             | Binding::Clock(_, _)
+            | Binding::Observable(_)
             | Binding::Event(_)
             | Binding::Relation { .. } => {
                 return Err(source_error(

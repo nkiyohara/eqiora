@@ -451,6 +451,8 @@ pub enum CommonPressureGauge2d {
 /// project it, but must not create a parallel Plan-kind authority.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedCommonPlan {
+    /// Finite scalar affine physical Plan.
+    Algebraic(Box<CommonAlgebraicPlan>),
     /// Explicit no-Mesh ODE Plan.
     Ode(Box<CommonOdePlan>),
     /// Scalar elliptic spatial Plan.
@@ -474,27 +476,7 @@ impl ResolvedCommonPlan {
             Self::Scalar(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
-            Self::Ode(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
-        }
-    }
-
-    /// Project one already-resolved Plan without reopening capability selection.
-    pub fn project<T>(
-        self,
-        ode: impl FnOnce(CommonOdePlan) -> T,
-        scalar: impl FnOnce(CommonScalarPlan) -> T,
-        elasticity: impl FnOnce(CommonElasticityPlan) -> T,
-        steady_stokes: impl FnOnce(CommonSteadyStokesPlan) -> T,
-        transient_flow: impl FnOnce(CommonTransientFlowPlan) -> T,
-        fsi: impl FnOnce(CommonFsiPlan) -> T,
-    ) -> T {
-        match self {
-            Self::Ode(plan) => ode(*plan),
-            Self::Scalar(plan) => scalar(*plan),
-            Self::Elasticity(plan) => elasticity(*plan),
-            Self::SteadyStokes(plan) => steady_stokes(*plan),
-            Self::TransientFlow(plan) => transient_flow(*plan),
-            Self::Fsi(plan) => fsi(*plan),
+            Self::Algebraic(_) | Self::Ode(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
         }
     }
 }
@@ -929,6 +911,8 @@ impl CommonElasticityObservation {
     }
 }
 
+mod algebraic;
+pub use algebraic::{CommonAlgebraicPlan, CommonAlgebraicState};
 mod derived;
 /// Resolve Model mathematics first, then admit the requested numerical policies.
 mod elasticity;

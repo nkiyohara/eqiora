@@ -507,3 +507,7 @@ pub(crate) fn closed_index(expression: &eqiora_lang::Expr) -> Result<u32, Diagno
 #[cfg(test)]
 #[path = "tests/native_ast.rs"]
 mod native_ast_tests;
+
+#[cfg(test)]
+#[path = "tests/observable.rs"]
+mod observable_tests;

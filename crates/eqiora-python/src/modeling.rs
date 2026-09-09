@@ -10,6 +10,7 @@ pub(crate) mod dimension;
 pub(crate) mod enumeration;
 mod indexing;
 mod nominal;
+mod observable;
 mod predicates;
 pub(crate) mod value_literal;
 mod value_type;
@@ -867,6 +868,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyExpression>()?;
     module.add_class::<PyRelation>()?;
     predicates::register(module)?;
+    observable::register(module)?;
     module.add_function(wrap_pyfunction!(derivative, module)?)?;
     module.add_function(wrap_pyfunction!(across, module)?)?;
     module.add_function(wrap_pyfunction!(through, module)?)?;

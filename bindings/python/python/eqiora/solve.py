@@ -2,6 +2,7 @@
 
 from ._eqiora import (
     Linear,
+    AlgebraicPlanView,
     Newton,
     ResolvedLinear,
     ResolvedNewton,
@@ -18,6 +19,7 @@ __all__ = [
     "Fast",
     "LowMemory",
     "Linear",
+    "AlgebraicPlanView",
     "Newton",
     "ResolvedLinear",
     "ResolvedNewton",

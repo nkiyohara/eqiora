@@ -53,6 +53,13 @@ impl RootExpansion<'_, '_> {
                     None,
                     value.range(),
                 ),
+                Item::Observable(value) => (
+                    value.name(),
+                    EntityKind::Observable,
+                    SymbolKind::Observable,
+                    None,
+                    value.range(),
+                ),
                 Item::Field(value) => (
                     value.name(),
                     EntityKind::Field,

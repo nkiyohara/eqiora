@@ -25,7 +25,9 @@ pub(crate) use notation::PyQuantityLabel;
 pub(crate) use notation::parse_profile;
 mod rendering;
 pub(crate) use rendering::{PyMathReference, PyMathRendering};
+mod observable_ref;
 mod parameter_ref;
+pub(crate) use observable_ref::PyObservableRef;
 pub(crate) use parameter_ref::PyModelParameterRef;
 
 /// Exact identity of one immutable canonical Model artifact.
@@ -821,6 +823,11 @@ impl PyModel {
         })
     }
 
+    /// Select an exact derived output from this Model's aliases or canonical IDs.
+    fn observable(&self, py: Python<'_>, selection: &str) -> PyResult<PyObservableRef> {
+        observable_ref::select(self, py, selection)
+    }
+
     /// Resolve a source alias or exact ULID once into an exact Field role.
     fn field(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelFieldRef> {
         panic_boundary(py, || {
@@ -965,6 +972,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyModelParameterRef>()?;
     module.add_class::<PyModelFieldRef>()?;
     module.add_class::<PyModelDomainRef>()?;
+    module.add_class::<PyObservableRef>()?;
     module.add_class::<PyModel>()?;
     Ok(())
 }

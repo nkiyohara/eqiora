@@ -252,3 +252,31 @@ spec.loader.exec_module(package)
         .expect("the package loader must bind eqiora")
         .cast_into::<PyModule>()?)
 }
+
+#[test]
+fn python_common_finite_route_owns_exact_plan_state_and_result() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        locals.set_item(
+            "source",
+            format!(
+                "{}\n{}",
+                include_str!("../../../packages/Eqiora.Electrical.Basic/src/basic.eqi"),
+                include_str!("../../../examples/voltage_divider.eqi")
+            ),
+        )?;
+        py.run(c_str!(r#"
+model = eqiora.compile(source=source)
+plan = eqiora.resolve(model, solve=eqiora.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+assert plan.mesh is None
+assert plan.temporal is None
+state = eqiora.State.initial(plan)
+state = eqiora.State.from_bytes(plan, state.to_bytes())
+result = eqiora.run(plan, state=state)
+assert result.plan_key == plan.identity
+assert result.to_bytes() == eqiora.Result.from_bytes(plan, result.to_bytes()).to_bytes()
+"#), None, Some(&locals))
+    })
+}

@@ -440,14 +440,9 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             None,
         )
         .unwrap()
-        .project(
-            |_| panic!("FSI resolved as ODE"),
-            |_| panic!("FSI resolved as scalar"),
-            |_| panic!("FSI resolved as elasticity"),
-            |_| panic!("FSI resolved as Stokes"),
-            |_| panic!("FSI resolved as transient flow"),
-            |plan| plan,
-        );
+        .as_fsi()
+        .cloned()
+        .expect("fixture retains its admitted fsi Plan");
         (label, plan)
     });
     let fields = [

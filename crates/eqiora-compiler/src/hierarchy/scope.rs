@@ -49,6 +49,7 @@ pub(super) enum SymbolKind {
     },
     Clock(eqiora_schema::kernel::RationalTime),
     Event,
+    Observable,
     Relation,
 }
 

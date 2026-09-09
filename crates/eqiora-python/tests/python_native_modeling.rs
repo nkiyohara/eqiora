@@ -602,3 +602,84 @@ spec.loader.exec_module(package)
         .expect("public package must load")
         .cast_into::<PyModule>()?)
 }
+
+#[test]
+fn python_observables_preserve_typed_source_identity_and_exact_references() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let native = public_module(py)?;
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", &native)?;
+        py.run(
+            c_str!(
+                r#"
+kind = eqiora.ValueType.real(eqiora.Dimension())
+x = eqiora.Field("x", value_type=kind, role=eqiora.FieldRole.Variable)
+output = eqiora.Observable("double", value_type=kind, expression=x + x)
+assert output.name == "double"
+assert not hasattr(eqiora, "boundary_integral")
+body = eqiora.Domain.box("body", (0.0, 2.0))
+measure = eqiora.measure(body)
+length = eqiora.ValueType.real(eqiora.Dimension(length=1))
+spatial = eqiora.Observable("total", value_type=length, expression=eqiora.integral(3, measure))
+spatial_model = eqiora.compile(source=eqiora.Module("Spatial", x, body,
+    eqiora.Relation("law", equations=[(x, 2)]), spatial))
+foreign_body = eqiora.Domain.box("body", (0.0, 2.0))
+try:
+    eqiora.Module("Spatial", x, body, eqiora.Observable("total", value_type=length,
+        expression=eqiora.integral(3, eqiora.measure(foreign_body))))
+except eqiora.ValidationError as error:
+    assert "foreign or omitted Domain" in str(error)
+else:
+    raise AssertionError("accepted same-name foreign measure Domain")
+
+authored = eqiora.Module("authored")
+component = authored.model("M")
+field = component.field("x", value_type=kind, role=eqiora.FieldRole.Variable)
+component.relation("law", eqiora.lang.equation(field, 2))
+assert component.observable("double", field + field, value_type=kind) is None
+builder_model = eqiora.compile(source=authored, entry="M")
+model = eqiora.compile(source=eqiora.Module("M", x,
+    eqiora.Relation("law", equations=[(x, 2)]), output))
+foreign = eqiora.Field("x", value_type=kind, role=eqiora.FieldRole.Variable)
+try:
+    eqiora.Module("M", x, eqiora.Observable("double", value_type=kind, expression=foreign))
+except eqiora.ValidationError as error:
+    assert "foreign or omitted Field" in str(error)
+else:
+    raise AssertionError("accepted same-name foreign Field")
+try:
+    x + output
+except TypeError:
+    pass
+else:
+    raise AssertionError("Observable became an expression symbol")
+"#
+            ),
+            Some(&locals),
+            None,
+        )?;
+        let native = replay_python_model(&locals, "model");
+        let builder = replay_python_model(&locals, "builder_model");
+        assert_eq!(
+            native.structural_fingerprint().unwrap(),
+            builder.structural_fingerprint().unwrap()
+        );
+        let source = eqiora::api::ModelDocument::compile(
+            "observable.eqi",
+            r#"
+model M() {
+    variable x: 1;
+    relation law { x = 2; }
+    observable double: 1 = x + x;
+}
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            native.structural_fingerprint().unwrap(),
+            source.structural_fingerprint().unwrap()
+        );
+        Ok(())
+    })
+}

@@ -22,6 +22,10 @@ use crate::error::catch_native_panic;
 
 #[derive(Debug)]
 pub(super) enum NativeRunJob {
+    Algebraic(
+        Box<eqiora_numerics::CommonAlgebraicPlan>,
+        eqiora_numerics::CommonAlgebraicState,
+    ),
     Scalar(Box<CommonScalarPlan>),
     Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
@@ -55,6 +59,17 @@ fn execute_job(
     shared: &Arc<RunShared>,
 ) -> Result<NativeWorkerOutcome, Vec<Diagnostic>> {
     match job {
+        NativeRunJob::Algebraic(plan, state) => {
+            let started = Instant::now();
+            let backend = resolved_linear_backend(plan.solver_provider())?;
+            let result = plan
+                .run_result(&state, backend)
+                .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
+                .map_err(|d| vec![d])?;
+            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
+                Box::new(result),
+            )))
+        }
         NativeRunJob::Scalar(plan) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;

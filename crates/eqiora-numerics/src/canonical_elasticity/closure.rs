@@ -159,7 +159,11 @@ pub(super) fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId>
     program
         .edges()
         .iter()
-        .filter(|edge| edge.kind() == EdgeKind::AppliesOn && edge.to() == domain)
+        .filter(|edge| {
+            edge.kind() == EdgeKind::AppliesOn
+                && edge.to() == domain
+                && matches!(program.node(edge.from()), Some(KernelNode::Relation(_)))
+        })
         .map(|edge| edge.from())
         .collect()
 }

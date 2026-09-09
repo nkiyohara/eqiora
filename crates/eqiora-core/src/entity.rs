@@ -42,6 +42,8 @@ pub enum EntityKind {
     Representation,
     /// State, observable, or parameter field.
     Field,
+    /// Derived typed expression without a solve unknown or equation.
+    Observable,
     /// Scalar/tensor parameter.
     Parameter,
     /// Typed input/output contract.
@@ -152,6 +154,7 @@ impl EntityKind {
             | Self::Connection
             | Self::Record
             | Self::RecordInstance
+            | Self::Observable
             | Self::Enum
             | Self::IndexSet
             | Self::FiniteSpace
@@ -236,6 +239,10 @@ pub mod kinds {
     define_entity!(
         /// See [`super::EntityKind::Field`].
         Field in Semantic
+    );
+    define_entity!(
+        /// See [`super::EntityKind::Observable`].
+        Observable in Semantic
     );
     define_entity!(
         /// See [`super::EntityKind::Parameter`].

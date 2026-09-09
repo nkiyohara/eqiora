@@ -27,6 +27,7 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
     max_bytes: 256 * 1024 * 1024,
 };
 
+mod algebraic;
 mod capability_view;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
@@ -151,11 +152,7 @@ impl PyPlan {
     pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
         match &self.native {
             ResolvedCommonPlan::TransientFlow(plan) => Some(plan),
-            ResolvedCommonPlan::Ode(_)
-            | ResolvedCommonPlan::Scalar(_)
-            | ResolvedCommonPlan::Elasticity(_)
-            | ResolvedCommonPlan::SteadyStokes(_)
-            | ResolvedCommonPlan::Fsi(_) => None,
+            _ => None,
         }
     }
 
@@ -169,11 +166,7 @@ impl PyPlan {
     pub(crate) fn scalar_native(&self) -> Option<&CommonScalarPlan> {
         match &self.native {
             ResolvedCommonPlan::Scalar(plan) => Some(plan),
-            ResolvedCommonPlan::Ode(_)
-            | ResolvedCommonPlan::Elasticity(_)
-            | ResolvedCommonPlan::SteadyStokes(_)
-            | ResolvedCommonPlan::TransientFlow(_)
-            | ResolvedCommonPlan::Fsi(_) => None,
+            _ => None,
         }
     }
 
@@ -310,7 +303,8 @@ fn solve_handles_from_native(
             PyResolvedNewton::new(linear, plan.nonlinear()),
         )?),
         ResolvedCommonPlan::Ode(_) => unreachable!("ODE Plan has no common solve request"),
-        ResolvedCommonPlan::Scalar(_)
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_)
         | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
@@ -426,6 +420,7 @@ impl PyPlan {
     #[getter]
     fn capability(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.native {
+            ResolvedCommonPlan::Algebraic(plan) => algebraic::view(py, plan),
             ResolvedCommonPlan::Ode(plan) => Py::new(
                 py,
                 PyOdePlanView {
@@ -554,6 +549,7 @@ impl PyPlan {
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let model_digest = self.native.model_digest().to_owned();
         let fields = match &self.native {
+            ResolvedCommonPlan::Algebraic(_) => Vec::new(),
             ResolvedCommonPlan::Ode(plan) => plan
                 .field_ids()
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
@@ -717,6 +713,10 @@ fn resolve_plan(
             solve: None,
             temporal: Some(TemporalHandle::Tsitouras45(temporal_handle)),
         });
+    }
+
+    if mesh.is_none() && spatial.is_none() && temporal.is_none() {
+        return algebraic::resolve(py, model, solve, formulation, scaling);
     }
 
     let mesh = mesh.ok_or_else(|| PyTypeError::new_err("spatial resolve requires mesh=Mesh"))?;
@@ -941,7 +941,8 @@ fn resolve_plan(
             PyResolvedNewton::new(linear, plan.nonlinear()),
         )?),
         ResolvedCommonPlan::Ode(_) => unreachable!("spatial resolver cannot return an ODE Plan"),
-        ResolvedCommonPlan::Scalar(_)
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_)
         | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
@@ -972,6 +973,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyResolvedLinear>()?;
     module.add_class::<PyResolvedNewton>()?;
     module.add_class::<PyResolvedExecution>()?;
+    module.add_class::<algebraic::PyAlgebraicPlanView>()?;
     module.add_class::<PyOdePlanView>()?;
     module.add_class::<PyScalarPlanView>()?;
     module.add_class::<PyElasticityPlanView>()?;

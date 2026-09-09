@@ -110,14 +110,9 @@ pub(crate) fn plan_for_document(
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("scalar fixture resolved as ODE"),
-        |plan| plan,
-        |_| panic!("scalar fixture resolved as elasticity"),
-        |_| panic!("scalar fixture resolved as Stokes"),
-        |_| panic!("scalar fixture resolved as transient flow"),
-        |_| panic!("scalar fixture resolved as FSI"),
-    )
+    .as_scalar()
+    .cloned()
+    .expect("fixture retains its admitted scalar Plan")
 }
 
 pub(crate) fn document_and_plan_with_source(
@@ -300,14 +295,9 @@ fn document_and_plans_with_source(
             None,
         )
         .unwrap()
-        .project(
-            |_| panic!("scalar fixture resolved as ODE"),
-            |plan| plan,
-            |_| panic!("scalar fixture resolved as elasticity"),
-            |_| panic!("scalar fixture resolved as Stokes"),
-            |_| panic!("scalar fixture resolved as transient flow"),
-            |_| panic!("scalar fixture resolved as FSI"),
-        )
+        .as_scalar()
+        .cloned()
+        .expect("fixture retains its admitted scalar Plan")
     };
     let q1 = resolve(owner.clone(), CommonSpatialPolicy::Q1);
     let tpfa = resolve(owner, CommonSpatialPolicy::CellCenteredTpfa);

@@ -233,6 +233,7 @@ pub(super) enum SymbolContract {
     },
     Clock,
     Event,
+    Observable,
     Relation,
 }
 

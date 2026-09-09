@@ -118,6 +118,7 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
             validate_boundary_family_binder(declaration.binder())?;
             declaration.range()
         }
+        ComponentItem::Observable(declaration) => declaration.range(),
         ComponentItem::Field(declaration) => declaration.range(),
         ComponentItem::Initial(declaration) => declaration.range(),
         ComponentItem::Event(declaration) => declaration.range(),

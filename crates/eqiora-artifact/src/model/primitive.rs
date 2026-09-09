@@ -65,6 +65,7 @@ impl WireId {
         Ok(match self.kind {
             WireEntityKind::Record => typed!(kinds::Record),
             WireEntityKind::RecordInstance => typed!(kinds::RecordInstance),
+            WireEntityKind::Observable => typed!(kinds::Observable),
             WireEntityKind::Enum => typed!(kinds::Enum),
             WireEntityKind::FiniteSpace => typed!(kinds::FiniteSpace),
             WireEntityKind::IndexSet => typed!(kinds::IndexSet),
@@ -86,6 +87,7 @@ impl WireId {
 pub(crate) enum WireEntityKind {
     Record,
     RecordInstance,
+    Observable,
     Enum,
     FiniteSpace,
     IndexSet,
@@ -105,6 +107,7 @@ impl WireEntityKind {
         match value {
             EntityKind::Record => Self::Record,
             EntityKind::RecordInstance => Self::RecordInstance,
+            EntityKind::Observable => Self::Observable,
             EntityKind::Enum => Self::Enum,
             EntityKind::FiniteSpace => Self::FiniteSpace,
             EntityKind::IndexSet => Self::IndexSet,

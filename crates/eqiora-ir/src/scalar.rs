@@ -8,6 +8,7 @@ mod enum_tests;
 mod linearization;
 mod numerical_evaluation;
 mod point_projection;
+mod sampled_linearization;
 mod typed;
 mod typed_linearization;
 use numerical_evaluation::evaluate_instructions;

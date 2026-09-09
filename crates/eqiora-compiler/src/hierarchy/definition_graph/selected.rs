@@ -241,6 +241,7 @@ impl Selected<'_, '_, '_> {
         for item in component.owned_items() {
             let syntax = match item {
                 ComponentItem::Parameter(value) => Some(value.value_type()),
+                ComponentItem::Observable(value) => Some(value.value_type()),
                 ComponentItem::Field(value) => Some(value.value_type()),
                 ComponentItem::Port(value) => match value.syntax() {
                     PortSyntax::Signal { value_type, .. } => Some(value_type),

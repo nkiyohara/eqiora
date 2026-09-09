@@ -39,6 +39,16 @@ pub(crate) fn exponents(py: Python<'_>, value: DimExponents) -> PyResult<Py<PyTu
     Ok(PyTuple::new(py, values)?.unbind())
 }
 
+impl PyDimension {
+    pub(crate) const fn native(&self) -> DimExponents {
+        self.value
+    }
+
+    pub(crate) const fn from_native(value: DimExponents) -> Self {
+        Self { value }
+    }
+}
+
 #[pymethods]
 impl PyDimension {
     #[new]
@@ -66,12 +76,12 @@ impl PyDimension {
             luminous_intensity,
         ])
         .ok_or_else(|| PyValueError::new_err("invalid rational dimension exponents"))?;
-        Ok(Self { value })
+        Ok(Self::from_native(value))
     }
 
     #[getter]
     fn exponents(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        exponents(py, self.value)
+        exponents(py, self.native())
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {

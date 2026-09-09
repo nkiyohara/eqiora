@@ -123,6 +123,26 @@ impl PyAstDeclaration {
     }
 
     #[staticmethod]
+    fn observable(
+        name: String,
+        kind: &PyAstType,
+        value: &PyAstExpression,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            value: Declaration::Item(ComponentItem::Observable(
+                Ast::observable(
+                    name,
+                    kind.value.clone(),
+                    value.value.clone(),
+                    range(ordinal),
+                )
+                .map_err(syntax_error)?,
+            )),
+        })
+    }
+
+    #[staticmethod]
     fn field(
         name: String,
         kind: &PyAstType,

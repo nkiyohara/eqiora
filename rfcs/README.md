@@ -116,3 +116,4 @@ implementation or capability claim.
 - [RFC 0088: Freeze technical evidence development (superseded)](0088-freeze-evidence-development.md)
 - [RFC 0089: Resume claim-local evidence development](0089-resume-claim-local-evidence-development.md)
 - [RFC 0090: Closed record identity](0090-closed-record-identity.md)
+- [RFC 0091: Typed Observable identity](0091-typed-observable-identity.md)

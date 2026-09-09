@@ -150,7 +150,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 1634
+ceiling = 1537
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -430,7 +430,7 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 94
+ceiling = 96
 # #879 adds NotationLabel/NotationProfile for checked generated suffix composition
 # and shared LaTeX/MathML/Unicode/plain/speech labels. Source Notation keeps
 # its admission bounds; native and Python callers use this one projection owner.
@@ -443,6 +443,10 @@ ceiling = 94
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.
+# RFC 0091: ObservableDecl and DraftObservable own typed declaration, execution or
+# exact reduction contracts shared by compiler/native/Python/replay consumers.
+# Withdraw these names only when accepted existing owners preserve exact identity,
+# complete result types and support without adapter-specific parallel contracts.
 reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed finite reduction choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions; CallArguments retains positional expressions or named bindings while shared Expr removes three operator-only expression types; EnumDecl owns ordered nominal member syntax and CaseArm owns exact pattern/value ranges and checked pattern identity for parser, native factory, compiler rewriting and editor consumers, replacing no existing equivalent owner; RFC 0090 adds RecordDecl and RecordMemberDecl as the single range-bearing closed declaration/member AST used by parser, native factory, formatter and compiler; neither homogeneous ValueTypeSyntax nor ComponentDecl preserves this nominal product contract"
 removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST; lower this allowance when existing public consumers can use a smaller shared source representation without losing typed ranges or declaration admission; withdraw the two record AST owners only when an accepted existing owner preserves exact declaration/member ranges and nominal admission"
 
@@ -452,7 +456,11 @@ ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 265
+ceiling = 269
+# RFC 0091: CommonAlgebraicPlan, CommonAlgebraicState, CommonObservation and CommonObservableStateTangent own typed declaration, execution or
+# exact reduction contracts shared by compiler/native/Python/replay consumers.
+# Withdraw these names only when accepted existing owners preserve exact identity,
+# complete result types and support without adapter-specific parallel contracts.
 reason = "predates the predicate; the largest crate, carrying one public entry point per hand-written physics slice"
 removal = "the FEM form-compiler lane replaces per-physics entry points with instance witness data; lower this with each entry point it deletes"
 
@@ -476,7 +484,11 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 95
+ceiling = 98
+# RFC 0091: ObservableDef, ObservableReduction and ObservableMeasure own typed declaration, execution or
+# exact reduction contracts shared by compiler/native/Python/replay consumers.
+# Withdraw these names only when accepted existing owners preserve exact identity,
+# complete result types and support without adapter-specific parallel contracts.
 reason = """
 ComparisonOp gives source compilation, typed inference, DAG/SSA execution and exact
 Model replay one closed six-operation comparison vocabulary. This single current

@@ -216,14 +216,9 @@ fn accepted() -> Accepted {
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("elasticity fixture resolved as ODE"),
-        |_| panic!("elasticity fixture resolved as scalar"),
-        |plan| plan,
-        |_| panic!("elasticity fixture resolved as Stokes"),
-        |_| panic!("elasticity fixture resolved as transient flow"),
-        |_| panic!("elasticity fixture resolved as FSI"),
-    );
+    .as_elasticity()
+    .cloned()
+    .expect("fixture retains its admitted elasticity Plan");
     let result = plan.run_result().unwrap();
     Accepted {
         document,

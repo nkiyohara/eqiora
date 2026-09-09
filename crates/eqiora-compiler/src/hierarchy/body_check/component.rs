@@ -356,6 +356,11 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         Err(error) => self.diagnostics.push(error),
                     }
                 }
+                ComponentItem::Observable(declaration) => {
+                    self.scope
+                        .symbols
+                        .insert(declaration.name().to_owned(), SymbolContract::Observable);
+                }
                 ComponentItem::Event(declaration) => {
                     self.scope
                         .symbols
@@ -484,6 +489,13 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                             domain,
                             "Field support",
                         ));
+                    }
+                }
+                ComponentItem::Observable(declaration) => {
+                    if let Err(error) =
+                        super::expression::validate_observable(&self.scope, declaration)
+                    {
+                        self.diagnostics.push(error);
                     }
                 }
                 ComponentItem::Event(declaration) => {

@@ -9,6 +9,8 @@ mod definition;
 mod expression;
 mod finite_space;
 pub use finite_space::FiniteSpaceDef;
+mod observable;
+pub use observable::{ObservableDef, ObservableMeasure, ObservableReduction};
 mod index_set;
 pub use index_set::IndexSetDef;
 pub mod physical_closure;

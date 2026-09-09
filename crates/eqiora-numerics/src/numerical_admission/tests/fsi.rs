@@ -42,14 +42,10 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             None,
         )
         .unwrap();
-        replay_plan(resolved, &ResolveOnlyBackend).project(
-            |_| panic!("FSI resolved as ODE"),
-            |_| panic!("FSI resolved as scalar"),
-            |_| panic!("FSI resolved as elasticity"),
-            |_| panic!("FSI resolved as Stokes"),
-            |_| panic!("FSI resolved as transient flow"),
-            |plan| plan,
-        )
+        replay_plan(resolved, &ResolveOnlyBackend)
+            .as_fsi()
+            .cloned()
+            .expect("fixture retains its admitted fsi Plan")
     };
     let automatic = resolve(None);
     let manual = resolve(Some(

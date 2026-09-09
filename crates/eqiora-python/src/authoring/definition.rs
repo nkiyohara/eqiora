@@ -94,6 +94,7 @@ fn model_item(item: ComponentItem) -> PyResult<Item> {
         ComponentItem::Let(value) => Item::Let(value),
         ComponentItem::Field(value) => Item::Field(value),
         ComponentItem::Initial(value) => Item::Initial(value),
+        ComponentItem::Observable(value) => Item::Observable(value),
         ComponentItem::Event(value) => Item::Event(value),
         ComponentItem::Clock(value) => Item::Clock(value),
         ComponentItem::Relation(value) => Item::Relation(value),

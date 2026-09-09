@@ -159,6 +159,7 @@ pub(super) fn entity_code(kind: EntityKind) -> Result<u16, Diagnostic> {
         EntityKind::Enum => 31,
         EntityKind::Record => 32,
         EntityKind::RecordInstance => 33,
+        EntityKind::Observable => 34,
         _ => {
             return Err(identity_error(
                 "entity kind has no canonical elaboration identity code",

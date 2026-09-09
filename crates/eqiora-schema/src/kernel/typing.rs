@@ -318,6 +318,8 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
 pub enum RootContract {
     /// Independent typed value roots, retaining heterogeneous type and support.
     ValueRoots,
+    /// Derived numerical expression; support is checked by the functional owner.
+    Observable,
     /// Consecutive roots are equation sides with exact compatible types and support.
     EquationSides,
     /// Every exact component of every root is an equation equal to zero.
@@ -459,6 +461,7 @@ impl<I: Clone + Eq> TypedResidual<I> {
                 };
                 let result = match root_contract {
                     RootContract::ValueRoots => Ok(()),
+                    RootContract::Observable => boolean::numerical_root(&root_type),
                     RootContract::InitialResiduals => boolean::numerical_root(&root_type),
                     RootContract::ComponentwiseResidual => boolean::numerical_root(&root_type)
                         .and_then(|()| residual(&root_type, relation_support.as_ref())),

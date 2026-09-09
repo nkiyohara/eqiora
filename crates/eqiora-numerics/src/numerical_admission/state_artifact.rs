@@ -142,7 +142,8 @@ impl WireCommonSpatialStateV1 {
                 self.replay_fsi(plan)?
             }
             (
-                ResolvedCommonPlan::Ode(_)
+                ResolvedCommonPlan::Algebraic(_)
+                | ResolvedCommonPlan::Ode(_)
                 | ResolvedCommonPlan::Scalar(_)
                 | ResolvedCommonPlan::Elasticity(_)
                 | ResolvedCommonPlan::SteadyStokes(_),

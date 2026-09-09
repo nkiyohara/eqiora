@@ -29,9 +29,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V17: &[u8] = b"eqiora.structural-semantic-fingerprint/v17\0";
+const FINGERPRINT_DOMAIN_V18: &[u8] = b"eqiora.structural-semantic-fingerprint/v18\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V17: u16 = 17;
+const GENERATION_V18: u16 = 18;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -43,8 +43,9 @@ pub enum SemanticFingerprintGeneration {
     /// Closed projection retaining Boolean and exact integer payloads, nominal references,
     /// ordered equation sides, comparisons and finite extrema, initialization,
     /// sample/hold transitions, typed operators, conditional value guards, and
-    /// nominal records with ordered heterogeneous member expressions.
-    V17,
+    /// nominal records with ordered heterogeneous member expressions, and typed
+    /// Observables with exact expression and reduction support.
+    V18,
 }
 
 impl SemanticFingerprintGeneration {
@@ -52,19 +53,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V17 => "eqiora.structural-semantic-fingerprint/v17",
+            Self::V18 => "eqiora.structural-semantic-fingerprint/v18",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V17 => GENERATION_V17,
+            Self::V18 => GENERATION_V18,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V17 => FINGERPRINT_DOMAIN_V17,
+            Self::V18 => FINGERPRINT_DOMAIN_V18,
         }
     }
 }
@@ -207,7 +208,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V17;
+        let generation = SemanticFingerprintGeneration::V18;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -254,6 +255,40 @@ fn encode_node(
             encode_expression(
                 &mut encoder,
                 instance.expression(),
+                4,
+                ids,
+                references,
+                budget,
+            )?;
+        }
+        KernelNode::Observable(definition) => {
+            encoder.u8(15)?;
+            encode_value_type(&mut encoder, definition.value_type())?;
+            type_reference(
+                definition.value_type(),
+                nominal_label(15),
+                ids,
+                references,
+                budget,
+            )?;
+            match definition.reduction() {
+                eqiora_schema::kernel::ObservableReduction::Value => encoder.u8(0)?,
+                eqiora_schema::kernel::ObservableReduction::SpatialIntegral { domain, measure } => {
+                    encoder.u8(match measure {
+                        eqiora_schema::kernel::ObservableMeasure::Volume => 1,
+                        eqiora_schema::kernel::ObservableMeasure::Boundary => 2,
+                    })?;
+                    push_reference(
+                        references,
+                        nominal_label(16),
+                        lookup(ids, domain.erase(), "Observable integration Domain")?,
+                        budget,
+                    )?;
+                }
+            }
+            encode_expression(
+                &mut encoder,
+                definition.expression(),
                 4,
                 ids,
                 references,
@@ -932,7 +967,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v17"
+        "{subject} is newer than structural semantic fingerprint generation v18"
     ))
 }
 

@@ -767,3 +767,41 @@ fn draft_channel_literals_cannot_hide_empty_arrays_or_foreign_symbols() {
         .is_err()
     );
 }
+
+#[test]
+fn observables_require_exact_references_without_introducing_unknowns() {
+    let kind =
+        ValueType::scalar(eqiora_core::ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    let field = DraftField::new("x", kind.clone(), FieldRoleSyntax::Variable);
+    let foreign = DraftField::new("x", kind.clone(), FieldRoleSyntax::Variable);
+    let output = DraftObservable::new(
+        "double",
+        kind.clone(),
+        field.expression() + field.expression(),
+    );
+    let module = Module::new("M", [field.clone().into(), output.into()]).unwrap();
+    assert!(matches!(&module.model().items()[1], Item::Observable(_)));
+    let rejected = DraftObservable::new("double", kind.clone(), foreign.expression());
+    assert!(
+        Module::new("M", [field.into(), rejected.into()])
+            .unwrap_err()
+            .iter()
+            .any(|error| error.message().contains("foreign or omitted Field"))
+    );
+    let domain = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0)]);
+    let other = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0)]);
+    let output = DraftObservable::new(
+        "total",
+        kind,
+        DraftExpression::integral(
+            DraftExpression::constant(crate::DecimalLiteral::parse("1").unwrap()),
+            DraftExpression::measure(&other),
+        ),
+    );
+    assert!(
+        Module::new("M", [domain.into(), output.into()])
+            .unwrap_err()
+            .iter()
+            .any(|error| error.message().contains("foreign or omitted Domain"))
+    );
+}

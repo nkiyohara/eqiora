@@ -332,6 +332,13 @@ pub(crate) enum LoweringItem {
         phase: eqiora_lang::Expr,
         range: TextRange,
     },
+    Observable {
+        name: String,
+        value_type: eqiora_lang::ValueTypeSyntax,
+        value: LoweringExpression,
+        reduction: Option<String>,
+        range: TextRange,
+    },
     Event {
         name: String,
         guard: LoweringExpression,
@@ -492,6 +499,14 @@ pub(crate) fn lower_typed_model(
                 ),
                 Err(error) => diagnostics.push(error),
             },
+            LoweringItem::Observable { name, range, .. } => insert_binding(
+                file,
+                &mut bindings,
+                name,
+                Binding::Observable(identities.observable(name)),
+                *range,
+                &mut diagnostics,
+            ),
             LoweringItem::Event { name, range, .. } => insert_binding(
                 file,
                 &mut bindings,
@@ -702,6 +717,35 @@ pub(crate) fn lower_typed_model(
                     })
                     .map(|definition| nodes.push(definition.into()))
             }
+            LoweringItem::Observable {
+                name,
+                value_type,
+                value,
+                reduction,
+                range,
+            } => {
+                let Binding::Observable(id) = bindings[name] else {
+                    unreachable!("Observable binding")
+                };
+                expression::lower_observable(
+                    file,
+                    *range,
+                    id,
+                    value_type,
+                    value,
+                    reduction.as_ref(),
+                    &bindings,
+                )
+                .map(|(definition, dependencies)| {
+                    for dependency in dependencies {
+                        edges.push((id.erase(), dependency, EdgeKind::DependsOn));
+                    }
+                    if let Some(domain) = definition.reduction().domain() {
+                        edges.push((id.erase(), domain.erase(), EdgeKind::AppliesOn));
+                    }
+                    nodes.push(definition.into());
+                })
+            }
             LoweringItem::Event {
                 name,
                 guard,
@@ -894,6 +938,7 @@ pub(crate) fn lower_typed_model(
             | LoweringItem::Parameter { name, .. }
             | LoweringItem::Port { name, .. }
             | LoweringItem::Clock { name, .. }
+            | LoweringItem::Observable { name, .. }
             | LoweringItem::Event { name, .. }
             | LoweringItem::Relation {
                 name,

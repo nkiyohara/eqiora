@@ -28,14 +28,9 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
             None,
         )
         .unwrap()
-        .project(
-            |_| unreachable!(),
-            |_| unreachable!(),
-            |_| unreachable!(),
-            |_| unreachable!(),
-            |plan| plan,
-            |_| unreachable!(),
-        )
+        .as_transient_flow()
+        .cloned()
+        .expect("fixture retains its admitted transient_flow Plan")
     };
 
     let mini = resolve(affine_resources(&geometry), CommonSpatialPolicy::MiniP1);
@@ -109,14 +104,10 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             None,
         )
         .unwrap();
-        replay_plan(resolved, &ResolveOnlyBackend).project(
-            |_| panic!("spatial Model resolved as no-Mesh ODE"),
-            |_| panic!("transient Model resolved as scalar"),
-            |_| panic!("transient Model resolved as elasticity"),
-            |_| panic!("transient Model resolved as steady Stokes"),
-            |plan| plan,
-            |_| panic!("transient Model resolved as FSI"),
-        )
+        replay_plan(resolved, &ResolveOnlyBackend)
+            .as_transient_flow()
+            .cloned()
+            .expect("fixture retains its admitted transient_flow Plan")
     };
     let mini = resolve(
         &model,
@@ -155,14 +146,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             None,
         )
         .unwrap()
-        .project(
-            |_| panic!("spatial Model resolved as no-Mesh ODE"),
-            |_| panic!("transient Model resolved as scalar"),
-            |_| panic!("transient Model resolved as elasticity"),
-            |_| panic!("transient Model resolved as steady Stokes"),
-            |plan| plan,
-            |_| panic!("transient Model resolved as FSI"),
-        )
+        .as_transient_flow()
+        .cloned()
+        .expect("fixture retains its admitted transient_flow Plan")
     };
     let robust = resolve_program_controlled(SolverPlanningObjective::Robust);
     let fast = resolve_program_controlled(SolverPlanningObjective::Fast);
@@ -192,14 +178,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("spatial Model resolved as no-Mesh ODE"),
-        |_| panic!("transient Model resolved as scalar"),
-        |_| panic!("transient Model resolved as elasticity"),
-        |_| panic!("transient Model resolved as steady Stokes"),
-        |plan| plan,
-        |_| panic!("transient Model resolved as FSI"),
-    );
+    .as_transient_flow()
+    .cloned()
+    .expect("fixture retains its admitted transient_flow Plan");
     let alternate_scaling =
         IncompressibleScalingRequest2d::from_si(Some(4.0), Some(5.0), Some(6.0)).unwrap();
     let fvm_alternate_scaling = resolve_common_plan(
@@ -213,14 +194,9 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("spatial Model resolved as no-Mesh ODE"),
-        |_| panic!("transient Model resolved as scalar"),
-        |_| panic!("transient Model resolved as elasticity"),
-        |_| panic!("transient Model resolved as steady Stokes"),
-        |plan| plan,
-        |_| panic!("transient Model resolved as FSI"),
-    );
+    .as_transient_flow()
+    .cloned()
+    .expect("fixture retains its admitted transient_flow Plan");
 
     assert_eq!(mini.identity(), mini_replay.identity());
     assert_eq!(mini.realization_digest(), mini_replay.realization_digest());

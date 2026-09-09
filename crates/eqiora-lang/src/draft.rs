@@ -72,6 +72,14 @@ impl ModelDeclarations {
                         })?;
                 }
             }
+            if let DraftDeclaration::Observable(value) = &declaration {
+                expression_nodes = expression_nodes
+                    .checked_add(value.expression.nodes)
+                    .filter(|count| *count <= crate::SourceAstFactory::MAX_EXPRESSION_NODES)
+                    .ok_or_else(|| {
+                        error("native module exceeds the shared expression node limit")
+                    })?;
+            }
             admitted.push(declaration);
         }
         let value = Self {
@@ -162,7 +170,8 @@ impl ModelDeclarations {
                         diagnostics.push(native_diagnostic(&self.name, name, error.to_string()));
                     }
                 }
-                DraftDeclaration::FiniteSpace { .. }
+                DraftDeclaration::Observable(_)
+                | DraftDeclaration::FiniteSpace { .. }
                 | DraftDeclaration::IndexSet { .. }
                 | DraftDeclaration::Relation(_)
                 | DraftDeclaration::Initial(_)
@@ -200,6 +209,33 @@ impl ModelDeclarations {
                         .map_err(|error| error.to_string())
                     {
                         diagnostics.push(native_diagnostic(&self.name, field.name(), message));
+                    }
+                }
+                DraftDeclaration::Observable(observable) => {
+                    if let Err(error) = self.validate_enum_type(&observable.value_type) {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            observable.name(),
+                            error.to_string(),
+                        ));
+                    }
+                    if let Err(error) =
+                        crate::ValueTypeSyntax::from_checked(&observable.value_type, |id| {
+                            self.nominal_name(id)
+                        })
+                    {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            observable.name(),
+                            error.to_string(),
+                        ));
+                    }
+                    if let Some(error) = observable.expression.construction_error() {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            observable.name(),
+                            error.message(),
+                        ));
                     }
                 }
                 DraftDeclaration::Parameter(parameter) => {
@@ -338,14 +374,19 @@ impl ModelDeclarations {
         }
 
         for declaration in &self.declarations {
-            let Some((path, residuals)) = declaration.equations() else {
+            let mut referenced = Vec::new();
+            let path = if let DraftDeclaration::Observable(value) = declaration {
+                value.expression.references(&mut referenced);
+                value.name()
+            } else if let Some((path, residuals)) = declaration.equations() {
+                for (left, right) in residuals {
+                    left.references(&mut referenced);
+                    right.references(&mut referenced);
+                }
+                path
+            } else {
                 continue;
             };
-            let mut referenced = Vec::new();
-            for (left, right) in residuals {
-                left.references(&mut referenced);
-                right.references(&mut referenced);
-            }
             for reference in referenced {
                 match reference {
                     DraftExpressionReference::Value(reference)
@@ -355,7 +396,7 @@ impl ModelDeclarations {
                             &self.name,
                             path,
                             format!(
-                                "equation group `{path}` references foreign or omitted {} `{}`",
+                                "declaration `{path}` references foreign or omitted {} `{}`",
                                 reference.kind.label(),
                                 reference.name
                             ),
@@ -368,11 +409,24 @@ impl ModelDeclarations {
                             &self.name,
                             path,
                             format!(
-                                "equation group `{path}` references foreign or omitted conserving Port `{}`",
+                                "declaration `{path}` references foreign or omitted conserving Port `{}`",
                                 reference.name
                             ),
                         ));
                     }
+                    DraftExpressionReference::Domain(domain)
+                        if !spatial_domain_symbols.contains(domain.symbol()) =>
+                    {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            path,
+                            format!(
+                                "declaration `{path}` references foreign or omitted Domain `{}`",
+                                domain.name()
+                            ),
+                        ));
+                    }
+                    DraftExpressionReference::Domain(_) => {}
                     DraftExpressionReference::EnumValue(value) => {
                         if let Err(error) = crate::SourceAstFactory::value_literal(
                             value,
@@ -487,6 +541,8 @@ pub enum DraftDeclaration {
     Field(DraftField),
     /// Revision-local scalar design value.
     Parameter(DraftParameter),
+    /// Typed derived output, separate from solve unknowns.
+    Observable(DraftObservable),
     /// Scalar conserving Port on one nominal physical Domain.
     ConservingPort(DraftConservingPort),
     /// Continuous implicit equation group.
@@ -511,6 +567,7 @@ impl DraftDeclaration {
             Self::PhysicalDomain(value) => Some(value.name()),
             Self::Field(value) => Some(value.name()),
             Self::Parameter(value) => Some(value.name()),
+            Self::Observable(value) => Some(value.name()),
             Self::ConservingPort(value) => Some(value.name()),
             Self::Relation(value) => Some(value.name()),
             Self::Initial(_) | Self::ConservingConnection(_) => None,
@@ -526,6 +583,7 @@ impl DraftDeclaration {
             Self::PhysicalDomain(_) => "PhysicalDomain",
             Self::Field(_) => "Field",
             Self::Parameter(_) => "Parameter",
+            Self::Observable(_) => "Observable",
             Self::ConservingPort(_) => "ConservingPort",
             Self::Relation(_) => "Relation",
             Self::Initial(_) => "Initial",
@@ -822,103 +880,6 @@ pub struct DraftExpression {
     nodes: usize,
 }
 
-impl DraftExpression {
-    /// Dimensionless numeric literal.
-    #[must_use]
-    pub fn constant(value: crate::DecimalLiteral) -> Self {
-        Self::leaf(ExprKind::Number(value))
-    }
-
-    /// Construct a complex scalar without discarding either component.
-    #[must_use]
-    pub fn complex(real: f64, imaginary: f64) -> Self {
-        let values = [real, imaginary].map(crate::DecimalLiteral::from_f64);
-        match values {
-            [Ok(real), Ok(imaginary)] => Self::call(
-                "math.complex",
-                vec![Self::constant(real), Self::constant(imaginary)],
-            ),
-            _ => Self::failed("native expression contains a non-finite numeric literal"),
-        }
-    }
-
-    fn reference(symbol: DraftSymbol, name: String, kind: DraftSymbolKind) -> Self {
-        let mut value = Self::leaf(ExprKind::Name(name.clone()));
-        value.references =
-            std::sync::Arc::new(vec![expression::NativeReference::Value(DraftReference {
-                symbol,
-                name,
-                kind,
-            })]);
-        value
-    }
-
-    /// Time derivative of one Field.
-    #[must_use]
-    pub fn derivative(field: &DraftField) -> Self {
-        Self::call(
-            "derivative",
-            vec![Self::reference(
-                field.symbol.clone(),
-                field.name.clone(),
-                DraftSymbolKind::Field,
-            )],
-        )
-    }
-
-    /// Read the across variable of one scalar conserving Port.
-    #[must_use]
-    pub fn across(port: &DraftConservingPort) -> Self {
-        Self::port_reference(port, &port.domain.across_name)
-    }
-
-    /// Read the through variable of one scalar conserving Port.
-    #[must_use]
-    pub fn through(port: &DraftConservingPort) -> Self {
-        Self::port_reference(port, &port.domain.through_name)
-    }
-
-    fn port_reference(port: &DraftConservingPort, member: &str) -> Self {
-        let reference = DraftPortReference::from(port);
-        let mut value = Self::leaf(ExprKind::Path(NamePath::from_parsed_segments(
-            vec![reference.name.clone(), member.to_owned()],
-            TextRange::default(),
-        )));
-        value.references = std::sync::Arc::new(vec![expression::NativeReference::Port(reference)]);
-        value
-    }
-
-    /// Spatial gradient of one expression.
-    #[must_use]
-    pub fn gradient(value: Self) -> Self {
-        Self::call("grad", vec![value])
-    }
-
-    /// Spatial divergence of one expression.
-    #[must_use]
-    pub fn divergence(value: Self) -> Self {
-        Self::call("div", vec![value])
-    }
-
-    /// Boundary trace of one expression.
-    #[must_use]
-    pub fn trace(value: Self) -> Self {
-        Self::call("trace", vec![value])
-    }
-
-    fn binary(self, operator: BinaryOp, right: Self) -> Self {
-        Self::compose(vec![self, right], |mut values| {
-            let right = values.pop().expect("two operands");
-            let left = values.pop().expect("two operands");
-            ExprKind::Binary {
-                op: operator,
-                left: Box::new(left),
-                right: Box::new(right),
-            }
-        })
-    }
-}
-
 impl Neg for DraftExpression {
     type Output = Self;
     fn neg(self) -> Self::Output {
@@ -975,7 +936,9 @@ mod ast_bridge;
 mod dimension;
 mod expression;
 use expression::DraftExpressionReference;
+mod observable;
 mod parameter;
+pub use observable::DraftObservable;
 mod relation;
 pub use relation::DraftRelation;
 mod nominal;

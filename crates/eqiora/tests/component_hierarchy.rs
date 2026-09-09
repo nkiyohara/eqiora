@@ -14,7 +14,7 @@ use eqiora::{Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{
     scalar::ScalarPhysicalAffineSolution, scalar::lower_scalar_physical_affine,
-    scalar::solve_scalar_physical_affine_with_initial_guess,
+    scalar::solve_scalar_physical_affine,
 };
 
 const SOURCE: &str = include_str!(
@@ -115,21 +115,17 @@ fn solve(
     assert_eq!(roots, [3, 4]);
 
     let plan = SolverPlan::new(
-        LinearSolver::BiConjugateGradientStabilized,
+        LinearSolver::SparseLu,
         1.0e-12,
         1.0e-14,
-        NonZeroUsize::new(100).unwrap(),
+        NonZeroUsize::new(1).unwrap(),
     )
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    let initial_guess = vec![1.0; problem.canonical_system().columns()];
-    let solution = solve_scalar_physical_affine_with_initial_guess(
-        &problem,
-        &initial_guess,
-        LinearSolveRequest::new(&FaerLinearSolver, plan),
-    )
-    .expect("hierarchical physical solve");
+    let solution =
+        solve_scalar_physical_affine(&problem, LinearSolveRequest::new(&FaerLinearSolver, plan))
+            .expect("hierarchical physical solve");
     assert!(solution.reference_residual_norm() <= RESIDUAL_TOLERANCE);
     solution
 }

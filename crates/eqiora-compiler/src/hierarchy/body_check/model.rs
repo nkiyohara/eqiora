@@ -328,6 +328,9 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         }))
                 }
                 Item::Clock(declaration) => Ok(Some((declaration.name(), SymbolContract::Clock))),
+                Item::Observable(declaration) => {
+                    Ok(Some((declaration.name(), SymbolContract::Observable)))
+                }
                 Item::Event(declaration) => Ok(Some((declaration.name(), SymbolContract::Event))),
                 Item::RelationFamily(family) => {
                     Ok(Some((family.relation().name(), SymbolContract::Relation)))
@@ -502,6 +505,13 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         declaration.period(),
                         declaration.phase(),
                     ) {
+                        self.diagnostics.push(error);
+                    }
+                }
+                Item::Observable(declaration) => {
+                    if let Err(error) =
+                        super::expression::validate_observable(&self.scope, declaration)
+                    {
                         self.diagnostics.push(error);
                     }
                 }

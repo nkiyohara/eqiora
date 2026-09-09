@@ -596,6 +596,8 @@ pub enum KernelNode {
     Representation(RepresentationDef),
     /// Field definition.
     Field(FieldDef),
+    /// Derived expression, independent of solve unknowns.
+    Observable(super::ObservableDef),
     /// Parameter definition.
     Parameter(ParameterDef),
     /// Port definition.
@@ -628,6 +630,7 @@ impl KernelNode {
             Self::Domain(value) => value.id().erase(),
             Self::Representation(value) => value.id().erase(),
             Self::Field(value) => value.id().erase(),
+            Self::Observable(value) => value.id().erase(),
             Self::Parameter(value) => value.id().erase(),
             Self::Port(value) => value.id().erase(),
             Self::Relation(value) => value.id().erase(),
@@ -649,6 +652,7 @@ impl KernelNode {
             Self::Domain(_) => EntityKind::Domain,
             Self::Representation(_) => EntityKind::Representation,
             Self::Field(_) => EntityKind::Field,
+            Self::Observable(_) => EntityKind::Observable,
             Self::Parameter(_) => EntityKind::Parameter,
             Self::Port(_) => EntityKind::Port,
             Self::Relation(_) => EntityKind::Relation,

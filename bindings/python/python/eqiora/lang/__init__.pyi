@@ -372,6 +372,10 @@ class Component:
         at: Clock | None = None,
         doc: str | None = None,
     ) -> Expression: ...
+    def observable(
+        self, name: str, expression: Expression | int | float | complex, *,
+        value_type: ValueType, doc: str | None = None,
+    ) -> None: ...
     def relation(
         self,
         name: str,

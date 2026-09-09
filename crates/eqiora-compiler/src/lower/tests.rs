@@ -486,6 +486,10 @@ impl LoweringIdentities for AssignedTestIdentities {
         panic!("fixture has no ClockDomain")
     }
 
+    fn observable(&mut self, _name: &str) -> Id<kinds::Observable> {
+        Id::new()
+    }
+
     fn activation(&mut self, _name: &str) -> Id<kinds::Activation> {
         panic!("fixture has no Event")
     }

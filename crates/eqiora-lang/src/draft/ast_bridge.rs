@@ -167,6 +167,30 @@ impl super::ModelDeclarations {
                     .expect("validated native Parameter projection"),
                     range,
                 }),
+                DraftDeclaration::Observable(value) => Item::Observable(
+                    crate::SourceAstFactory::observable(
+                        value.name().to_owned(),
+                        value_type::project(
+                            value.value_type(),
+                            &path,
+                            &mut ranges,
+                            &mut paths,
+                            &mut |id| self.nominal_name(id),
+                        ),
+                        value
+                            .expression()
+                            .ast(
+                                &path,
+                                &mut ranges,
+                                &mut paths,
+                                &mut |id| self.nominal_name(id),
+                                &mut |id| self.enum_definition(id),
+                            )
+                            .expect("validated native Observable expression"),
+                        range,
+                    )
+                    .expect("validated native Observable projection"),
+                ),
                 DraftDeclaration::ConservingPort(port) => Item::Port(PortDecl {
                     comments: Default::default(),
                     name: port.name.clone(),
