@@ -90,6 +90,14 @@ impl Parser<'_> {
                 self.bump();
                 let (index, index_depth) = self.parse_expression_with_depth(0)?;
                 depth = self.parent_depth(depth.max(index_depth))?;
+                let upper = if self.at(TokenKind::Colon) {
+                    self.bump();
+                    let (upper, upper_depth) = self.parse_expression_with_depth(0)?;
+                    depth = depth.max(self.parent_depth(upper_depth)?);
+                    Some(upper)
+                } else {
+                    None
+                };
                 let end = self
                     .expect(TokenKind::RightBracket, "`]` after index")?
                     .range()
@@ -98,9 +106,16 @@ impl Parser<'_> {
                 left = Expr {
                     resolved_enum: None,
                     resolved_nominal: None,
-                    kind: ExprKind::Index {
-                        value: Box::new(left),
-                        index: Box::new(index),
+                    kind: match upper {
+                        Some(upper) => ExprKind::Slice {
+                            value: Box::new(left),
+                            lower: Box::new(index),
+                            upper: Box::new(upper),
+                        },
+                        None => ExprKind::Index {
+                            value: Box::new(left),
+                            index: Box::new(index),
+                        },
                     },
                     range,
                 };

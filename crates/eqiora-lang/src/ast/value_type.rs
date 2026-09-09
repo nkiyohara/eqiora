@@ -46,8 +46,8 @@ pub enum ValueTypeSyntaxKind {
     Array {
         /// Complete checked element type.
         element: Box<ValueTypeSyntax>,
-        /// Exact positive channel count.
-        extent: u32,
+        /// Exact static positive channel count, resolved in the declaration scope.
+        extent: Expr,
     },
 }
 

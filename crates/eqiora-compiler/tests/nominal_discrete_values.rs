@@ -37,7 +37,7 @@ model M(output first: integer at tick) {
     assert!(compiled.symbols().get("cell[1].y").is_some());
     let parameter = compiled.symbols().get("n").unwrap();
     let set = compiled.symbols().get("Rows").unwrap();
-    assert!(compiled.transaction().ops().iter().any(|op| matches!(op,eqiora_graph::Op::Connect { from,to,edge:eqiora_graph::EdgeKind::DependsOn } if *from==set && *to==parameter)));
+    assert!(compiled.transaction().ops().iter().any(|op| matches!(op,eqiora_graph::Op::Connect { from,to,edge:eqiora_graph::EdgeKind::StructurallyDependsOn } if *from==set && *to==parameter)));
 }
 
 #[test]
@@ -72,7 +72,7 @@ model M(output observed:1) {
         .unwrap_or_else(|errors| panic!("{errors:?}"));
     let set = model.symbols().get("Rows").unwrap();
     let parameter = model.symbols().get("choice").unwrap();
-    assert!(model.transaction().ops().iter().any(|op|matches!(op,eqiora_graph::Op::Connect{from,to,edge:eqiora_graph::EdgeKind::DependsOn} if *from==set && *to==parameter)));
+    assert!(model.transaction().ops().iter().any(|op|matches!(op,eqiora_graph::Op::Connect{from,to,edge:eqiora_graph::EdgeKind::StructurallyDependsOn} if *from==set && *to==parameter)));
     for changed in [
         source.replace("index(Rows,choice)", "index(Other,choice)"),
         source.replace("index(Rows,choice)", "index(Rows,2)"),

@@ -21,6 +21,34 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
                 "channel index requires a constant nonnegative integer",
             ),
         },
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => {
+            match crate::hierarchy::closed_index(lower)
+                .ok()
+                .zip(crate::hierarchy::closed_index(upper).ok())
+            {
+                Some((start, end))
+                    if end
+                        .checked_sub(start)
+                        .is_some_and(|width| width > 0 && width <= 65_536) =>
+                {
+                    let value = from_source(value);
+                    LoweringExpressionNode::Array(
+                        (start..end)
+                            .map(|index| {
+                                LoweringExpression::index(value.clone(), index, expression.range())
+                            })
+                            .collect(),
+                    )
+                }
+                _ => LoweringExpressionNode::InvalidValue(
+                    "slice requires explicit increasing constant integer bounds",
+                ),
+            }
+        }
         ExprKind::Path(path) if path.as_str() == "math.i" => {
             return LoweringExpression::literal(
                 eqiora_core::ValueLiteral::new(
@@ -161,5 +189,6 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
     LoweringExpression {
         node: Arc::new(kind),
         range: expression.range(),
+        structural_parameters: None,
     }
 }

@@ -73,8 +73,6 @@ pub(super) enum FlatItemBlueprint {
     Nominal {
         name: String,
         definition: eqiora_schema::kernel::KernelNode,
-        dependencies: Vec<String>,
-        range: TextRange,
         identity: EntityIdentity,
     },
     Domain {
@@ -171,6 +169,7 @@ pub(super) struct DisplayIdentity {
 }
 
 pub(super) struct ExpandedBlueprint {
+    structural_dependencies: BTreeMap<String, std::collections::BTreeSet<String>>,
     notation_specs: Vec<crate::notation::NotationSpec>,
     model_name: String,
     model_source: SourceLocation,
@@ -202,6 +201,13 @@ pub(super) struct PhysicalExposureProjectionBlueprint {
 }
 
 impl ExpandedBlueprint {
+    pub(super) fn with_structural_dependencies(
+        mut self,
+        dependencies: BTreeMap<String, std::collections::BTreeSet<String>>,
+    ) -> Self {
+        self.structural_dependencies = dependencies;
+        self
+    }
     fn event_identities(&self) -> BTreeMap<&str, &EntityIdentity> {
         self.items
             .iter()
@@ -223,6 +229,7 @@ impl ExpandedBlueprint {
     ) -> Self {
         Self {
             notation_specs,
+            structural_dependencies: BTreeMap::new(),
             model_name,
             model_source,
             model_key: model_identity.0,
@@ -437,14 +444,10 @@ impl ExpandedBlueprint {
                     range: *range,
                 },
                 FlatItemBlueprint::Nominal {
-                    definition,
-                    dependencies,
-                    range,
-                    ..
+                    name, definition, ..
                 } => LoweringItem::Nominal {
+                    name: name.clone(),
                     definition: definition.clone(),
-                    dependencies: dependencies.clone(),
-                    range: *range,
                 },
                 FlatItemBlueprint::Parameter {
                     name, value, range, ..
@@ -521,6 +524,7 @@ impl ExpandedBlueprint {
             items.push(item);
         }
         Ok(LoweringModel {
+            structural_dependencies: self.structural_dependencies.clone(),
             name: self.model_name.clone(),
             range: self.model_source.range,
             items,

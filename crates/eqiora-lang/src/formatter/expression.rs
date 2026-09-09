@@ -77,7 +77,12 @@ pub(super) fn format_expression(
             }
             output.push(']');
         }
-        ExprKind::Index { value, index } => {
+        ExprKind::Index { value, index }
+        | ExprKind::Slice {
+            value,
+            lower: index,
+            ..
+        } => {
             // A bare number followed by `[` is always a quantity island.
             let group_number = matches!(value.kind(), ExprKind::Number(_));
             if group_number {
@@ -89,6 +94,10 @@ pub(super) fn format_expression(
             }
             output.push('[');
             format_expression(index, 0, output);
+            if let ExprKind::Slice { upper, .. } = expression.kind() {
+                output.push(':');
+                format_expression(upper, 0, output);
+            }
             output.push(']');
         }
         ExprKind::Case { value, arms } => {
@@ -197,6 +206,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::Call { .. }
         | ExprKind::Reduction { .. }
         | ExprKind::Array(_)
-        | ExprKind::Index { .. } => 19,
+        | ExprKind::Index { .. }
+        | ExprKind::Slice { .. } => 19,
     }
 }

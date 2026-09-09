@@ -798,25 +798,6 @@ impl DraftExpression {
         }
     }
 
-    /// Construct an ordered channel-array expression.
-    #[must_use]
-    pub fn array(values: impl IntoIterator<Item = Self>) -> Self {
-        Self {
-            kind: DraftExpressionKind::Array(values.into_iter().collect()),
-        }
-    }
-
-    /// Select a static channel index. The compiler checks type and bounds.
-    #[must_use]
-    pub fn index(self, index: u32) -> Self {
-        Self {
-            kind: DraftExpressionKind::Index {
-                value: Box::new(self),
-                index,
-            },
-        }
-    }
-
     /// Construct a complex scalar without discarding either component.
     #[must_use]
     pub fn complex(real: f64, imaginary: f64) -> Self {

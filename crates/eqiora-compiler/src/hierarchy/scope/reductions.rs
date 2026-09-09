@@ -36,6 +36,7 @@ pub(super) fn rewrite(
         file,
         expression,
         &mut |name| scope.index_set(name).map(|set| set.extent()),
+        &scope.symbolic_parameters(),
         scope.reduction_terms_limit,
     )?;
     let set = scope

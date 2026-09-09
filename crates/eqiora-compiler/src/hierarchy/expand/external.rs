@@ -54,7 +54,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         });
         self.materialize_model_items(&root_scope, &identities)
             .map_err(one_diagnostic)?;
-        self.record_index_dependencies(&root_scope);
+        self.record_index_dependencies(&root_scope)
+            .map_err(one_diagnostic)?;
         self.finalize_physical_connections()
             .map_err(one_diagnostic)?;
         self.items.sort_by_key(FlatItemBlueprint::sort_key);
@@ -66,7 +67,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             self.display_symbols,
             self.physical_exposures,
             self.notation_specs,
-        ))
+        )
+        .with_structural_dependencies(self.structural_dependencies))
     }
 
     pub(super) fn allocate_external_supports(

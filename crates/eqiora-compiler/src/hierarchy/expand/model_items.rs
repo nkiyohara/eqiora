@@ -86,6 +86,12 @@ impl RootExpansion<'_, '_> {
                 }
                 Item::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
+                    self.record_type_structure(
+                        &internal_name(identity.full),
+                        self.model.file,
+                        declaration.value_type(),
+                        &scope.symbolic_parameters(),
+                    )?;
                     let (domain, activation) =
                         rewrite_field_scope(self.model.file, declaration, scope)?;
                     let representation = self.add_support_representation(domain.as_deref())?;
@@ -93,7 +99,11 @@ impl RootExpansion<'_, '_> {
                         name: internal_name(identity.full),
                         domain,
                         representation,
-                        value_type: declaration.value_type().clone(),
+                        value_type: super::super::parameters::specialize_type(
+                            self.model.file,
+                            declaration.value_type(),
+                            &scope.symbolic_parameters(),
+                        )?,
                         role: declaration.role(),
                         activation,
                         range: declaration.range(),
@@ -102,6 +112,22 @@ impl RootExpansion<'_, '_> {
                 }
                 Item::Parameter(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
+                    self.record_type_structure(
+                        &internal_name(identity.full),
+                        self.model.file,
+                        declaration.value_type(),
+                        &scope.symbolic_parameters(),
+                    )?;
+                    let expression = super::super::scope::rewrite_expression_with_boundary_member(
+                        self.model.file,
+                        declaration.value(),
+                        scope,
+                        None,
+                    )?;
+                    self.record_structural(
+                        &internal_name(identity.full),
+                        expression.structural_parameters(),
+                    )?;
                     self.items.push(FlatItemBlueprint::Parameter {
                         name: internal_name(identity.full),
                         value: scope
@@ -115,6 +141,15 @@ impl RootExpansion<'_, '_> {
                 }
                 Item::Port(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
+                    if let eqiora_lang::PortSyntax::Signal { value_type, .. } = declaration.syntax()
+                    {
+                        self.record_type_structure(
+                            &internal_name(identity.full),
+                            self.model.file,
+                            value_type,
+                            &scope.symbolic_parameters(),
+                        )?;
+                    }
                     let syntax = rewrite_model_port(
                         self.model.file,
                         declaration.syntax(),

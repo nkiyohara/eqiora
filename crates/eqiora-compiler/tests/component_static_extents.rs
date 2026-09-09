@@ -92,7 +92,7 @@ fn context_dependent_physical_proofs_are_not_reused() {
     assert!(
         errors.iter().any(|error| error
             .message()
-            .contains("changes the physical definition contract")),
+            .contains("cannot have more than one owning Relation")),
         "{errors:?}"
     );
 }
@@ -129,4 +129,37 @@ fn unrelated_symbolic_models_keep_their_existing_admission() {
             .any(|error| error.message().contains("missing")),
         "{errors:?}"
     );
+}
+
+#[test]
+fn selecting_a_generic_model_requires_its_actual_nonempty_bounded_extent() {
+    let source = "component Cell(output y:1){relation r{y=0;}} public model Generic(parameter n:integer){indexset I=range(n);instance cell[i in I]:Cell();}";
+    for n in [0, 2, 1_000_000_000] {
+        let value = eqiora_lang::SourceAstFactory::expression(
+            eqiora_lang::ExprKind::Number(
+                eqiora_lang::DecimalLiteral::parse(&n.to_string()).unwrap(),
+            ),
+            Default::default(),
+        )
+        .unwrap();
+        let compiled = eqiora_compiler::CompiledModel::compile_selected(
+            "selected-generic.eqi",
+            source,
+            "Generic",
+            &[("n", eqiora_compiler::StaticBindingValue::Expression(&value))],
+        );
+        if n == 2 {
+            let model = compiled.unwrap();
+            assert!(model.symbols().get("cell[0].y").is_some());
+            assert!(model.symbols().get("cell[1].y").is_some());
+            assert!(model.symbols().get("cell[2].y").is_none());
+        } else {
+            assert!(
+                compiled
+                    .unwrap_err()
+                    .iter()
+                    .any(|error| error.source_span().is_some())
+            );
+        }
+    }
 }

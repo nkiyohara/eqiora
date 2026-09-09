@@ -25,6 +25,7 @@ impl Scope {
                 file,
                 expression,
                 &mut |name| self.index_set(name).map(|set| set.extent()),
+                &self.symbolic_parameters(),
                 self.reduction_terms_limit,
             )?;
         }
@@ -49,6 +50,7 @@ impl Scope {
                         file,
                         expression,
                         &mut |name| self.index_set(name).map(|set| set.extent()),
+                        &self.symbolic_parameters(),
                         self.reduction_terms_limit,
                     ) {
                         invalid_selection = Some(error);

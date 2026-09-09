@@ -101,16 +101,16 @@ separate exact boundary-member meaning.
 Expansion produces ordinary fixed instances in declared index order. It does not introduce
 a runtime loop or resize the Model. An edit to a static parameter that would invalidate
 elaborated structure rejects; changing the structure requires compilation with new bindings.
-Array expressions are immutable. Index selection must name one member within the fixed
-extent. Slice/range selection syntax is unsupported and rejects; there are no mutable views,
-clipping or wrapping semantics.
+Array expressions are immutable. `array<V, n>` uses an exact static integer extent;
+`values[lower:upper]` selects a nonempty half-open interval within that extent. Both bounds
+are explicit static integers. Steps, clipping, wrapping and runtime indexing reject.
 
-An instance family admits one binder, without nested instance families, runtime
-indexing, or Parameter-dependent child IndexSets. Child IndexSets with closed constant extents
-are supported. A binder may supply ordinary Parameter values while the child footprint remains
-independent of them. Explicit and indexed
-descriptions can be compared by their mathematical equations
-and occurrence structure; their distinct authored Source is not required to have equal bytes.
+Each instance family admits one local binder. Nested families and child IndexSets may depend
+on exact Parameter values, including the enclosing member's ordinal. Every actual context is
+specialized and resource-checked before occurrence allocation; selected Components use the
+same specialization. Unselected generic definitions retain symbolic validation, without
+invented extents. Explicit and indexed descriptions can be compared by their mathematical
+equations and occurrence structure; their distinct authored Source need not have equal bytes.
 
 ### Indexed equations and connections
 

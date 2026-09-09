@@ -320,6 +320,14 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
     }
 
     pub(super) fn resolve_symbol(&self, path: &NamePath) -> Result<SymbolContract, Diagnostic> {
+        self.resolve_symbol_at(path, None)
+    }
+
+    pub(super) fn resolve_symbol_at(
+        &self,
+        path: &NamePath,
+        ordinal: Option<u32>,
+    ) -> Result<SymbolContract, Diagnostic> {
         let segments = path.segments().collect::<Vec<_>>();
         match segments.as_slice() {
             [name] => self
@@ -343,7 +351,38 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                         _ => None,
                     })
                     .ok_or_else(|| self.invalid_public_port_selection(path))?;
-                component_port_contract(self.elaborator, child, port)
+                let occurrence = self
+                    .child_instances
+                    .get(*instance)
+                    .expect("bound child instance");
+                let specialized;
+                let occurrence = if let Some(ordinal) = ordinal {
+                    specialized = crate::hierarchy::reductions::instantiate_instance(
+                        self.file, occurrence, ordinal,
+                    )?;
+                    &specialized
+                } else {
+                    occurrence
+                };
+                let values =
+                    crate::hierarchy::parameters::resolve_instance_parameters_symbolically(
+                        child.file,
+                        self.file,
+                        child.declaration,
+                        occurrence,
+                        &self.static_values,
+                        &mut |name| {
+                            crate::hierarchy::clocks::component(child.file, child.declaration, name)
+                        },
+                        &mut |name| self.spatial_support(name),
+                    )
+                    .map_err(|errors| {
+                        errors
+                            .into_iter()
+                            .next()
+                            .expect("failed parameter admission")
+                    })?;
+                component_port_contract(self.elaborator, child, port, &values)
                     .map(|contract| {
                         SymbolContract::Port(self.specialize_child_port(instance, contract))
                     })
@@ -510,26 +549,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
     }
 }
 
-pub(in crate::hierarchy) fn field_expression_type<I>(
-    file: &str,
-    declaration: &FieldDecl,
-    support: Option<SpatialSupport<I>>,
-) -> Result<ExpressionType<I>, Diagnostic> {
-    if support
-        .as_ref()
-        .is_some_and(|support| !matches!(support, SpatialSupport::Volume { .. }))
-    {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            declaration.range(),
-            "source Field requires a volume support",
-        ));
-    }
-    let value_type =
-        crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?;
-    Ok(ExpressionType::new(value_type, support))
-}
+pub(in crate::hierarchy) use ports::field_expression_type;
 
 pub(super) fn component_port_family_contract(
     elaborator: &Elaborator<'_>,

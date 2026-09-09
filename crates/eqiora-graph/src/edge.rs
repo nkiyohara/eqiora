@@ -18,6 +18,9 @@ pub enum EdgeKind {
     /// A relation depends on a field, parameter, port, or sampled clock, or a Cartesian
     /// Domain coordinate recipe depends on a Parameter.
     DependsOn,
+    /// A declaration's fixed type, membership, or expression shape uses an exact Parameter.
+    /// Changing that Parameter requires recompilation rather than a numerical value edit.
+    StructurallyDependsOn,
     /// A relation exposes a port.
     HasPort,
     /// An activation controls a relation.
@@ -69,7 +72,13 @@ impl EdgeKind {
             Self::DependsOn => {
                 (matches!(from, K::Relation)
                     && matches!(to, K::Field | K::Parameter | K::Port | K::ClockDomain))
-                    || (matches!(from, K::Domain | K::IndexSet) && matches!(to, K::Parameter))
+                    || (matches!(from, K::Domain) && matches!(to, K::Parameter))
+            }
+            Self::StructurallyDependsOn => {
+                matches!(
+                    from,
+                    K::Field | K::Port | K::Parameter | K::Relation | K::IndexSet | K::Connection
+                ) && matches!(to, K::Parameter)
             }
             Self::HasPort => matches!(from, K::Relation) && matches!(to, K::Port),
             Self::Activates => matches!(from, K::Activation) && matches!(to, K::Relation),

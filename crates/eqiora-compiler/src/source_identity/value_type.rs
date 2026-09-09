@@ -55,7 +55,7 @@ pub(super) fn encode_value_type(
         }
         ValueTypeSyntaxKind::Array { element, extent } => {
             encoder.u8(3)?;
-            encoder.u32(*extent)?;
+            encode_expression(encoder, extent, budget, next_depth(depth)?)?;
             encode_value_type(encoder, element, budget, next_depth(depth)?)
         }
     }

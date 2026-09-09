@@ -117,7 +117,7 @@ impl DependencyActivation {
                     pending.extend(elements);
                     Self::Static
                 }
-                ExprKind::Index { value, .. } => {
+                ExprKind::Index { value, .. } | ExprKind::Slice { value, .. } => {
                     pending.push(value);
                     Self::Static
                 }

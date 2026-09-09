@@ -15,6 +15,7 @@ mod integer;
 mod native;
 pub(crate) use integer::IntegerBuiltin;
 mod dependencies;
+mod structural;
 #[cfg(test)]
 mod tests;
 mod value_expression;
@@ -190,6 +191,7 @@ pub fn lower_draft(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>>
 /// physical declarations.
 #[derive(Debug, Clone)]
 pub(crate) struct LoweringModel {
+    pub(crate) structural_dependencies: BTreeMap<String, BTreeSet<String>>,
     pub(crate) name: String,
     pub(crate) range: TextRange,
     pub(crate) items: Vec<LoweringItem>,
@@ -204,11 +206,12 @@ pub(crate) struct LoweringModel {
 pub(crate) struct LoweringExpression {
     node: Arc<LoweringExpressionNode>,
     range: TextRange,
+    structural_parameters: Option<Arc<BTreeSet<String>>>,
 }
 
 impl PartialEq for LoweringExpression {
     fn eq(&self, other: &Self) -> bool {
-        self.node == other.node
+        self.node == other.node && self.structural_parameters == other.structural_parameters
     }
 }
 
@@ -279,9 +282,8 @@ enum LoweringExpressionNode {
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
     Nominal {
+        name: String,
         definition: eqiora_schema::kernel::KernelNode,
-        dependencies: Vec<String>,
-        range: TextRange,
     },
     Domain {
         name: String,
@@ -692,24 +694,9 @@ pub(crate) fn lower_typed_model(
                         }
                     })
             }
-            LoweringItem::Nominal {
-                definition,
-                dependencies,
-                range,
-                ..
-            } => {
-                let id = definition.id();
-                let result = dependencies.iter().try_for_each(|name| {
-                    let Some(Binding::Parameter(parameter, _)) = bindings.get(name) else {
-                        return Err(unresolved(file, *range, name, "structural Parameter"));
-                    };
-                    edges.push((id, parameter.erase(), EdgeKind::DependsOn));
-                    Ok(())
-                });
-                if result.is_ok() {
-                    nodes.push(definition.clone());
-                }
-                result
+            LoweringItem::Nominal { definition, .. } => {
+                nodes.push(definition.clone());
+                Ok(())
             }
             LoweringItem::Parameter { name, value, .. } => {
                 let Binding::Parameter(id, _) = bindings[name].clone() else {
@@ -831,6 +818,14 @@ pub(crate) fn lower_typed_model(
                 for dependency in lowered.dependencies {
                     edges.push((relation.erase(), dependency, EdgeKind::DependsOn));
                 }
+                structural::connect_relation(
+                    file,
+                    *range,
+                    relation.erase(),
+                    equations,
+                    &bindings,
+                    &mut edges,
+                )?;
                 for port in lowered.ports {
                     edges.push((relation.erase(), port, EdgeKind::HasPort));
                 }
@@ -914,6 +909,7 @@ pub(crate) fn lower_typed_model(
         return Err(diagnostics);
     }
 
+    structural::connect_declarations(file, model, &bindings, &mut edges)?;
     let members = nodes.iter().map(KernelNode::id).collect::<BTreeSet<_>>();
     let view = ModelView::new(model_id, members, boundary).map_err(|diagnostic| {
         vec![source_error(

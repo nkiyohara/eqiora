@@ -70,9 +70,12 @@ pub(crate) fn lower_value_type<I>(
             ValueType::scalar(*domain, lower_dimension(file, dimension)?)
                 .map_err(|error| invalid(error.to_string()))
         }
-        ValueTypeSyntaxKind::Array { element, extent } => lower_value_type(file, element, support)?
-            .array(*extent)
-            .map_err(|error| invalid(error.to_string())),
+        ValueTypeSyntaxKind::Array { element, extent } => {
+            let extent = crate::hierarchy::closed_index(extent)?;
+            lower_value_type(file, element, support)?
+                .array(extent)
+                .map_err(|error| invalid(error.to_string()))
+        }
         ValueTypeSyntaxKind::Vector { scalar, extent } => {
             spatial_type(file, syntax, scalar, &[*extent], support)
         }

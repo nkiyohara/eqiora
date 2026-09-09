@@ -60,6 +60,14 @@ The same `value_type=` objects apply to `Parameter`,
 `eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
 `ValueType.to_eqi()` emits the canonical type through the Rust formatter.
 
+Native `Field`, `Parameter` and `Expression` handles support immutable channel slices such as
+`values[0:2]`. Supply both integer bounds and no step; negative bounds, Boolean bounds,
+clamping and empty slices are not accepted. The same `values[0:2]` syntax works in `.eqi`.
+Source declarations can use `array<integer, n>` with an exact static size Parameter, including
+`eqiora.compile(source=source, entry="Channels", bindings={"n": 3, "data": (2, 3, 5)})`.
+Changes to a compiled size or selector require recompilation; ordinary coefficient edits
+continue to use `preview_value_edit` and `commit`.
+
 Parameters accept real or complex scalars and nested channel sequences matching the declared
 shape. Inspection returns immutable nested tuples with every real/imaginary component:
 
@@ -101,7 +109,9 @@ expression can supply a Parameter default through `Component.set_default`. Const
 components must be closed scalar expressions; referencing a named model value, including
 a Parameter alias, inside the constructor rejects.
 
-Indices are static exact nonnegative integers; mutable Parameters cannot supply indices.
+Indices are static exact nonnegative integers. Source-builder expressions may use a Parameter
+with an exact compile-time value; changing a Parameter used by a compiled index, slice or
+extent requires recompilation.
 Typed value edits preserve the complete declared type and all components through replay.
 This authoring support does not establish a complex numerical solver.
 
@@ -1210,7 +1220,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v20` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v21` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

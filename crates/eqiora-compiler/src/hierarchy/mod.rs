@@ -184,17 +184,14 @@ fn compile_external_component_from_definition<'a>(
             ),
         )]);
     }
-    validate_external_parameters(file, &component, binding.parameters())?;
-    let key = preflight::DefinitionKey {
-        namespace: component.namespace.clone(),
-        name: component.name().to_owned(),
-    };
-    let summary = checked.component_summary(&key).ok_or_else(|| {
-        vec![hierarchy_error(format!(
-            "validated definition graph has no summary for Component `{}`",
-            component.name()
-        ))]
-    })?;
+    let values =
+        parameters::resolve_external_parameters(file, component.declaration, binding.parameters())?;
+    let summary = definition_graph::selected_component_summary(
+        elaborator,
+        checked,
+        &component,
+        values.clone(),
+    )?;
     // The Component summary already reserves one declaration, identity, and
     // provenance entry for every Parameter slot. An explicit external value
     // realizes that reserved slot as one root Model Parameter; only the
@@ -234,7 +231,8 @@ fn compile_external_component_from_definition<'a>(
         };
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
-            declaration.value_type().clone(),
+            parameters::specialize_type(file, declaration.value_type(), &values)
+                .map_err(|error| vec![error])?,
             SourceAstFactory::value_literal(
                 parameter.value(),
                 projection_frame(
@@ -413,43 +411,6 @@ fn projection_frame(
         range,
         "external spatial Parameter requires an explicit or unique exact frame context",
     )])
-}
-
-fn validate_external_parameters(
-    file: &str,
-    component: &preflight::ComponentDefinition<'_>,
-    bindings: &[ExternalParameterBinding],
-) -> Result<(), Vec<Diagnostic>> {
-    let interface = parameters::resolve_component_parameters_symbolically(
-        component.file,
-        component.declaration,
-        |name| clocks::component(file, component.declaration, name),
-    )?;
-    let mut diagnostics = Vec::new();
-    for binding in bindings {
-        let value = binding.value();
-        let Some(parameter) = interface.get(binding.parameter()) else {
-            continue;
-        };
-        if value.value_type() != &parameter.value_type {
-            diagnostics.push(source_error(
-                codes::DIMENSION_MISMATCH,
-                file,
-                TextRange::default(),
-                format!(
-                    "external Parameter `{}` has dimension [{}], expected [{}]",
-                    binding.parameter(),
-                    value.value_type().dimension(),
-                    parameter.value_type.dimension(),
-                ),
-            ));
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
 }
 
 #[cfg(test)]

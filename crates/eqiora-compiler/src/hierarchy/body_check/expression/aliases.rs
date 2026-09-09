@@ -84,9 +84,14 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
                 }
             }
             if let Some(assertion) = declaration.value_type() {
-                let expected = crate::value_types::lower_value_type(
+                let assertion = crate::hierarchy::parameters::specialize_type(
                     scope.file,
                     assertion,
+                    &scope.static_values,
+                )?;
+                let expected = crate::value_types::lower_value_type(
+                    scope.file,
+                    &assertion,
                     inferred.support.as_ref(),
                 )?;
                 if expected != inferred.value_type {

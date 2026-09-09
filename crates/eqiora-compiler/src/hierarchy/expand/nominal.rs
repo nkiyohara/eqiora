@@ -28,8 +28,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 self.items.push(FlatItemBlueprint::Nominal {
                     name: internal_name(full),
                     definition: value.definition.clone().into(),
-                    dependencies: Vec::new(),
-                    range: value.range,
                     identity,
                 });
             }
@@ -68,8 +66,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 self.items.push(FlatItemBlueprint::Nominal {
                     name: internal_name(full),
                     definition: space.definition.clone().into(),
-                    dependencies: Vec::new(),
-                    range: space.range,
                     identity,
                 });
             }
@@ -95,30 +91,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     message,
                 )
             };
-            let eqiora_lang::ExprKind::Call {
-                callee,
-                arguments: eqiora_lang::CallArguments::Positional(arguments),
-            } = declaration.value().kind()
-            else {
-                return Err(invalid("index set requires range(extent)"));
-            };
-            let [extent] = arguments.as_slice() else {
-                return Err(invalid(
-                    "range requires exactly one positive integer extent",
-                ));
-            };
-            if callee.as_str() != "range"
-                || declaration.value_type().is_some()
-                || declaration.domain().is_some()
-                || declaration.activation().is_some()
-            {
-                return Err(invalid(
-                    "index set requires only range(extent), without alias assertions",
-                ));
-            }
-            let (extent, dependencies) = super::super::parameters::structural_extent(
+            let (extent, dependencies) = super::super::parameters::index_set_extent(
                 file,
-                extent,
+                declaration,
                 &scope.symbolic_parameters(),
             )?
             .ok_or_else(|| invalid("index set extent remains unresolved at this occurrence"))?;
@@ -170,11 +145,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     kind: EntityKind::IndexSet,
                 },
             );
+            self.record_structural(&internal_name(full), dependencies)?;
             self.items.push(FlatItemBlueprint::Nominal {
                 name: internal_name(full),
                 definition: definition.into(),
-                dependencies,
-                range: declaration.range(),
                 identity,
             });
         }
@@ -183,15 +157,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 }
 
 impl RootExpansion<'_, '_> {
-    pub(super) fn record_index_dependencies(&mut self, scope: &Scope) {
+    pub(super) fn record_index_dependencies(&mut self, scope: &Scope) -> Result<(), Diagnostic> {
         for (id, names) in scope.index_dependencies() {
-            if let Some(FlatItemBlueprint::Nominal { dependencies, .. }) = self.items.iter_mut().find(|item| {
+            if let Some(FlatItemBlueprint::Nominal { name, .. }) = self.items.iter().find(|item| {
                 matches!(item, FlatItemBlueprint::Nominal { definition, .. } if definition.id() == id)
             }) {
-                dependencies.extend(names);
-                dependencies.sort();
-                dependencies.dedup();
+                self.record_structural(&name.clone(), names)?;
             }
         }
+        Ok(())
     }
 }

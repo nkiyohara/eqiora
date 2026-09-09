@@ -1,8 +1,7 @@
 use super::*;
 
 pub(super) struct ExpressionDefinition<'a> {
-    pub(super) expression: &'a Expr,
-    pub(super) target: Option<ValueType>,
+    pub(super) expression: Option<&'a Expr>,
     pub(super) dependencies: BTreeMap<String, TextRange>,
     pub(super) valid: bool,
 }
@@ -100,6 +99,7 @@ pub(super) fn collect_expression_dependencies(
             }
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
+            ExprKind::Slice { value, lower, upper } => pending.extend([value.as_ref(), lower.as_ref(), upper.as_ref()]),
             ExprKind::Unary {
                 op: UnaryOp::Neg | UnaryOp::Not,
                 value,

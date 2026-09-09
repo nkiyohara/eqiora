@@ -142,7 +142,7 @@ fn structural_value_guard_survives_dependency_owner_removal_and_recreation() {
     hydration.push(Op::Connect {
         from: set.erase(),
         to: parameter.erase(),
-        edge: EdgeKind::DependsOn,
+        edge: EdgeKind::StructurallyDependsOn,
     });
     let mut store = InMemoryGraphStore::restore_snapshot(hydration, Revision(7)).unwrap();
 
@@ -167,11 +167,15 @@ fn structural_value_guard_survives_dependency_owner_removal_and_recreation() {
     bypass.push(Op::Connect {
         from: set.erase(),
         to: parameter.erase(),
-        edge: EdgeKind::DependsOn,
+        edge: EdgeKind::StructurallyDependsOn,
     });
     let diagnostics = store.validate(&bypass);
     assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].message().contains("determines an IndexSet"));
+    assert!(
+        diagnostics[0]
+            .message()
+            .contains("static declaration or expression")
+    );
     assert!(store.commit(bypass).is_err());
     let unchanged = store.snapshot();
     assert_eq!(unchanged.revision(), original.revision());
@@ -187,4 +191,40 @@ fn structural_value_guard_survives_dependency_owner_removal_and_recreation() {
         unchanged.edges().collect::<Vec<_>>(),
         original.edges().collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn structural_dependency_added_in_this_transaction_guards_later_edits() {
+    use eqiora_graph::EdgeKind;
+    use eqiora_schema::kernel::IndexSetDef;
+    let parameter = Id::<kinds::Parameter>::new();
+    let set = Id::<kinds::IndexSet>::new();
+    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS).unwrap();
+    let mut setup = Transaction::new("unconnected declarations");
+    setup.push(Op::DefineKernelNode {
+        node: ParameterDef::new(
+            parameter,
+            ValueLiteral::from_integer(ty.clone(), 2).unwrap(),
+        )
+        .into(),
+    });
+    setup.push(Op::DefineKernelNode {
+        node: IndexSetDef::new(set, 2).unwrap().into(),
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(setup).unwrap();
+    let before = store.snapshot();
+    let mut update = Transaction::new("connect then change structural input");
+    update.push(Op::Connect {
+        from: set.erase(),
+        to: parameter.erase(),
+        edge: EdgeKind::StructurallyDependsOn,
+    });
+    update.push(Op::SetValue {
+        target: parameter.erase(),
+        value: ValueLiteral::from_integer(ty, 3).unwrap(),
+    });
+    assert!(store.commit(update).is_err());
+    assert_eq!(store.snapshot().revision(), before.revision());
+    assert_eq!(store.snapshot().edges().count(), 0);
 }

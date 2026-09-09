@@ -2,6 +2,7 @@
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_lang::{DecimalLiteral, Expr, ExprKind, FamilyBinderSyntax, NamePath, SourceAstFactory};
 
+use super::parameters::SymbolicParameterMap;
 use crate::{diagnostics::source_error, source_identity::LocalSourceIdentityLimits};
 
 fn error(file: &str, expression: &Expr, message: impl Into<String>) -> Diagnostic {
@@ -17,15 +18,17 @@ pub(super) fn preflight(
     file: &str,
     expression: &Expr,
     resolve_extent: &mut dyn FnMut(&str) -> Option<u32>,
+    values: &SymbolicParameterMap,
     max_terms: usize,
 ) -> Result<(), Diagnostic> {
-    expanded_nodes(file, expression, resolve_extent, max_terms).map(|_| ())
+    expanded_nodes(file, expression, resolve_extent, values, max_terms).map(|_| ())
 }
 
 pub(super) fn expanded_nodes(
     file: &str,
     expression: &Expr,
     resolve_extent: &mut dyn FnMut(&str) -> Option<u32>,
+    values: &SymbolicParameterMap,
     max_terms: usize,
 ) -> Result<usize, Diagnostic> {
     let limits = LocalSourceIdentityLimits::default();
@@ -33,6 +36,7 @@ pub(super) fn expanded_nodes(
         file,
         expression,
         resolve_extent,
+        values,
         max_terms.min(limits.max_expression_nodes),
         1,
         &mut Vec::new(),
@@ -44,6 +48,7 @@ fn measure<'a>(
     file: &str,
     expression: &'a Expr,
     resolve_extent: &mut dyn FnMut(&str) -> Option<u32>,
+    values: &SymbolicParameterMap,
     budget: usize,
     source_depth: usize,
     binders: &mut Vec<&'a str>,
@@ -81,11 +86,57 @@ fn measure<'a>(
                     "reduction requires an existing nonempty bounded IndexSet",
                 )
             })? as usize;
+        if has_slice(value) {
+            // Slice widths can vary by member. Reuse capture-free ordinal
+            // substitution, and measure each bounded temporary before any DAG
+            // expansion. This is not a second static-expression evaluator.
+            let fold_cost = if matches!(
+                operation,
+                eqiora_lang::ReductionOp::Min | eqiora_lang::ReductionOp::Max
+            ) {
+                2
+            } else {
+                1
+            };
+            let fold_work = (extent - 1).checked_mul(fold_cost).ok_or_else(exceeded)?;
+            if extent
+                .checked_add(fold_work)
+                .is_none_or(|work| work > budget)
+                || fold_work >= depth_limit
+            {
+                return Err(exceeded());
+            }
+            let mut nodes = fold_work;
+            let mut depth = 0usize;
+            for ordinal in 0..extent {
+                check_copy_work(file, value, budget.saturating_sub(nodes))?;
+                let term = instantiate(file, value, binder, ordinal as u32)?;
+                let (work, term_depth) = measure(
+                    file,
+                    &term,
+                    resolve_extent,
+                    values,
+                    budget.saturating_sub(nodes),
+                    source_depth + 1,
+                    &mut Vec::new(),
+                )?;
+                nodes = nodes
+                    .checked_add(work)
+                    .filter(|work| *work <= budget)
+                    .ok_or_else(exceeded)?;
+                depth = depth.max(term_depth.checked_add(fold_work).ok_or_else(exceeded)?);
+                if depth > depth_limit {
+                    return Err(exceeded());
+                }
+            }
+            return Ok((nodes, depth));
+        }
         binders.push(binder.member());
         let (nodes, depth) = measure(
             file,
             value,
             resolve_extent,
+            values,
             budget,
             source_depth + 1,
             binders,
@@ -109,6 +160,7 @@ fn measure<'a>(
         )
     } else {
         let (mut nodes, overhead) = match expression.kind() {
+            ExprKind::Slice { .. } => (1, 2),
             ExprKind::Case { arms, .. } => {
                 let folds = arms.len().saturating_sub(1).max(1);
                 (
@@ -128,6 +180,7 @@ fn measure<'a>(
                 file,
                 child,
                 resolve_extent,
+                values,
                 budget,
                 source_depth + 1,
                 binders,
@@ -139,6 +192,19 @@ fn measure<'a>(
             }
             Ok(())
         })?;
+        if let ExprKind::Slice { lower, upper, .. } = expression.kind() {
+            // Check all bound-expression work before evaluating either bound.
+            // Resolved bounds charge their exact generated array/index width.
+            // Generic or reduction-member bounds reserve the admitted maximum;
+            // ordinary typing still independently rejects invalid bounds.
+            let width = if unresolved_bound(lower, values) || unresolved_bound(upper, values) {
+                65_536
+            } else {
+                let (start, end) = super::parameters::static_slice(file, lower, upper, values)?;
+                (end - start) as usize
+            };
+            nodes = nodes.checked_add(width).ok_or_else(exceeded)?;
+        }
         (nodes, depth)
     };
     if result.0 > budget || result.1 > depth_limit {
@@ -147,19 +213,48 @@ fn measure<'a>(
     Ok(result)
 }
 
-pub(super) fn contains(expression: &Expr) -> bool {
+fn has_slice(expression: &Expr) -> bool {
+    let mut found = matches!(expression.kind(), ExprKind::Slice { .. });
+    let _ = visit_children(expression, &mut |child| {
+        found |= has_slice(child);
+        Ok(())
+    });
+    found
+}
+
+fn check_copy_work(file: &str, expression: &Expr, budget: usize) -> Result<(), Diagnostic> {
     let mut pending = vec![expression];
+    let mut nodes = 0usize;
     while let Some(value) = pending.pop() {
-        if matches!(value.kind(), ExprKind::Reduction { .. }) {
-            return true;
+        nodes += 1;
+        if nodes > budget {
+            return Err(error(
+                file,
+                expression,
+                "slice specialization exceeds the expression work limit",
+            ));
         }
         visit_children(value, &mut |child| {
             pending.push(child);
             Ok(())
-        })
-        .expect("collecting children cannot fail");
+        })?;
     }
-    false
+    Ok(())
+}
+
+fn unresolved_bound(expression: &Expr, values: &SymbolicParameterMap) -> bool {
+    if expression.resolved_nominal().is_some() || expression.resolved_enum().is_some() {
+        return false;
+    }
+    if let ExprKind::Name(name) = expression.kind() {
+        return values.get(name).is_none_or(|value| value.value.is_none());
+    }
+    let mut unresolved = false;
+    let _ = visit_children(expression, &mut |child| {
+        unresolved |= unresolved_bound(child, values);
+        Ok(())
+    });
+    unresolved
 }
 
 fn visit_children<'a>(
@@ -194,6 +289,15 @@ fn visit_children<'a>(
             visit(value)?;
             visit(index)?;
         }
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => {
+            visit(value)?;
+            visit(lower)?;
+            visit(upper)?;
+        }
         ExprKind::Call { arguments, .. } => {
             for argument in arguments.expressions() {
                 visit(argument)?;
@@ -207,6 +311,48 @@ fn visit_children<'a>(
         _ => {}
     }
     Ok(())
+}
+
+pub(super) fn instantiate_instance(
+    file: &str,
+    instance: &eqiora_lang::InstanceDecl,
+    ordinal: u32,
+) -> Result<eqiora_lang::InstanceDecl, Diagnostic> {
+    let Some(binder) = instance.family() else {
+        return Ok(instance.clone());
+    };
+    let bindings = instance
+        .bindings()
+        .iter()
+        .map(|binding| {
+            let value = instantiate(file, binding.value(), binder, ordinal)?;
+            SourceAstFactory::named_binding(binding.name(), value, binding.range()).map_err(
+                |failure| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        binding.range(),
+                        failure.to_string(),
+                    )
+                },
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    SourceAstFactory::instance(
+        instance.name(),
+        instance.definition().clone(),
+        None,
+        bindings,
+        instance.range(),
+    )
+    .map_err(|failure| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            instance.range(),
+            failure.to_string(),
+        )
+    })
 }
 
 pub(super) fn instantiate(
@@ -319,6 +465,15 @@ fn substitute(
             value: Box::new(child(value)?),
             index: Box::new(child(index)?),
         },
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => ExprKind::Slice {
+            value: Box::new(child(value)?),
+            lower: Box::new(child(lower)?),
+            upper: Box::new(child(upper)?),
+        },
         ExprKind::Member { value, member } => ExprKind::Member {
             value: Box::new(child(value)?),
             member: member.clone(),
@@ -398,12 +553,85 @@ mod tests {
     }
 
     #[test]
+    fn slice_budget_counts_generated_indices_and_preserves_bound_diagnostics() {
+        let slice = expression("data[0:2]");
+        // Array construction + operand + two source bounds + two emitted indices.
+        assert_eq!(
+            expanded_nodes(
+                "slice",
+                &slice,
+                &mut |_| None,
+                &SymbolicParameterMap::new(),
+                6
+            )
+            .unwrap(),
+            6
+        );
+        assert!(
+            expanded_nodes(
+                "slice",
+                &slice,
+                &mut |_| None,
+                &SymbolicParameterMap::new(),
+                5
+            )
+            .is_err()
+        );
+        let error = expanded_nodes(
+            "slice",
+            &expression("data[2:1]"),
+            &mut |_| None,
+            &SymbolicParameterMap::new(),
+            100,
+        )
+        .unwrap_err();
+        assert!(!error.message().contains("work"), "{error:?}");
+        assert!(error.source_span().is_some());
+    }
+
+    #[test]
     fn extrema_charge_comparison_and_selection_before_copying() {
         let value = expression("min(1, over=(i in A))");
-        assert!(preflight("test", &value, &mut |_| Some(3), 7).is_ok());
-        assert!(preflight("test", &value, &mut |_| Some(3), 6).is_err());
-        assert!(preflight("test", &value, &mut |_| Some(128), 1000).is_ok());
-        assert!(preflight("test", &value, &mut |_| Some(129), 1000).is_err());
+        assert!(
+            preflight(
+                "test",
+                &value,
+                &mut |_| Some(3),
+                &SymbolicParameterMap::new(),
+                7
+            )
+            .is_ok()
+        );
+        assert!(
+            preflight(
+                "test",
+                &value,
+                &mut |_| Some(3),
+                &SymbolicParameterMap::new(),
+                6
+            )
+            .is_err()
+        );
+        assert!(
+            preflight(
+                "test",
+                &value,
+                &mut |_| Some(128),
+                &SymbolicParameterMap::new(),
+                1000
+            )
+            .is_ok()
+        );
+        assert!(
+            preflight(
+                "test",
+                &value,
+                &mut |_| Some(129),
+                &SymbolicParameterMap::new(),
+                1000
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -415,14 +643,77 @@ mod tests {
             "B" => Some(3),
             _ => None,
         };
-        assert!(preflight("test", &nested, &mut extent, 11).is_ok());
-        assert!(preflight("test", &nested, &mut extent, 10).is_err());
+        assert!(
+            preflight(
+                "test",
+                &nested,
+                &mut extent,
+                &SymbolicParameterMap::new(),
+                11
+            )
+            .is_ok()
+        );
+        assert!(
+            preflight(
+                "test",
+                &nested,
+                &mut extent,
+                &SymbolicParameterMap::new(),
+                10
+            )
+            .is_err()
+        );
         let flat = expression("sum(1, over = (i in A))");
-        assert!(preflight("test", &flat, &mut |_| Some(256), 1000).is_ok());
-        assert!(preflight("test", &flat, &mut |_| Some(257), 1000).is_err());
-        assert!(preflight("test", &flat, &mut |_| Some(0), 1000).is_err());
-        assert!(preflight("test", &flat, &mut |_| None, 1000).is_err());
-        assert!(preflight("test", &nested, &mut |_| Some(u32::MAX), usize::MAX).is_err());
+        assert!(
+            preflight(
+                "test",
+                &flat,
+                &mut |_| Some(256),
+                &SymbolicParameterMap::new(),
+                1000
+            )
+            .is_ok()
+        );
+        assert!(
+            preflight(
+                "test",
+                &flat,
+                &mut |_| Some(257),
+                &SymbolicParameterMap::new(),
+                1000
+            )
+            .is_err()
+        );
+        assert!(
+            preflight(
+                "test",
+                &flat,
+                &mut |_| Some(0),
+                &SymbolicParameterMap::new(),
+                1000
+            )
+            .is_err()
+        );
+        assert!(
+            preflight(
+                "test",
+                &flat,
+                &mut |_| None,
+                &SymbolicParameterMap::new(),
+                1000
+            )
+            .is_err()
+        );
+        assert!(
+            preflight(
+                "test",
+                &nested,
+                &mut |_| Some(u32::MAX),
+                &SymbolicParameterMap::new(),
+                usize::MAX
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -469,6 +760,7 @@ mod tests {
                 "test",
                 &expression("sum(sum(1, over = (i in B)), over = (i in A))"),
                 &mut |_| Some(1),
+                &SymbolicParameterMap::new(),
                 100
             )
             .is_err()

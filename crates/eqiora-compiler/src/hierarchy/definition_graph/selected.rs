@@ -39,7 +39,42 @@ pub(in crate::hierarchy) fn component_contexts(
             Some(&mut contexts),
         )?;
     }
+    if let Some((key, values)) = &elaborator.selected_component {
+        let component = elaborator
+            .components()
+            .find_map(|(candidate, definition)| (candidate == key).then_some(definition))
+            .expect("selected checked component");
+        let context_count = contexts.values().map(Vec::len).sum();
+        Selected {
+            elaborator,
+            checked,
+            cache: Vec::new(),
+            indexed_subtrees: BTreeMap::new(),
+            contexts: Some(&mut contexts),
+            context_count,
+            instances_visited: 0,
+        }
+        .component(component, values.clone(), 0)?;
+    }
     Ok(contexts)
+}
+
+pub(in crate::hierarchy) fn selected_component_summary(
+    elaborator: &Elaborator<'_>,
+    checked: &CheckedDefinitionGraph,
+    component: &ComponentDefinition<'_>,
+    values: SymbolicParameterMap,
+) -> Result<DefinitionSummary, Vec<Diagnostic>> {
+    Selected {
+        elaborator,
+        checked,
+        cache: Vec::new(),
+        indexed_subtrees: BTreeMap::new(),
+        contexts: None,
+        context_count: 0,
+        instances_visited: 0,
+    }
+    .component(component, values, 0)
 }
 
 fn model_values(model: &ModelDefinition<'_>) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
@@ -70,6 +105,7 @@ fn selected_expansion_size_with_contexts(
         indexed_subtrees: BTreeMap::new(),
         contexts,
         context_count,
+        instances_visited: 0,
     };
     let mut diagnostics = Vec::new();
     let symbolic = preflight.contexts.is_some()
@@ -162,6 +198,7 @@ struct Selected<'a, 'd, 'c> {
     indexed_subtrees: BTreeMap<DefinitionKey, (bool, bool)>,
     contexts: Option<&'c mut ComponentContexts>,
     context_count: usize,
+    instances_visited: usize,
 }
 impl Selected<'_, '_, '_> {
     fn structural_profile(
@@ -176,7 +213,33 @@ impl Selected<'_, '_, '_> {
             return Ok(*found);
         }
         let mut found = (false, false);
+        if component.signature().iter().any(|item| match item {
+            eqiora_lang::SignatureItem::Field(value) => {
+                parameters::extent_expressions(value.value_type())
+                    .iter()
+                    .any(|extent| crate::hierarchy::closed_index(extent).is_err())
+            }
+            _ => false,
+        }) {
+            found = (true, true);
+        }
         for item in component.owned_items() {
+            let syntax = match item {
+                ComponentItem::Parameter(value) => Some(value.value_type()),
+                ComponentItem::Field(value) => Some(value.value_type()),
+                ComponentItem::Port(value) => match value.syntax() {
+                    PortSyntax::Signal { value_type, .. } => Some(value_type),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if syntax.is_some_and(|syntax| {
+                parameters::extent_expressions(syntax)
+                    .iter()
+                    .any(|extent| crate::hierarchy::closed_index(extent).is_err())
+            }) {
+                found = (true, true);
+            }
             match item {
                 ComponentItem::IndexSet(set) => {
                     found.0 = true;
@@ -240,7 +303,7 @@ impl Selected<'_, '_, '_> {
                 namespace: child.namespace.clone(),
                 name: child.name().to_owned(),
             };
-            let (multiplicity, summary) = if let Some(family) = instance.family() {
+            let extent = if let Some(family) = instance.family() {
                 let set = sets
                     .iter()
                     .find(|set| set.name() == family.set().as_str())
@@ -252,90 +315,44 @@ impl Selected<'_, '_, '_> {
                             "indexed instance requires an enclosing IndexSet",
                         )]
                     })?;
-                let ExprKind::Call {
-                    callee,
-                    arguments: eqiora_lang::CallArguments::Positional(arguments),
-                } = set.value().kind()
-                else {
-                    return Err(vec![definition_error("index set requires range(extent)")]);
-                };
-                let [extent] = arguments.as_slice() else {
-                    return Err(vec![definition_error("range requires one extent")]);
-                };
-                if callee.as_str() != "range" {
-                    return Err(vec![definition_error("index set requires range(extent)")]);
-                }
-                let resolved_extent =
-                    parameters::structural_extent(file, extent, values).map_err(|e| vec![e])?;
-                if resolved_extent.is_none() && self.contexts.is_some() {
-                    // An unbound family has no concrete member context to collect.
-                    // Reuse only its checked generic footprint; selected materialization
-                    // below still requires the exact extent.
-                    edges.push(Edge {
-                        target: summaries.len(),
-                        multiplicity: 1,
-                        occurrence: instance.name().to_owned(),
-                        file,
-                        range: instance.range(),
-                    });
-                    summaries.push(Some(
-                        self.checked
-                            .component_summary(&key)
-                            .expect("validated definition graph")
-                            .clone(),
-                    ));
-                    continue;
-                }
-                let extent = resolved_extent
-                    .ok_or_else(|| {
-                        vec![source_error(
+                match parameters::index_set_extent(file, set, values).map_err(|e| vec![e])? {
+                    Some((extent, _)) => extent as usize,
+                    None if self.contexts.is_some() => {
+                        edges.push(Edge {
+                            target: summaries.len(),
+                            multiplicity: 1,
+                            occurrence: instance.name().to_owned(),
+                            file,
+                            range: instance.range(),
+                        });
+                        summaries.push(Some(
+                            self.checked
+                                .component_summary(&key)
+                                .expect("checked definition")
+                                .clone(),
+                        ));
+                        continue;
+                    }
+                    None => {
+                        return Err(vec![source_error(
                             codes::LANGUAGE_TYPE_ERROR,
                             file,
                             family.range(),
                             "selected indexed extent remains unresolved",
-                        )]
-                    })?
-                    .0 as usize;
-                if self.structural_profile(&child)?.1 {
-                    return Err(vec![source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        family.range(),
-                        "parameter-dependent child IndexSets and nested indexed families are outside this bounded expansion profile",
-                    )]);
+                        )]);
+                    }
                 }
-                (
-                    extent,
-                    self.checked
-                        .component_summary(&key)
-                        .expect("validated definition graph")
-                        .clone(),
-                )
-            } else if !self.structural_profile(&child)?.0 {
-                (
-                    1,
-                    self.checked
-                        .component_summary(&key)
-                        .expect("validated definition graph")
-                        .clone(),
-                )
             } else {
-                let child_values = parameters::resolve_instance_parameters_symbolically(
-                    child.file,
-                    file,
-                    child.declaration,
-                    instance,
-                    values,
-                    &mut |name| clocks::component(child.file, child.declaration, name),
-                    &mut |_| None,
-                )?;
-                (1, self.component(&child, child_values, depth + 1)?)
+                1
             };
-            // Reject multiplication before reserving or iterating any member.
-            if summary
-                .instances
-                .multiply(multiplicity, self.elaborator.limits.max_instances)
-                .exceeds(self.elaborator.limits.max_instances)
+            // Every member has at least one occurrence; reject aggregate work before
+            // constructing substituted bindings or walking parameter-dependent children.
+            if extent
+                > self
+                    .elaborator
+                    .limits
+                    .max_instances
+                    .saturating_sub(edges.len())
             {
                 return Err(vec![source_error(
                     codes::LANGUAGE_LOWERING_ERROR,
@@ -344,36 +361,78 @@ impl Selected<'_, '_, '_> {
                     "indexed footprint exceeds the Component instances limit",
                 )]);
             }
-            if multiplicity > 1 {
-                let mut diagnostics = Vec::new();
+            self.instances_visited = self
+                .instances_visited
+                .checked_add(extent)
+                .filter(|count| *count <= self.elaborator.limits.max_instances)
+                .ok_or_else(|| {
+                    vec![source_error(
+                        codes::LANGUAGE_LOWERING_ERROR,
+                        file,
+                        instance.range(),
+                        "static specialization exceeds the Component instances work limit",
+                    )]
+                })?;
+            let profile = self.structural_profile(&child)?;
+            if extent > 1 {
+                let mut errors = Vec::new();
                 let inputs = footprint::input_binding_count(
                     self.elaborator,
                     namespace,
                     file,
                     instance,
-                    &mut diagnostics,
+                    &mut errors,
                 );
-                if !diagnostics.is_empty() {
-                    return Err(diagnostics);
+                if !errors.is_empty() {
+                    return Err(errors);
                 }
                 extra_connections = inputs
-                    .checked_mul(multiplicity - 1)
-                    .and_then(|n| extra_connections.checked_add(n))
-                    .filter(|n| *n <= self.elaborator.limits.max_connections)
+                    .checked_mul(extent - 1)
+                    .and_then(|count| extra_connections.checked_add(count))
+                    .filter(|count| *count <= self.elaborator.limits.max_connections)
                     .ok_or_else(|| {
                         vec![definition_error(
                             "indexed Input connection footprint exceeds limit",
                         )]
                     })?;
             }
-            edges.push(Edge {
-                target: summaries.len(),
-                multiplicity,
-                occurrence: instance.name().to_owned(),
-                file,
-                range: instance.range(),
-            });
-            summaries.push(Some(summary));
+            for ordinal in 0..extent {
+                let summary = if !profile.0 && self.contexts.is_none() {
+                    self.checked
+                        .component_summary(&key)
+                        .expect("checked definition")
+                        .clone()
+                } else {
+                    let member = super::super::reductions::instantiate_instance(
+                        file,
+                        instance,
+                        ordinal as u32,
+                    )
+                    .map_err(|error| vec![error])?;
+                    let child_values = parameters::resolve_instance_parameters_symbolically(
+                        child.file,
+                        file,
+                        child.declaration,
+                        &member,
+                        values,
+                        &mut |name| clocks::component(child.file, child.declaration, name),
+                        &mut |_| None,
+                    )?;
+                    self.component(&child, child_values, depth + 1)?
+                };
+                edges.push(Edge {
+                    target: summaries.len(),
+                    multiplicity: 1,
+                    occurrence: if instance.family().is_some() {
+                        format!("{}[{ordinal}]", instance.name())
+                    } else {
+                        instance.name().to_owned()
+                    },
+                    file,
+                    range: instance.range(),
+                });
+                summaries.push(Some(summary));
+            }
         }
         Ok(ChildFootprint {
             edges,
@@ -625,23 +684,32 @@ mod tests {
             .is_err()
         );
         let dependent = "component Cell(parameter value:integer) { indexset Local=range(value); } model M() { indexset S=range(3); instance cell[i in S]:Cell(value=ordinal(i)+1); }";
-        let errors = size(dependent, HierarchyLimits::default()).unwrap_err();
-        assert!(
-            errors.iter().any(|error| error
-                .message()
-                .contains("parameter-dependent child IndexSets")),
-            "{errors:?}"
+        assert_eq!(
+            size(dependent, HierarchyLimits::default())
+                .unwrap()
+                .declarations,
+            7
         );
     }
     #[test]
-    fn nested_structural_profile_rejects_without_sampling_an_ordinal() {
+    fn nested_structural_profile_counts_every_actual_ordinal() {
         let source = "component Cell(parameter value:integer) {} component Row(parameter n:integer) { indexset Columns=range(n); instance cell[j in Columns]:Cell(value=ordinal(j)); } model M() { indexset Rows=range(2); instance row[i in Rows]:Row(n=ordinal(i)+1); }";
-        let errors = size(source, HierarchyLimits::default()).unwrap_err();
+        // One root IndexSet, two Row Parameters and IndexSets, and 1 + 2 Cells.
+        assert_eq!(
+            size(source, HierarchyLimits::default())
+                .unwrap()
+                .declarations,
+            8
+        );
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message().contains("nested indexed families")),
-            "{errors:?}"
+            size(
+                source,
+                HierarchyLimits {
+                    max_declarations: 7,
+                    ..Default::default()
+                }
+            )
+            .is_err()
         );
     }
 }

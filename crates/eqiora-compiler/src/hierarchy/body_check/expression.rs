@@ -1,4 +1,5 @@
 mod aliases;
+mod channels;
 mod enumeration;
 mod integer;
 mod reductions;
@@ -257,6 +258,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 self.scope.file,
                 value,
                 &mut |name| self.scope.index_sets.get(name).copied().flatten(),
+                &self.scope.static_values,
                 self.scope.elaborator.limits.max_parameter_terms,
             )?;
         }
@@ -290,45 +292,8 @@ impl ExpressionChecker<'_, '_, '_> {
         }
         match expression.kind() {
             ExprKind::Reduction { .. } => self.reduction(expression),
-            ExprKind::Array(elements) => {
-                let mut types = elements
-                    .iter()
-                    .map(|element| self.check(element))
-                    .collect::<Result<Vec<_>, _>>()?;
-                if types.iter().any(|value| {
-                    value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer
-                }) {
-                    for (element, element_type) in elements.iter().zip(&mut types) {
-                        if element_type.value_type.scalar_domain()
-                            != eqiora_core::ScalarDomain::Integer
-                        {
-                            *element_type = self.check_numeric_context(
-                                element,
-                                eqiora_core::ScalarDomain::Integer,
-                            )?;
-                        }
-                    }
-                }
-                let inferred = ExpressionType::array(&types)
-                    .map_err(|error| type_error(self.scope.file, expression, error))?;
-                crate::typed_values::check_type(&inferred.value_type).map_err(|message| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        expression.range(),
-                        message,
-                    )
-                })?;
-                Ok(inferred)
-            }
-            ExprKind::Index { value, index } => {
-                let index = crate::hierarchy::parameters::static_index(
-                    self.scope.file,
-                    index,
-                    &self.scope.static_values,
-                )?;
-                ExpressionType::index(self.check(value)?, index)
-                    .map_err(|error| type_error(self.scope.file, expression, error))
+            ExprKind::Array(_) | ExprKind::Index { .. } | ExprKind::Slice { .. } => {
+                self.channels(expression)
             }
             ExprKind::Path(path) if path.as_str() == "math.i" => Ok(ExpressionType::new(
                 eqiora_core::ValueType::scalar(
@@ -408,8 +373,12 @@ impl ExpressionChecker<'_, '_, '_> {
                 ),
             },
             ExprKind::Member { .. } => {
-                let (path, _) = self.scope.indexed_member(expression)?;
-                self.scalar_contract(expression, path.as_str(), self.scope.resolve_symbol(&path)?)
+                let (path, key) = self.scope.indexed_member(expression)?;
+                self.scalar_contract(
+                    expression,
+                    path.as_str(),
+                    self.scope.resolve_symbol_at(&path, key[1].parse().ok())?,
+                )
             }
             ExprKind::BoundaryPortSelection { port, selector } => {
                 let Some(family_scope) = self.family_scope else {
@@ -828,7 +797,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     })?;
                 (
                     key.join("."),
-                    self.scope.resolve_symbol(&path)?,
+                    self.scope.resolve_symbol_at(&path, key[1].parse().ok())?,
                     Some(endpoint),
                 )
             }

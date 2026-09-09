@@ -80,6 +80,14 @@ impl super::SourceAstFactory {
                 }
             }
         }
+        // Array extents are value expressions in the declaration's lexical scope,
+        // not dimension syntax. Reuse the existing typed-declaration walk so enum
+        // cases and nominal members receive the same resolution as initializers.
+        Self::visit_value_types(document, |scope, syntax| {
+            if let crate::ValueTypeSyntaxKind::Array { extent, .. } = syntax.kind.as_mut() {
+                expression(scope, extent, &mut visit);
+            }
+        });
     }
 }
 fn signature(
@@ -136,6 +144,15 @@ fn expression(
         ExprKind::Index { value, index } => {
             expression(scope, value, visit);
             expression(scope, index, visit);
+        }
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => {
+            expression(scope, value, visit);
+            expression(scope, lower, visit);
+            expression(scope, upper, visit);
         }
         ExprKind::Call { arguments, .. } => match arguments {
             crate::CallArguments::Positional(values) => {

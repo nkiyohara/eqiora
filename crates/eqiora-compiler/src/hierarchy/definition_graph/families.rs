@@ -7,6 +7,7 @@ use parameters::SymbolicParameterMap;
 pub(super) struct Families<'a> {
     file: &'a str,
     extents: BTreeMap<&'a str, u32>,
+    values: SymbolicParameterMap,
 }
 
 impl<'a> Families<'a> {
@@ -66,7 +67,11 @@ impl<'a> Families<'a> {
                 Err(error) => diagnostics.push(error),
             }
         }
-        Self { file, extents }
+        Self {
+            file,
+            extents,
+            values: values.clone(),
+        }
     }
 
     pub(super) fn extent(&self, name: &str) -> Option<usize> {
@@ -105,7 +110,7 @@ impl<'a> Families<'a> {
         let limit =
             crate::source_identity::LocalSourceIdentityLimits::default().max_expression_nodes;
         for expression in expressions {
-            let result = reductions::expanded_nodes(self.file, expression, &mut |name| self.extents.get(name).copied(), limit)
+            let result = reductions::expanded_nodes(self.file, expression, &mut |name| self.extents.get(name).copied(), &self.values, limit)
                 .and_then(|count| count.checked_mul(multiplicity)
                     .and_then(|count| total.checked_add(count))
                     .filter(|count| *count <= limit)

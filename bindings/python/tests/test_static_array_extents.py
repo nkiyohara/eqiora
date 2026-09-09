@@ -7,6 +7,44 @@ import pytest
 import eqiora
 
 
+def test_source_builder_static_slices_and_binders_retain_scope_and_edit_dependencies():
+    q = eqiora.lang
+    source = q.Source()
+    sibling = source.component("Other")
+    owner = source.model("BuilderSlices")
+    integer = eqiora.ValueType.integer()
+    stop = owner.parameter("stop", value_type=integer)
+    owner.set_default(stop, 2)
+    tick = owner.clock("tick", period_s=1)
+    result = owner.output("result", value_type=integer, at=tick)
+    data = q.array(tuple(q.to_integer(value) for value in (2, 3, 5)))
+    rows = owner.index_set("Rows", extent=3)
+    # All three one-wide slices sum to 10, and data[stop] contributes 5.
+    total = owner.sum(lambda i: data[q.ordinal(i):q.ordinal(i) + 1][0], over=rows)
+    owner.relation("emit", at=tick, left=result, right=total + data[stop] + data[0:stop][1])
+    foreign = sibling.parameter("foreign", value_type=integer)
+    sibling.set_default(foreign, 2)
+    with pytest.raises(q.SourceError, match="different"):
+        data[stop:foreign]
+    escaped = []
+    owner.sum(lambda i: escaped.append(i) or 1, over=rows)
+    with pytest.raises(q.SourceError, match="binder"):
+        owner.let_alias("escape", data[q.ordinal(escaped[0]):2])
+    compiled = eqiora.compile(source=source, entry="BuilderSlices")
+    run = compiled.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    assert run.advance_ticks(1) == 1
+    assert run.output("result", 0)[1] == 18
+    with pytest.raises(eqiora.EqioraError, match="(?i)(structural|static|topology)"):
+        compiled.preview_value_edit(compiled.parameter("stop").id, 1)
+
+
+@pytest.mark.parametrize("bound", (slice(None, 2), slice(0, None), slice(0, 2, 1),
+                                   slice(False, 2), slice(0, 1.5), slice(-1, 2)))
+def test_source_builder_slice_bounds_are_raw_explicit_integers(bound):
+    with pytest.raises((TypeError, eqiora.lang.SourceError)):
+        eqiora.lang.array((2, 3, 5))[bound]
+
+
 def field_types(model):
     return [node["definition"]["value_type"]
             for node in json.loads(model.to_bytes())["nodes"]
@@ -18,15 +56,13 @@ def test_static_extent_sampled_values_reopen_and_edit_guards(extent, tmp_path):
     values = (2**53 + 1, 3, 5)[:extent]
     literal = "[" + ", ".join(map(str, values)) + "]"
     source = f"""
-model Sized() {{
+model Sized(output seen: array<integer, 2> at tick, output scaled: 1 at tick) {{
   parameter n: integer = {extent};
   parameter gain: 1 = 2;
   parameter data: array<integer, n> = {literal};
   clock tick = periodic(1 [s] / 1, phase = 0 [s] / 1);
   state memory: array<integer, n> at tick;
-  output seen: array<integer, 2> at tick;
-  output scaled: 1 at tick;
-  initial {{ pre(memory) = {literal}; }}
+  initial {{ memory = {literal}; }}
   relation update at tick {{ next(memory) = data; }}
   relation observe at tick {{ seen = pre(memory)[0:2]; }}
   relation scale at tick {{ scaled = gain * to_real(pre(memory)[1]); }}
@@ -86,7 +122,10 @@ public component Sized(parameter data: array<integer, n>, parameter n: integer =
     assert types[0]["domain"] == "integer"
     if extent == 3:
         defaulted = eqiora.compile(source=source, entry="Sized", bindings={"data": data})
-        assert defaulted.structural_fingerprint == left.structural_fingerprint
+        assert field_types(defaulted) == types
+        assert defaulted.parameter("data").value == left.parameter("data").value == data
+        # A default is a child constant, whereas explicit n is an editable root
+        # Parameter with a guarded structural dependency: these graphs differ.
 
 
 @pytest.mark.parametrize("domain", ("integer", "real"))
@@ -136,10 +175,9 @@ model Slices() {{
     # The same half-open source expression also executes, retaining units and
     # exact integer values rather than coercing channels through float64.
     sampled = eqiora.compile(source=f"""
-model SliceOutput() {{
+model SliceOutput(output seen: array<{unit}, 2> at tick) {{
   parameter data: array<{unit}, 3> = {literal};
   clock tick = periodic(1 [s] / 1, phase = 0 [s] / 1);
-  output seen: array<{unit}, 2> at tick;
   relation emit at tick {{ seen = data[0:2]; }}
 }}
 """)

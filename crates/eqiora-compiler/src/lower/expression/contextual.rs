@@ -102,6 +102,7 @@ impl Resolver<'_> {
             return Ok(LoweringExpression {
                 node: result.node.clone(),
                 range: expression.range(),
+                structural_parameters: expression.structural_parameters.clone(),
             });
         }
         let result = self.resolve_node(expression, expected)?;
@@ -287,6 +288,7 @@ impl Resolver<'_> {
         Ok(LoweringExpression {
             node: Arc::new(node),
             range: expression.range(),
+            structural_parameters: expression.structural_parameters.clone(),
         })
     }
 }

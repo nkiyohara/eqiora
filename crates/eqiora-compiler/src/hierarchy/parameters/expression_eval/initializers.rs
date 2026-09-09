@@ -77,9 +77,19 @@ pub(in crate::hierarchy::parameters) fn evaluate_initializer_mode(
             true,
         )?;
     }
-    let mut result: EvaluatedParameter =
-        coerce_parameter_with_label(file, expression.range(), evaluated, target, label, true)?
-            .into();
+    let declaration_initializer = !matches!(
+        context,
+        ExpressionContext::Binding | ExpressionContext::IndexedBinding(_)
+    );
+    let mut result: EvaluatedParameter = coerce_parameter_with_label(
+        file,
+        expression.range(),
+        evaluated,
+        target,
+        label,
+        declaration_initializer,
+    )?
+    .into();
     if !evaluate_values {
         result.value = None;
     }
@@ -139,7 +149,14 @@ pub(in crate::hierarchy::parameters) fn coerce_parameter_with_label(
         return Ok(SymbolicParameterValue {
             value: Some(literal.clone()),
             value_type: target,
-            expression: Some(LoweringExpression::literal(literal, range)),
+            expression: Some(
+                LoweringExpression::literal(literal, range).with_structural_parameters(
+                    evaluated
+                        .expression
+                        .iter()
+                        .flat_map(LoweringExpression::structural_parameters),
+                ),
+            ),
             lineage: evaluated.lineage,
         });
     }

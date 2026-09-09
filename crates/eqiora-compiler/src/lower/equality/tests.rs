@@ -71,6 +71,7 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
     )
     .unwrap();
     let model = LoweringModel {
+        structural_dependencies: Default::default(),
         name: "M".into(),
         range,
         items: vec![

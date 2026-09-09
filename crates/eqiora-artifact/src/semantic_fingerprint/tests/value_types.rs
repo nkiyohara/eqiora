@@ -878,7 +878,7 @@ fn index_extent_dependencies_survive_replay_and_block_stale_structure_edits() {
             )
             .into(),
         ],
-        vec![(set.erase(), size.erase(), EdgeKind::DependsOn)],
+        vec![(set.erase(), size.erase(), EdgeKind::StructurallyDependsOn)],
     )
     .unwrap();
     let bytes = ModelEnvelope::from_program(&original)

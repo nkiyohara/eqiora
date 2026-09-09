@@ -55,25 +55,38 @@ pub(in crate::hierarchy) fn static_index(
     expression: &Expr,
     values: &SymbolicParameterMap,
 ) -> Result<u32, Diagnostic> {
-    let evaluated = expression_eval::evaluate_with_domain(
-        file,
-        expression,
-        ExpressionContext::Let,
-        &mut |name, range| {
-            values.get(name).cloned().ok_or_else(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "index depends on an unknown or runtime value",
-                )
-            })
-        },
-        &mut |_| None,
-        &mut |_| None,
-        Some(ScalarDomain::Integer),
-    )?;
-    value_expressions::checked_index(file, expression.range(), &evaluated)
+    structural_index(file, expression, values)?
+        .map(|(index, _)| index)
+        .ok_or_else(|| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                expression.range(),
+                "channel index requires an exact static integer value",
+            )
+        })
+}
+
+pub(in crate::hierarchy) fn static_slice(
+    file: &str,
+    lower: &Expr,
+    upper: &Expr,
+    values: &SymbolicParameterMap,
+) -> Result<(u32, u32), Diagnostic> {
+    let start = static_index(file, lower, values)?;
+    let end = static_index(file, upper, values)?;
+    if end
+        .checked_sub(start)
+        .is_none_or(|count| count == 0 || count > 65_536)
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            upper.range(),
+            "slice requires increasing exact bounds and at most 65536 channels",
+        ));
+    }
+    Ok((start, end))
 }
 
 pub(in crate::hierarchy) fn structural_extent(
@@ -91,6 +104,39 @@ pub(in crate::hierarchy) fn structural_extent(
         ));
     }
     Ok(value)
+}
+
+pub(in crate::hierarchy) fn index_set_extent(
+    file: &str,
+    declaration: &eqiora_lang::NamedDefinitionDecl,
+    values: &SymbolicParameterMap,
+) -> Result<Option<(u32, Vec<String>)>, Diagnostic> {
+    let invalid = || {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            declaration.range(),
+            "index set requires only range(extent), without alias assertions",
+        )
+    };
+    let ExprKind::Call {
+        callee,
+        arguments: eqiora_lang::CallArguments::Positional(arguments),
+    } = declaration.value().kind()
+    else {
+        return Err(invalid());
+    };
+    let [extent] = arguments.as_slice() else {
+        return Err(invalid());
+    };
+    if callee.as_str() != "range"
+        || declaration.value_type().is_some()
+        || declaration.domain().is_some()
+        || declaration.activation().is_some()
+    {
+        return Err(invalid());
+    }
+    structural_extent(file, extent, values)
 }
 
 pub(in crate::hierarchy) fn structural_index(

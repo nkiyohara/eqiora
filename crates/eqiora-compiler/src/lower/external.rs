@@ -128,6 +128,7 @@ impl LoweringExpression {
         let value = Self {
             node: Arc::new(node),
             range: self.range,
+            structural_parameters: self.structural_parameters.clone(),
         };
         cache.insert(key, value.clone());
         value

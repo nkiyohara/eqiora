@@ -441,7 +441,11 @@ pub(super) fn rewrite_model_port(
             activation,
         } => Ok(PortSyntax::Signal {
             direction: *direction,
-            value_type: value_type.clone(),
+            value_type: super::parameters::specialize_type(
+                file,
+                value_type,
+                &scope.symbolic_parameters(),
+            )?,
             domain: domain
                 .as_deref()
                 .map(|name| {
@@ -546,6 +550,7 @@ pub(super) fn rewrite_equations(
                         file,
                         value,
                         &mut |name| scope.index_set(name).map(|set| set.extent()),
+                        &scope.symbolic_parameters(),
                         scope.reduction_terms_limit,
                     )?;
                 }

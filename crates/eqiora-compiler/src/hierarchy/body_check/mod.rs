@@ -130,14 +130,6 @@ pub(super) struct DefinitionBodyProof {
 }
 
 impl DefinitionBodyProof {
-    pub(super) fn same_physical_contract(&self, other: &Self) -> bool {
-        self.local_physical_ports == other.local_physical_ports
-            && self.children == other.children
-            && self.relation_endpoints == other.relation_endpoints
-            && self.physical_connection_fragments == other.physical_connection_fragments
-            && self.deferred_connection_memberships == other.deferred_connection_memberships
-    }
-
     pub(super) fn new(
         file: &str,
         range: TextRange,
@@ -158,7 +150,7 @@ impl DefinitionBodyProof {
 
 #[derive(Default)]
 pub(super) struct DefinitionBodyProofs {
-    pub(super) components: BTreeMap<DefinitionKey, DefinitionBodyProof>,
+    pub(super) components: BTreeMap<DefinitionKey, Vec<DefinitionBodyProof>>,
     pub(super) models: BTreeMap<DefinitionKey, DefinitionBodyProof>,
 }
 

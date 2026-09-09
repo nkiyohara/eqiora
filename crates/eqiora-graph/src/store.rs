@@ -447,14 +447,13 @@ fn validate_structural_value_edit(
         .get(&target)
         .and_then(|node| node.value.as_ref())
         != Some(value)
-        && state.edges.iter().any(|edge| {
-            edge.kind() == EdgeKind::DependsOn
-                && edge.to() == target
-                && edge.from().kind() == EntityKind::IndexSet
-        })
+        && state
+            .edges
+            .iter()
+            .any(|edge| edge.kind() == EdgeKind::StructurallyDependsOn && edge.to() == target)
     {
         return Err(Diagnostic::error(codes::INVALID_OPERATION,
-            "value edit would change a Parameter that determines an IndexSet; recompile the structural definition")
+            "value edit would change a Parameter that determines a static declaration or expression; recompile the structural definition")
             .with_graph_path(path_for(target)));
     }
 

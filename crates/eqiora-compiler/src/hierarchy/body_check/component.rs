@@ -244,6 +244,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     self.scope.elaborator,
                     self.definition,
                     declaration,
+                    self.compile_time_values,
                 ) {
                     Ok(contract) => {
                         if contract.is_physical() {
@@ -290,7 +291,12 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     let support = declaration
                         .domain()
                         .and_then(|domain| self.scope.spatial_support(domain));
-                    match field_expression_type(self.definition.file, declaration, support) {
+                    match field_expression_type(
+                        self.definition.file,
+                        declaration,
+                        support,
+                        self.compile_time_values,
+                    ) {
                         Ok(inferred) => {
                             self.scope.symbols.insert(
                                 declaration.name().to_owned(),
@@ -608,7 +614,12 @@ mod tests {
             },
         )?;
         let supports = component_support_interface(definition.file, definition.declaration)?;
-        let fields = component_field_interface(definition.file, definition.declaration, &supports)?;
+        let fields = component_field_interface(
+            definition.file,
+            definition.declaration,
+            &supports,
+            &compile_time_values,
+        )?;
         validate(
             &elaborator,
             &definition,
