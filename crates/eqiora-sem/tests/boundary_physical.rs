@@ -29,6 +29,16 @@ fn interface_program(
     share_parent: bool,
     channels: Option<u32>,
 ) -> Result<InterfaceFixture, Vec<eqiora_core::Diagnostic>> {
+    interface_program_with_geometry(right_start, semantics, share_parent, channels, None)
+}
+
+fn interface_program_with_geometry(
+    right_start: f64,
+    semantics: ConnectionSemantics,
+    share_parent: bool,
+    channels: Option<u32>,
+    geometry: Option<(&eqiora_geometry::CanonicalGeometryV1, &str)>,
+) -> Result<InterfaceFixture, Vec<eqiora_core::Diagnostic>> {
     let connector = Id::<kinds::Domain>::new();
     let left_volume = Id::<kinds::Domain>::new();
     let right_volume = Id::<kinds::Domain>::new();
@@ -143,6 +153,31 @@ fn interface_program(
         KernelNode::from(ActivationDef::continuous(right_activation)),
         KernelNode::from(ConnectionDef::new(connection, semantics)),
     ]);
+    if let Some((artifact, upper)) = geometry {
+        for node in &mut nodes {
+            let id = node.id();
+            if id == left_volume.erase() || id == right_volume.erase() {
+                *node = DomainDef::geometry_region(
+                    id.downcast().unwrap(),
+                    eqiora_schema::kernel::GeometryDigest::new(artifact.digest_bytes()),
+                    "domain",
+                )
+                .unwrap()
+                .into();
+            } else if id == left_boundary.erase() || id == right_boundary.erase() {
+                *node = DomainDef::geometry_boundary(
+                    id.downcast().unwrap(),
+                    if id == left_boundary.erase() {
+                        upper
+                    } else {
+                        "left"
+                    },
+                )
+                .unwrap()
+                .into();
+            }
+        }
+    }
     let mut transaction = Transaction::new("two field-valued physical boundaries");
     for node in nodes {
         transaction.push(Op::DefineKernelNode { node });
@@ -217,7 +252,13 @@ fn interface_program(
 
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
-    KernelProgram::from_snapshot(&store.snapshot(), model).map(|program| InterfaceFixture {
+    let program = match geometry {
+        Some((artifact, _)) => {
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[artifact])
+        }
+        None => KernelProgram::from_snapshot(&store.snapshot(), model),
+    };
+    program.map(|program| InterfaceFixture {
         program,
         connection,
     })
@@ -305,4 +346,129 @@ fn spatial_periodic_connection_rejects_distinct_parents() {
             .iter()
             .any(|diagnostic| { diagnostic.message().contains("one exact parent Domain") })
     );
+}
+
+fn periodic_geometry() -> eqiora_geometry::CanonicalGeometryV1 {
+    let graph = eqiora_geometry::GeometryGraph::new();
+    let rectangle = graph.rectangle([2.0, 5.0], [-1.0, 3.0]).unwrap();
+    let boundaries = rectangle.boundaries();
+    graph
+        .build(
+            &rectangle,
+            &std::collections::BTreeMap::from([
+                ("domain".to_owned(), vec![rectangle.region().into()]),
+                ("left".to_owned(), vec![boundaries[0].into()]),
+                ("right".to_owned(), vec![boundaries[1].into()]),
+                ("top".to_owned(), vec![boundaries[3].into()]),
+                ("bottom".to_owned(), vec![boundaries[2].into()]),
+            ]),
+        )
+        .unwrap()
+}
+
+#[test]
+fn exact_geometry_periodic_pair_composes_after_canonical_round_trip() {
+    let original = periodic_geometry();
+    let artifact = eqiora_geometry::CanonicalGeometryV1::decode_planar_rectangle_v2_canonical(
+        original.canonical_bytes(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(original.digest_bytes(), artifact.digest_bytes());
+    let fixture = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::SpatialPeriodic,
+        true,
+        Some(3),
+        Some((&artifact, "right")),
+    )
+    .unwrap();
+    let junction = fixture
+        .program
+        .compose_boundary_physical_junction(fixture.connection)
+        .unwrap();
+    let BoundaryJunctionGeometry::CartesianPeriodic(chart) = junction.geometry() else {
+        panic!("Geometry periodic pair lost its translation");
+    };
+    assert_eq!(chart.normal_axis(), 0);
+    assert_eq!(chart.period(), 3.0);
+    assert_eq!(chart.ambient_dimension(), 2);
+    assert_eq!(junction.dag().roots().len(), 2);
+}
+
+#[test]
+fn geometry_periodic_pair_rejects_nonopposite_and_stale_selections() {
+    let artifact = periodic_geometry();
+    for upper in ["left", "top", "missing"] {
+        let diagnostics = interface_program_with_geometry(
+            0.0,
+            ConnectionSemantics::SpatialPeriodic,
+            true,
+            None,
+            Some((&artifact, upper)),
+        )
+        .expect_err("invalid exact periodic selection must fail");
+        let expected = if upper == "missing" {
+            "absent from its parent artifact"
+        } else {
+            "explicit spatial-periodic pair"
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains(expected)),
+            "{upper}: {diagnostics:?}"
+        );
+    }
+    let diagnostics = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::SpatialPeriodic,
+        false,
+        None,
+        Some((&artifact, "right")),
+    )
+    .expect_err("equal geometry does not equate distinct parent identities");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message()
+            .contains("explicit spatial-periodic pair")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn exact_geometry_coincident_contract_retains_parent_and_selection_identity() {
+    let artifact = periodic_geometry();
+    let fixture = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::Conserving,
+        true,
+        Some(3),
+        Some((&artifact, "left")),
+    )
+    .unwrap();
+    assert!(matches!(
+        fixture
+            .program
+            .compose_boundary_physical_junction(fixture.connection)
+            .unwrap()
+            .geometry(),
+        BoundaryJunctionGeometry::Coincident
+    ));
+    for (share_parent, selection) in [(false, "left"), (true, "right")] {
+        let errors = interface_program_with_geometry(
+            0.0,
+            ConnectionSemantics::Conserving,
+            share_parent,
+            None,
+            Some((&artifact, selection)),
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|error| error
+                .message()
+                .contains("exact same-support primitive pair")),
+            "{errors:?}"
+        );
+    }
 }

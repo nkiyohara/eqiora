@@ -131,6 +131,20 @@ impl KernelProgram {
                 })?;
                 BoundaryJunctionGeometry::Coincident
             }
+            (ConnectionSemantics::SpatialPeriodic, Some(junction)) => {
+                let (identification, lower_port) = junction.periodic.as_ref().ok_or_else(|| {
+                    port_error(
+                        connection_id,
+                        "Geometry junction has no admitted periodic chart",
+                    )
+                })?;
+                let lower = ports
+                    .iter()
+                    .position(|port| port.erase() == *lower_port)
+                    .expect("admitted periodic lower Port belongs to the Connection");
+                ports.swap(0, lower);
+                BoundaryJunctionGeometry::CartesianPeriodic(identification.clone())
+            }
             (ConnectionSemantics::SpatialPeriodic, None) => {
                 let identification = validate_spatial_periodic_boundary_connection(&contracts)
                     .map_err(|_| {

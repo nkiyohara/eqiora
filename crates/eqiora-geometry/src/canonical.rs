@@ -207,6 +207,51 @@ impl CanonicalGeometryV1 {
             .is_ok_and(|index| std::ptr::eq(&self.entity_sets()[index], selection))
     }
 
+    /// Exact Cartesian embedding of a single primitive boundary and its parent.
+    ///
+    /// The primitive topology supplies the axis and outward side. Grouped
+    /// selections, curved shapes, and foreign or stale selections return `None`.
+    #[must_use]
+    pub fn cartesian_boundary_embedding(
+        &self,
+        boundary: &NamedEntitySet,
+        parent: &NamedEntitySet,
+    ) -> Option<eqiora_schema::kernel::CartesianBoundaryEmbedding> {
+        use eqiora_core::{DimExponents, DynQuantity};
+        use eqiora_schema::kernel::{AxisBounds, BoundarySide, CartesianBoundaryEmbedding};
+
+        if !self.selection_is_boundary_of(boundary, parent) {
+            return None;
+        }
+        let bounds: &[[f64; 2]] = match &self.kind {
+            CanonicalGeometryKind::CartesianBoxV1(geometry) => geometry.bounds(),
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => geometry.bounds(),
+            _ => return None,
+        };
+        let [member] = boundary.members() else {
+            return None;
+        };
+        // These two primitive schemas define exactly two axis-major sides.
+        let axis = *member / 2;
+        let side = if *member % 2 == 0 {
+            BoundarySide::Lower
+        } else {
+            BoundarySide::Upper
+        };
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])?;
+        let axes = bounds
+            .iter()
+            .map(|[lower, upper]| {
+                AxisBounds::new(
+                    DynQuantity::new(*lower, length),
+                    DynQuantity::new(*upper, length),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        CartesianBoundaryEmbedding::derive(&axes, axis, side)
+    }
+
     /// Exact constant parent-outward normal of one supported boundary set.
     ///
     /// A classification-free rectangle derives all four axis normals from its
