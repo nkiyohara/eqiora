@@ -382,6 +382,32 @@ fn validate_definition_bodies_and_parameters(
             occurrences_valid = false;
             diagnostics.extend(errors);
         }
+        let mut model_boundary_sets = BTreeMap::new();
+        match super::supports::signature_support_interface(definition.file, definition.signature())
+        {
+            Ok(interface) => {
+                for (name, contract) in interface.complete_exteriors() {
+                    match symbolic_complete_exterior_set(
+                        definition.file,
+                        name,
+                        contract,
+                        definition.range(),
+                    ) {
+                        Ok(set) => {
+                            model_boundary_sets.insert(name.to_owned(), set);
+                        }
+                        Err(error) => {
+                            occurrences_valid = false;
+                            diagnostics.push(error);
+                        }
+                    }
+                }
+            }
+            Err(errors) => {
+                occurrences_valid = false;
+                diagnostics.extend(errors);
+            }
+        }
         let model_fields = model_supports
             .as_ref()
             .map(|supports| {
@@ -543,7 +569,7 @@ fn validate_definition_bodies_and_parameters(
                         }
                         eqiora_schema::kernel::typing::SpatialSupport::Interface { .. } => None,
                     },
-                    |_| None,
+                    |name| model_boundary_sets.get(name).cloned(),
                     &mut complete_exterior_budget,
                 ) {
                     Ok(bindings) => Some(bindings),

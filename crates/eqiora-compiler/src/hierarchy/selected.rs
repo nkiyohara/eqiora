@@ -340,7 +340,13 @@ fn compile(
         size.declarations = checked_external_footprint(
             "declarations",
             size.declarations,
-            prepared.supports().len() + prepared.clocks.len() + prepared.parameters().len(),
+            prepared
+                .supports()
+                .iter()
+                .map(ExternalGeometrySupportBinding::allocated_support_count)
+                .sum::<usize>()
+                + prepared.clocks.len()
+                + prepared.parameters().len(),
             limits.max_declarations,
         )?;
         return RootExpansion::new(elaborator, definition, size)
@@ -458,6 +464,7 @@ fn prepare(
     ) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>>,
 ) -> Result<ExternalComponentBinding, Vec<Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet};
+    crate::external_compile::validate_selected_bindings(file, name, bindings)?;
     let fail = |range, message| {
         vec![source_error(
             codes::LANGUAGE_TYPE_ERROR,
@@ -527,6 +534,54 @@ fn prepare(
                 ) =>
             {
                 prepared.clocks.push((name.to_owned(), clock.clone()))
+            }
+            (
+                SignatureItem::Support(slot),
+                StaticBindingValue::CompleteExterior {
+                    geometry,
+                    members,
+                    parent,
+                },
+            ) => {
+                let eqiora_lang::SupportSlotSyntax::CompleteExterior {
+                    parent: parent_slot,
+                } = slot.syntax()
+                else {
+                    return Err(fail(
+                        slot.range(),
+                        "CompleteExterior binding does not match the selected support contract"
+                            .to_owned(),
+                    ));
+                };
+                let group = geometry_groups
+                    .entry(geometry.digest_bytes())
+                    .or_insert_with(|| (geometry, Vec::new()));
+                // The finite members remain individual exact selections; no union is constructed.
+                for selection in members {
+                    group
+                        .1
+                        .push((name, selection, Some((parent_slot.as_str(), parent))));
+                }
+                if members.is_empty() {
+                    return Err(fail(
+                        slot.range(),
+                        "complete-exterior binding has no members".to_owned(),
+                    ));
+                }
+                supports.push(ExternalGeometrySupportBinding::CompleteExterior {
+                    slot: name.to_owned(),
+                    geometry: eqiora_schema::kernel::GeometryDigest::new(geometry.digest_bytes()),
+                    parent_slot: parent_slot.clone(),
+                    members: members
+                        .iter()
+                        .map(
+                            |selection| crate::external::ExternalGeometryBoundaryMember {
+                                entity_set: selection.name().to_owned(),
+                                embedding: geometry.cartesian_boundary_embedding(selection, parent),
+                            },
+                        )
+                        .collect(),
+                });
             }
             (
                 SignatureItem::Support(slot),

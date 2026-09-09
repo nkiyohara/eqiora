@@ -100,6 +100,16 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         SymbolContract::Support(contract.support().clone()),
                     );
                 }
+                for (name, contract) in supports.complete_exteriors() {
+                    if let Some(parent) = supports.get(contract.parent_slot()) {
+                        self.scope.symbols.insert(
+                            name.to_owned(),
+                            SymbolContract::CompleteExterior {
+                                parent: parent.support().clone(),
+                            },
+                        );
+                    }
+                }
                 match super::super::field_slots::signature_field_interface(
                     self.scope.file,
                     signature,
