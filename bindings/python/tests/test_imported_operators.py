@@ -93,3 +93,70 @@ def test_imported_operator_cycle_reaches_shared_definition_gate():
     with pytest.raises(q.ValidationError) as error:
         q.compile(source=main, entry="Main")
     assert any("cycl" in item.message or "recurs" in item.message for item in error.value.diagnostics)
+
+
+def test_imported_dimensioned_operator_preserves_partial_bindings_and_argument_order():
+    provider = q.Module.parse(
+        "laws",
+        "public dimension Stiffness = N/m; "
+        "public operator energy(input x: m, input k: Stiffness): J = 0.5*k*x*x;",
+        package="provider.example",
+    )
+    main = q.Module("main", package="consumer.example")
+    energy = main.import_module("laws", provider).operator("energy")
+    stiffness = q.ValueType.real(q.Dimension(mass=1, time=-2))
+    length = q.ValueType.real(q.Dimension(length=1))
+    force = q.ValueType.real(q.Dimension(mass=1, length=1, time=-2))
+    model = main.model("Main")
+    x = model.parameter("x", value_type=length)
+    k = model.parameter("k", value_type=stiffness)
+    model.set_default(x, q.lang.quantity(3, q.units.m))
+    model.set_default(k, q.lang.quantity(4, q.units.N/q.units.m))
+    output = model.field("force", role=q.FieldRole.Variable, value_type=force)
+    model.relation("evaluate", q.lang.equation(
+        output, q.lang.partial(energy(k=k, x=x), wrt=x, holding=(k,))))
+    emitted = q.Module.parse("main", main.to_eqi(), package="consumer.example")
+    emitted.import_module("laws", provider)
+    models = [q.compile(source=source, entry="Main") for source in (main, emitted)]
+    assert models[0].to_bytes() == models[1].to_bytes()
+    for candidate in models:
+        session = candidate.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+        # E = k*x²/2, so the partial at fixed k is k*x = 12 N.
+        assert session.field("force") == 12.0
+
+
+@pytest.mark.parametrize("channels", (False, True))
+def test_imported_spatial_operator_retains_tensor_roles_and_rejects_channel_arrays(channels):
+    provider = q.Module.parse(
+        "laws",
+        "public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2] "
+        "= component(left, 0) * component(right, 1);",
+        package="provider.example",
+    )
+    main = q.Module("main")
+    dyadic = main.import_module("laws", provider).operator("dyadic")
+    model = main.model("Main")
+    support = model.volume("body", dimensions=2)
+    scalar = q.ValueType.real()
+    value_type = q.ValueType.array(scalar, 2) if channels else q.ValueType.vector(scalar, 2)
+    left = model.field("left", role=q.FieldRole.Variable, value_type=value_type, on=support)
+    right = model.field("right", role=q.FieldRole.Variable, value_type=value_type, on=support)
+    model.relation("balance", q.lang.equation(q.lang.div(q.lang.div(dyadic(right=right, left=left))), 0), on=support)
+    graph = q.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0, 1), y_bounds=(0, 1))
+    geometry = graph.build(rectangle, named_topology={
+        "body": rectangle.region,
+        **dict(zip(("left", "right", "bottom", "top"), rectangle.boundaries)),
+    })
+    bindings = {"body": geometry.selection("body")}
+    if channels:
+        with pytest.raises(q.ValidationError):
+            q.compile(source=main, entry="Main", geometry=geometry, bindings=bindings)
+        return
+    source = main.to_eqi()
+    assert "laws.dyadic(left = left, right = right)" in source
+    emitted = q.Module.parse("main", source)
+    emitted.import_module("laws", provider)
+    direct = q.compile(source=main, entry="Main", geometry=geometry, bindings=bindings)
+    replayed = q.compile(source=emitted, entry="Main", geometry=geometry, bindings=bindings)
+    assert direct.to_bytes() == replayed.to_bytes()

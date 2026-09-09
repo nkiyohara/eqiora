@@ -136,6 +136,7 @@ pub(super) fn operator(module: &Module, name: &str) -> PyResult<OperatorDescript
         match value {
             PureValueClassSyntax::Typed(value) => Ok(value.to_source()),
             PureValueClassSyntax::Scalar => Ok("scalar".to_owned()),
+            PureValueClassSyntax::Spatial { rank } => Ok(format!("spatial[{}]", rank.value())),
             _ => Err(syntax_error("unsupported imported operator value class")),
         }
     }

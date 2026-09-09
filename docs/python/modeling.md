@@ -726,8 +726,12 @@ provider's declared argument order and types. For example,
 k0=base, a=slope)` authors a qualified call in `main`; it does not copy the
 provider's declaration. Explicit parsed Modules and local `.eqi` imports use the
 same path. The existing compiler checks units, purity, and bounded definition
-closure. Numerical execution remains within the admitted real scalar profile;
-this adapter adds no source partial-derivative API or complex execution.
+closure. Imported signatures retain concrete scalar dimensions and generic spatial
+tensor rank; channel arrays cannot replace spatial vectors or tensors.
+Numerical execution remains within the admitted real scalar profile;
+imported calls can participate in `lang.partial` with explicit independent and
+held bindings. Calls across package boundaries inside operator definitions,
+Boolean/integer operator signatures and complex execution remain outside that profile.
 
 ## Compile one exact locked package Model or Component
 

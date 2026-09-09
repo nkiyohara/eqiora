@@ -177,4 +177,41 @@ mod tests {
             "dimensions never extend input units"
         );
     }
+
+    #[test]
+    fn imported_dimensions_reach_record_members_and_observable_types() {
+        use eqiora_graph::Op;
+        use eqiora_schema::kernel::KernelNode;
+
+        let library = "public dimension Speed = m / s; public record Config { target: Speed } public component Law(parameter config: Config) { observable speed: Speed = config.target; }";
+        let consumer = "import org.example.library.units as units; model Main() { parameter config: units.Config = units.Config(target = 2[m/s]); variable velocity: units.Speed; relation law { velocity = config.target; } instance sensor: units.Law(config = config); observable speed: units.Speed = velocity; }";
+        let compiled = analyze(library, consumer, false)
+            .unwrap()
+            .validate_definitions()
+            .unwrap()
+            .compile_root("Main")
+            .unwrap();
+        let speed = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
+        let observables = compiled
+            .transaction()
+            .ops()
+            .iter()
+            .filter_map(|operation| match operation {
+                Op::DefineKernelNode {
+                    node: KernelNode::Observable(value),
+                } => Some(value.value_type().dimension()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(observables, vec![speed, speed]);
+        assert!(
+            analyze(
+                library,
+                &consumer.replace("target = 2[m/s]", "target = 2[s]"),
+                false
+            )
+            .and_then(|analysis| analysis.validate_definitions())
+            .is_err()
+        );
+    }
 }

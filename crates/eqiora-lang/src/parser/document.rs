@@ -50,7 +50,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("record") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if let Some(declaration) = self.parse_record(declaration_start, visibility) {
                     records.push(declaration);
                 } else {
