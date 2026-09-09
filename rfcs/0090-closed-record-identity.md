@@ -1,6 +1,6 @@
 # RFC 0090: Closed record identity
 
-Status: implementation of the adopted contract in [#860](https://github.com/nkiyohara/eqiora/issues/860).
+Status: accepted design for closed record authoring and canonical replay.
 
 ## Invariant and owner
 
