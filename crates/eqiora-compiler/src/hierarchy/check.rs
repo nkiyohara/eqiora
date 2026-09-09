@@ -85,6 +85,7 @@ fn validate_definition_bodies_and_parameters(
             definition.file,
             definition.declaration,
             |name| super::clocks::component(definition.file, definition.declaration, name),
+            &super::parameters::RecordContext::component(elaborator, definition),
         ) {
             Ok(parameters) => {
                 let mut values = parameters.clone();
@@ -266,6 +267,12 @@ fn validate_definition_bodies_and_parameters(
                                     .get(name)
                                     .map(|contract| contract.support().clone())
                             },
+                            (
+                                &super::parameters::RecordContext::component(elaborator, &child),
+                                &super::parameters::RecordContext::component(
+                                    elaborator, definition,
+                                ),
+                            ),
                         ) {
                             Ok(values) => values,
                             Err(errors) => {
@@ -366,6 +373,7 @@ fn validate_definition_bodies_and_parameters(
             definition.file,
             definition.declaration,
             |name| super::clocks::model(definition.file, definition.declaration, name),
+            &super::parameters::RecordContext::model(elaborator, definition),
         ) {
             Ok(values) => parameters = values,
             Err(errors) => {
@@ -467,6 +475,10 @@ fn validate_definition_bodies_and_parameters(
                             .and_then(|supports| supports.get(name))
                             .cloned()
                     },
+                    (
+                        &super::parameters::RecordContext::component(elaborator, &child),
+                        &super::parameters::RecordContext::model(elaborator, definition),
+                    ),
                 ) {
                     Ok(values) => values,
                     Err(errors) => {

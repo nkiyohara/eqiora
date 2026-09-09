@@ -243,6 +243,7 @@ pub(super) struct DefinitionScope<'e, 'd> {
     pub(super) exposed_signals: BTreeSet<String>,
     pub(super) borrowed_clocks: BTreeSet<String>,
     pub(super) index_sets: BTreeMap<String, Option<u32>>,
+    pub(super) record_context: crate::hierarchy::parameters::RecordContext,
     pub(super) static_values: crate::hierarchy::parameters::SymbolicParameterMap,
     pub(super) children: BTreeMap<String, ComponentDefinition<'d>>,
     pub(super) child_instances: BTreeMap<String, &'d InstanceDecl>,
@@ -255,6 +256,14 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
         file: &'d str,
     ) -> Self {
         Self {
+            record_context: crate::hierarchy::parameters::RecordContext {
+                visible: elaborator
+                    .visible_records(&namespace)
+                    .into_iter()
+                    .map(|(name, record)| (name, record.clone()))
+                    .collect(),
+                parameters: BTreeMap::new(),
+            },
             elaborator,
             namespace,
             file,
@@ -332,6 +341,9 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
             return Ok(symbol.clone());
         }
         let segments = path.segments().collect::<Vec<_>>();
+        if let Some(symbol) = self.symbols.get(path.as_str()) {
+            return Ok(symbol.clone());
+        }
         match segments.as_slice() {
             [name] => self
                 .symbols
@@ -378,6 +390,13 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                             crate::hierarchy::clocks::component(child.file, child.declaration, name)
                         },
                         &mut |name| self.spatial_support(name),
+                        (
+                            &crate::hierarchy::parameters::RecordContext::component(
+                                self.elaborator,
+                                child,
+                            ),
+                            &self.record_context,
+                        ),
                     )
                     .map_err(|errors| {
                         errors

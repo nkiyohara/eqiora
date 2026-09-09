@@ -552,14 +552,7 @@ pub(super) fn evaluate_mode(
                 )),
                 lineage: Some(ParameterLineage::Constant),
             },
-            None => {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    path.range(),
-                    context.qualified_name_message(path),
-                ));
-            }
+            None => resolve(path.as_str(), path.range())?.into(),
         },
         ExprKind::Call { callee, arguments }
             if matches!(context, ExpressionContext::Let) && crate::math::is_function(callee) =>

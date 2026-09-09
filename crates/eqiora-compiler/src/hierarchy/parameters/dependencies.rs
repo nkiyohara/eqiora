@@ -55,6 +55,9 @@ pub(super) fn collect_expression_dependencies(
             }
             ExprKind::Path(path)
                 if (crate::math::constant(path).is_some() || path.as_str() == "math.i") => {}
+            ExprKind::Path(path) if contains(path.as_str()) => {
+                dependencies.entry(path.as_str().to_owned()).or_insert(path.range());
+            }
             ExprKind::Path(path) => diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,

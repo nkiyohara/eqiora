@@ -168,6 +168,7 @@ fn local_document_in(
         let signature = authored_signature(&context, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
+            &parameters::RecordContext::model(&elaborator, &model),
             model.file,
             model.name(),
             signature,
@@ -204,6 +205,7 @@ fn local_document_in(
         let signature = authored_signature(&context, &component.namespace, component.name(), false)
             .unwrap_or_else(|| component.signature());
         let prepared = prepare(
+            &parameters::RecordContext::component(&elaborator, &component),
             component.file,
             component.name(),
             signature,
@@ -222,6 +224,7 @@ fn local_document_in(
             component.file,
             component.declaration,
             prepared.parameters(),
+            &parameters::RecordContext::component(&elaborator, &component),
         )?;
         elaborator.selected_component = Some((
             preflight::DefinitionKey {
@@ -317,6 +320,7 @@ fn compile(
         let signature = authored_signature(hierarchy, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
+            &parameters::RecordContext::model(&elaborator, &model),
             model.file,
             model.name(),
             signature,
@@ -353,6 +357,7 @@ fn compile(
     let signature = authored_signature(hierarchy, &component.namespace, component.name(), false)
         .unwrap_or_else(|| component.signature());
     let prepared = prepare(
+        &parameters::RecordContext::component(&elaborator, &component),
         component.file,
         component.name(),
         signature,
@@ -445,6 +450,7 @@ fn property(
 }
 
 fn prepare(
+    records: &parameters::RecordContext,
     file: &str,
     name: &str,
     signature: &[SignatureItem],
@@ -615,6 +621,7 @@ fn prepare(
         signature,
         bindings,
         frame_context,
+        records,
     )?);
     parameters.sort_by(|a, b| a.parameter().cmp(b.parameter()));
     supports.sort_by(|a, b| a.slot().cmp(b.slot()));
