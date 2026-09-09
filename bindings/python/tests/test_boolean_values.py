@@ -43,7 +43,7 @@ def test_boolean_native_creation_edit_and_replay_are_typed(value):
 
 
 def test_source_boolean_defaults_and_external_values_preserve_exact_comparisons(tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Comparisons")
     integer = owner.parameter("n", value_type=eqiora.ValueType.integer())
     owner.set_default(integer, 2**53 + 1)
@@ -63,7 +63,7 @@ def test_source_boolean_defaults_and_external_values_preserve_exact_comparisons(
     enabled = owner.parameter("enabled", value_type=eqiora.ValueType.boolean())
     owner.set_default(enabled, True)
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.boolean())
-    owner.relation("observe", left=observed, right=enabled)
+    owner.relation("observe", eqiora.lang.equation(observed, enabled))
     model = eqiora.compile(source=source, entry="Comparisons")
     for name, (_, value) in expected.items():
         assert model.parameter(name).value is value
@@ -79,7 +79,7 @@ def test_source_boolean_defaults_and_external_values_preserve_exact_comparisons(
 
 
 def test_boolean_sampled_inputs_state_outputs_and_checkpoint_use_bool(tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Toggle")
     tick = owner.clock("tick", period_s=1)
     kind = eqiora.ValueType.boolean()
@@ -87,8 +87,8 @@ def test_boolean_sampled_inputs_state_outputs_and_checkpoint_use_bool(tmp_path):
     observed = owner.output("observed", value_type=kind, at=tick)
     memory = owner.field("memory", role=eqiora.FieldRole.State, value_type=kind, at=tick)
     owner.initial((q.pre(memory), False))
-    owner.relation("toggle", at=tick, left=q.next(memory), right=q.logical_not(q.pre(memory)))
-    owner.relation("observe", at=tick, left=observed, right=q.logical_and(drive, q.logical_not(q.pre(memory))))
+    owner.relation("toggle", eqiora.lang.equation(q.next(memory), q.logical_not(q.pre(memory))), at=tick)
+    owner.relation("observe", eqiora.lang.equation(observed, q.logical_and(drive, q.logical_not(q.pre(memory)))), at=tick)
     model = eqiora.compile(source=source, entry="Toggle")
     path = tmp_path / "toggle.eqi"
     source.write_eqi(path)
@@ -114,7 +114,7 @@ def test_boolean_sampled_inputs_state_outputs_and_checkpoint_use_bool(tmp_path):
 
 
 def test_predicate_authoring_preserves_identity_ownership_and_rejects_host_truthiness():
-    source = q.Source()
+    source = eqiora.Module("main")
     left, right = source.component("Left"), source.component("Right")
     a = left.parameter("n", value_type=eqiora.ValueType.integer())
     b = right.parameter("n", value_type=eqiora.ValueType.integer())
@@ -122,13 +122,13 @@ def test_predicate_authoring_preserves_identity_ownership_and_rejects_host_truth
     predicates = (q.equal, q.not_equal, q.less, q.less_equal, q.greater, q.greater_equal,
                   q.logical_and, q.logical_or)
     for predicate in predicates:
-        with pytest.raises(q.SourceError, match="owners"):
+        with pytest.raises(q.ModuleError, match="owners"):
             predicate(a, b)
         with pytest.raises(TypeError, match="truth value"):
             bool(predicate(a, a))
     with pytest.raises(TypeError, match="truth value"):
         bool(a)
-    with pytest.raises(q.SourceError, match="Component|owner"):
+    with pytest.raises(q.ModuleError, match="Component|owner"):
         right.let_alias("captured", q.logical_not(q.equal(a, 1)))
     native = eqiora.Parameter("n", value_type=eqiora.ValueType.integer(), value=2**53 + 1)
     for predicate in (eqiora.equal, eqiora.not_equal, eqiora.less, eqiora.less_equal,
@@ -149,10 +149,10 @@ def test_equations_have_no_residual_constructor_or_numeric_boolean_zero_alias():
         eqiora.Relation("obsolete", residual=flag)
     with pytest.raises(AttributeError):
         initial.residuals
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("WrongZero")
     field = owner.field("flag", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.boolean())
-    owner.relation("invalid", left=field, right=0)
+    owner.relation("invalid", eqiora.lang.equation(field, 0))
     with pytest.raises(eqiora.ValidationError):
         eqiora.compile(source=source, entry="WrongZero")
 
@@ -177,7 +177,7 @@ model Compare() {{
 
 @pytest.mark.parametrize("operation", ("quotient", "remainder", "mixed_comparison", "boolean_add"))
 def test_numeric_operators_do_not_coerce_boolean_operands(operation):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("NoCoercion")
     n = owner.parameter("n", value_type=eqiora.ValueType.integer())
     owner.set_default(n, 1)
@@ -191,7 +191,7 @@ def test_numeric_operators_do_not_coerce_boolean_operands(operation):
         expression = flag + n
     observed = owner.field("observed", role=eqiora.FieldRole.Variable,
                            value_type=eqiora.ValueType.boolean() if operation == "mixed_comparison" else eqiora.ValueType.integer())
-    owner.relation("invalid", left=observed, right=expression)
+    owner.relation("invalid", eqiora.lang.equation(observed, expression))
     with pytest.raises(eqiora.ValidationError) as error:
         eqiora.compile(source=source, entry="NoCoercion")
     assert error.value.diagnostics[0].code == "EQ0603"
@@ -201,10 +201,10 @@ def test_logical_predicates_reuse_expression_depth_and_node_bounds():
     expression = q.logical_not(False)
     for _ in range(62):
         expression = q.logical_not(expression)
-    with pytest.raises(q.SourceError, match="depth"):
+    with pytest.raises(q.ModuleError, match="depth"):
         q.logical_not(expression)
     expression = q.logical_not(False)
     for _ in range(10):
         expression = q.logical_and(expression, expression)
-    with pytest.raises(q.SourceError, match="4096"):
+    with pytest.raises(q.ModuleError, match="4096"):
         q.logical_or(expression, expression)

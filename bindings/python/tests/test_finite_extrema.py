@@ -11,7 +11,7 @@ q = eqiora.lang
 
 @pytest.mark.parametrize("operation", ("min", "max"))
 def test_extrema_authoring_calls_once_and_reuses_exact_binder_scope(operation):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Extrema")
     rows = owner.index_set("Rows", extent=3)
     seen = []
@@ -21,17 +21,17 @@ def test_extrema_authoring_calls_once_and_reuses_exact_binder_scope(operation):
     value = getattr(owner, operation)(body, over=rows)
     assert len(seen) == 1
     owner.let_alias("chosen", value)
-    with pytest.raises(q.SourceError, match="binder"):
+    with pytest.raises(q.ModuleError, match="binder"):
         owner.let_alias("escaped", q.ordinal(seen[0]) + 1)
     foreign = source.component("Other").index_set("Rows", extent=3)
-    with pytest.raises(q.SourceError, match="index set"):
+    with pytest.raises(q.ModuleError, match="index set"):
         getattr(owner, operation)(body, over=foreign)
     assert len(seen) == 1
     assert f"{operation}(ordinal(i), over = (i in Rows))" in source.to_eqi()
 
 
 def integer_source(operation):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Extrema")
     rows = owner.index_set("Rows", extent=3)
     tick = owner.clock("tick", period_s=1)
@@ -39,8 +39,7 @@ def integer_source(operation):
     owner.set_default(p, 2**53 + 1)
     out = owner.output("result", value_type=eqiora.ValueType.integer(), at=tick)
     values = q.array((p + 1, p - 2, p + 1))
-    owner.relation("emit", at=tick, left=out,
-                   right=getattr(owner, operation)(lambda i: values[q.ordinal(i)], over=rows))
+    owner.relation("emit", eqiora.lang.equation(out, getattr(owner, operation)(lambda i: values[q.ordinal(i)], over=rows)), at=tick)
     return source
 
 
@@ -78,14 +77,13 @@ def test_extrema_exact_integer_edit_file_replay_and_sampled_resume(operation, of
 
 @pytest.mark.parametrize("operation,expected", (("min", -2.0), ("max", 3.0)))
 def test_extrema_dimensioned_real_values_keep_their_complete_unit(operation, expected):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Lengths")
     rows = owner.index_set("Rows", extent=3)
     tick = owner.clock("tick", period_s=1)
     out = owner.output("result", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), at=tick)
     lengths = q.array(tuple(q.quantity(value, eqiora.units.m) for value in (3, -2, 3)))
-    owner.relation("emit", at=tick, left=out,
-                   right=getattr(owner, operation)(lambda i: lengths[q.ordinal(i)], over=rows))
+    owner.relation("emit", eqiora.lang.equation(out, getattr(owner, operation)(lambda i: lengths[q.ordinal(i)], over=rows)), at=tick)
     model = eqiora.compile(source=source, entry="Lengths")
     session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
@@ -94,14 +92,14 @@ def test_extrema_dimensioned_real_values_keep_their_complete_unit(operation, exp
 
 @pytest.mark.parametrize("operation", ("min", "max"))
 def test_extrema_evaluate_every_operand_and_do_not_publish_a_failed_tick(operation):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Eager")
     rows = owner.index_set("Rows", extent=2)
     tick = owner.clock("tick", period_s=1)
     denominators = owner.input("denominators", value_type=eqiora.ValueType.array(eqiora.ValueType.integer(), 2), at=tick)
     out = owner.output("result", value_type=eqiora.ValueType.integer(), at=tick)
-    owner.relation("emit", at=tick, left=out, right=getattr(owner, operation)(
-        lambda i: q.quotient(10, denominators[q.ordinal(i)]), over=rows))
+    owner.relation("emit", eqiora.lang.equation(out, getattr(owner, operation)(
+        lambda i: q.quotient(10, denominators[q.ordinal(i)]), over=rows)), at=tick)
     model = eqiora.compile(source=source, entry="Eager")
     session = model.execution_session(end_time_s=1, max_step_s=0.1,
                                     inputs={"denominators": ("tick", [(1, 2), (1, 0)])})

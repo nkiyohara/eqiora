@@ -109,7 +109,7 @@ def test_source_field_uses_the_shared_type_and_native_formatter() -> None:
         eqiora.ValueType.complex(eqiora.Dimension(length=Fraction(-3, 2))), 2), 3)
     syntax = value_type.to_eqi()
     assert syntax == "array<vector<complex<m ^ (-3 / 2)>, 2>, 3>"
-    source = eqiora.lang.Source()
+    source = eqiora.Module("main")
     component = source.component("Typed")
     body = component.volume("body", dimensions=2)
     component.field("channels", role=eqiora.FieldRole.Variable, on=body, value_type=value_type)
@@ -126,7 +126,7 @@ def test_source_parameter_uses_the_shared_type_and_native_formatter() -> None:
     value_type = eqiora.ValueType.array(
         eqiora.ValueType.complex(eqiora.Dimension(length=Fraction(-1, 2))), 3
     )
-    source = eqiora.lang.Source()
+    source = eqiora.Module("main")
     component = source.component("TypedParameter")
     component.parameter("amplitude", value_type=value_type)
     assert f"parameter amplitude: {value_type.to_eqi()}," in source.to_eqi()
@@ -186,7 +186,7 @@ def test_value_edits_reject_fields_by_alias_and_exact_identity() -> None:
 
 
 def test_source_field_requires_role_and_rejects_embedded_initial_values() -> None:
-    source = eqiora.lang.Source()
+    source = eqiora.Module("main")
     component = source.component("Roles")
     body = component.volume("body", dimensions=1)
     for kwargs in ({}, {"role": "state"}, {"role": eqiora.FieldRole.State, "initial": 0.0}):

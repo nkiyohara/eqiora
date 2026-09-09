@@ -16,7 +16,7 @@ def native_model(name, *declarations):
 
 def add_observation(owner):
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", left=observed, right=0)
+    owner.relation("observe", eqiora.lang.equation(observed, 0))
 
 
 def test_native_finite_space_values_preserve_identity_and_exact_components():
@@ -84,7 +84,7 @@ def test_native_index_set_values_are_exact_bounded_and_nominal():
 
 
 def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     species = source.space("Species", labels=("A", "B"), doc="Ordered species basis.")
     alternate = source.space("Alternate", labels=("A", "B"))
     owner = source.model("Population")
@@ -119,8 +119,8 @@ def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
 
 
 def test_source_nominal_ownership_and_constant_extent_reject_before_mutation():
-    source = q.Source()
-    foreign_source = q.Source()
+    source = eqiora.Module("main")
+    foreign_source = eqiora.Module("main")
     species = source.space("Species", labels=("A", "B"))
     foreign = foreign_source.space("Species", labels=("A", "B"))
     left = source.component("Left")
@@ -131,30 +131,30 @@ def test_source_nominal_ownership_and_constant_extent_reject_before_mutation():
     with pytest.raises(TypeError, match="constant"):
         left.index_set("Deferred", extent=n)
     left.index_set("Deferred", extent=2)
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
         left.parameter("foreign", value_type=eqiora.ValueType.counts(foreign))
     left.parameter("foreign", value_type=eqiora.ValueType.counts(species))
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
         right.parameter("foreign_index", value_type=eqiora.ValueType.index(rows))
     right.parameter("foreign_index", value_type=eqiora.ValueType.index(right_rows))
     for create in (left.counts, left.coordinates):
-        with pytest.raises(q.SourceError, match="Source"):
+        with pytest.raises(q.ModuleError, match="Module"):
             create(foreign, (1, 2))
-        with pytest.raises(q.SourceError, match="Component"):
+        with pytest.raises(q.ModuleError, match="Component"):
             right.let_alias("capture", create(species, (1, 2)))
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         right.index(rows, 1)
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         right.index(right_rows, n)
     source.to_eqi()
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         source.space("Frozen", labels=("A",))
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         left.index_set("Frozen", extent=1)
 
 
 def test_source_counts_reject_equal_shaped_foreign_basis_arithmetic():
-    source = q.Source()
+    source = eqiora.Module("main")
     first = source.space("First", labels=("A", "B"))
     second = source.space("Second", labels=("A", "B"))
     owner = source.model("WrongBasis")
