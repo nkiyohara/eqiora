@@ -205,7 +205,12 @@ impl PyExecutionSession {
     }
 
     fn field(&self, py: Python<'_>, name: &str) -> PyResult<Option<Py<PyAny>>> {
-        let id = resolve(&self.document, name, EntityKind::Field)?;
+        let id = self
+            .document
+            .field_ref(name)
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .id()
+            .erase();
         self.value
             .field(id)
             .map(|value| value_literal::to_python(py, &value))

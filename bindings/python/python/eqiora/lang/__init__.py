@@ -890,6 +890,11 @@ def div(value: object) -> Expression:
     return _unary("div", value)
 
 
+def derivative(value: Expression) -> Expression:
+    """Author a continuous State derivative; the compiler checks role and activation."""
+    return _unary("derivative", value)
+
+
 def pre(value: Expression) -> Expression:
     """Read a State's pre-tick value; the compiler checks clock and context."""
     return _unary("pre", value)
@@ -2168,6 +2173,7 @@ __all__ = [
     "math",
     "normal",
     "ordinal",
+    "derivative",
     "pre",
     "next",
     "quantity",

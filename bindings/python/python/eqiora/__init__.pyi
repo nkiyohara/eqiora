@@ -810,7 +810,14 @@ class ExecutionSession:
         Authority: ``crates/eqiora-python/src/execution_session/physical.rs::read``.
         """
         ...
-    def field(self, name: str) -> _TypedValue | None: ...
+    def field(self, name: str) -> _TypedValue | None:
+        """Read a Field by source alias or exact Model-owned ULID.
+
+        Reopened Model artifacts retain ULIDs, not source lookup aliases.
+
+        Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
+        """
+        ...
     def output(self, name: str, tick_index: int) -> tuple[Fraction, _TypedValue] | None: ...
 
 @final

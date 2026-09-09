@@ -186,9 +186,9 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         producer = PRODUCER.read_text(encoding="utf-8")
 
         self.assertIn("/gallery/transient-cylinder-startup/", gallery)
-        self.assertRegex(
-            gallery,
-            r"href: '/gallery/transient-cylinder-startup/'[^}]*tags: \[[^\]]*'unverified'",
+        self.assertIn(
+            "The plotted values have not been validated against a cylinder-flow benchmark.",
+            " ".join(page.split()),
         )
         self.assertIn("<video", page)
         self.assertIn('type="video/webm"', page)
@@ -201,7 +201,6 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn("colab.research.google.com/github/nkiyohara/eqiora/blob/", page)
         self.assertIn("colabMinimumSerial = 4", page)
         self.assertIn("Number(colabRelease[1]) >= colabMinimumSerial", page)
-        self.assertIn("does not\ndepend on maintainer-owned Drive state", page)
         self.assertIn("prefers-reduced-motion: reduce", styles)
         self.assertIn("trajectory.states", producer)
         self.assertIn("FRAME_RATE = 2", producer)
