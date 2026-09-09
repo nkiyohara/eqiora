@@ -40,7 +40,7 @@
 
 **Pressure around a circular obstacle.** This steady-Stokes example starts with
 an exact geometry and a mathematical model, then produces a pressure field,
-boundary forces, and fluxes through the shared Python workflow.
+boundary forces, and fluxes with Python.
 
 [![Fine-mesh exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png)](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
 
@@ -48,7 +48,7 @@ boundary forces, and fluxes through the shared Python workflow.
 | --- | --- |
 | 🌊 [Flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Exact geometry, Gmsh meshing, steady Stokes, pressure and boundary observables. |
 | 🧱 [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A constrained solid, mixed boundary conditions, and a displacement field. |
-| 🎞️ [Transient flow startup](https://eqiora.org/gallery/transient-cylinder-startup/) | A ten-step startup demonstration with vorticity and force outputs; not a validated wake benchmark. |
+| 🎞️ [Transient flow startup](https://eqiora.org/gallery/transient-cylinder-startup/) | A ten-step startup demonstration with vorticity and force outputs. |
 
 ## ✨ Why Eqiora?
 
@@ -160,7 +160,6 @@ cylinder_force = result.boundary_force(geometry.selection("cylinder"))
 inlet_flux = result.boundary_flux(geometry.selection("inlet"))
 outlet_flux = result.boundary_flux(geometry.selection("outlet"))
 
-print(result.plan_key)
 print(result.solve)
 print("pressure", min(pressure_values), max(pressure_values), "Pa")
 print("cylinder force on fluid", cylinder_force.on_domain, "N/m")
@@ -208,8 +207,8 @@ backends, or browse the [API docs](https://docs.rs/eqiora/0.1.0-alpha.7/eqiora/)
 | Interface | What to reach for |
 | --- | --- |
 | 🐍 **Python** | The primary simulation API: author, compile, mesh, solve, and plot. [Reference →](https://eqiora.org/reference/python/) |
-| 🦀 **Rust** | Embed the canonical implementation through the `eqiora` facade. [Guide →](docs/rust-api.md) |
-| ⌨️ **CLI & MCP** | Check a local `.eqi` file with `eqiora check`, or connect agents to the bounded compile/check tool in `eqiora-mcp`. [Build the tools →](docs/rust-api.md#build-command-line-tools-from-this-checkout) |
+| 🦀 **Rust** | Embed Eqiora through the `eqiora` Rust crate. [Guide →](docs/rust-api.md) |
+| ⌨️ **CLI & MCP** | Check a local `.eqi` file with `eqiora check`, or connect agents to the compile/check tool in `eqiora-mcp`. [Build the tools →](docs/rust-api.md#build-command-line-tools-from-this-checkout) |
 | 📝 **Editor preview** | Diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
 
 ## 🌱 Growing in the open
