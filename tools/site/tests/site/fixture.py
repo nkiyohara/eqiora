@@ -36,36 +36,10 @@ EDITOR_CHECK_INPUTS = (
     "tools/editor/tests/test_syntax_bundle.py",
 )
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
-PUBLIC_CLAIM = (
-    "One presentation-only 2D steady incompressible Stokes exact-cylinder "
-    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
-    "root Result path; output counts, digests, numerical values, and pixels are "
-    "not independently verified."
-)
-WITNESS_COPY = (
-    "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
-)
 CASE_EVIDENCE_PATHS = (
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
     "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
-NONCLAIMS = (
-    "This is a bounded 2D steady Stokes demonstration, not a transient-flow, convergence, force-coefficient, or performance benchmark.",
-    "The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.",
-    "Rendered values and pixels are illustrative output rather than validation data.",
-)
-LEGACY_NONCLAIMS = (
-    "No arbitrary geometry or provider selection.",
-    "No 3D, curved, boundary-layer, or adaptive meshing.",
-    "No mesh/PDE convergence.",
-    "No drag/lift coefficient, scaled or mesh-independent force, or DFG value.",
-    "No transient or Navier–Stokes behavior.",
-    "No vortex shedding.",
-    "No performance claim.",
-    "No cross-platform mesh-byte identity or byte-reproducible Result.",
-    "No pixel validation.",
-    "API presence is neither verification nor maturity.",
 )
 SITE_ROUTES = (
     "/",
@@ -670,10 +644,8 @@ def _exact_links() -> str:
 
 def _case_body() -> str:
     # The synthetic artifact exercises both the current and legacy HTML-shape readers.
-    nonclaims = " ".join((*NONCLAIMS, *LEGACY_NONCLAIMS))
     return f"""<h1>Exact-cylinder steady Stokes</h1>
-<p>Static walkthrough · canonical Python source available</p>
-<p>{"one" + PUBLIC_CLAIM[3:]}</p>
+<p>Build a steady Stokes flow model and plot pressure.</p>
 <section><h2>Problem setup</h2><p>2.2m x 0.41m channel; centre [0.2,0.2]m; radius 0.05m.</p>
 <span class="katex"><span class="katex-mathml"><math><mi>H</mi></math></span><span class="katex-html">H</span></span></section>
 <section><h2>Eqiora model definition</h2>
@@ -681,10 +653,10 @@ def _case_body() -> str:
 <p>Eqiora source form</p><pre>sigma(u,p) = 2 mu sym(grad(u)) - p I
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
-<section><h2>Mesh and boundaries</h2><p>{WITNESS_COPY}</p></section>
-<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: canonical Python resolve/run path</a></section>
-<section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure><p>Presentation, not evidence.</p></section>
-<section><h2>Verification boundary</h2><p>{nonclaims}</p>{_exact_links()}<a href="/capabilities/#exact-cylinder-steady-stokes">Read the human capability boundary</a></section>"""
+<section><h2>Mesh and boundaries</h2></section>
+<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: Python resolve/run path</a></section>
+<section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure></section>
+<section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/capabilities/#exact-cylinder-steady-stokes">Explore related capabilities</a></section>"""
 
 
 def _home_body() -> str:
@@ -735,9 +707,9 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/get-started/": "<h1>Get started</h1>",
         "/guides/": "<h1>Python</h1><p>Eqiora Python reference.</p>",
         "/guides/run-and-inspect/": "<h1>Run a model and inspect its result</h1><p>Installed release</p>",
-        "/guides/differentiation/": "<h1>Differentiation</h1><p>Current-source Python API. Canonical guide source</p><h2>Framework-neutral accepted points</h2>",
-        "/guides/execution-and-arrays/": "<h1>Execution and arrays</h1><p>Current-source Python API. Canonical guide source</p><h2>Structured failures</h2>",
-        "/guides/modeling/": "<h1>Modeling</h1><p>Current-source Python API. Canonical guide source</p><h2>Native declarations</h2>",
+        "/guides/differentiation/": "<h1>Differentiation</h1><p>View guide source</p><h2>Framework-neutral accepted points</h2>",
+        "/guides/execution-and-arrays/": "<h1>Execution and arrays</h1><p>View guide source</p><h2>Structured failures</h2>",
+        "/guides/modeling/": "<h1>Modeling</h1><p>View guide source</p><h2>Native declarations</h2>",
         "/reference/": '<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
         "/reference/language/": "<h1>Language</h1>",
         "/reference/language/composition/": "<h1>Component composition</h1>",

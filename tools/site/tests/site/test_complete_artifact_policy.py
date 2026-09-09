@@ -24,15 +24,6 @@ BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
 PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
-PUBLIC_CLAIM = (
-    "One presentation-only 2D steady incompressible Stokes exact-cylinder "
-    "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
-    "root Result path; output counts, digests, numerical values, and pixels are "
-    "not independently verified."
-)
-WITNESS_COPY = (
-    "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
-)
 RENDERED_SOURCE_SENTENCE = (
     "This website is a curated projection, not a parallel specification. "
     "Detailed contracts remain in the repository’s architecture, RFCs, "
@@ -59,12 +50,7 @@ STAGES = (
     ("mesh-and-boundaries", "3", "Mesh and boundaries"),
     ("submit-and-result", "4", "Submit and result"),
     ("pressure-visualization", "5", "Pressure visualization"),
-    ("verified-boundary", "6", "Verification boundary"),
-)
-NONCLAIMS = (
-    "This is a bounded 2D steady Stokes demonstration, not a transient-flow, convergence, force-coefficient, or performance benchmark.",
-    "The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.",
-    "Rendered values and pixels are illustrative output rather than validation data.",
+    ("reading-pressure", "6", "Reading the pressure plot"),
 )
 ST_STARLIGHT_ROUTES = (
     "/",
@@ -255,7 +241,7 @@ def _case_body() -> str:
 
     sentinel = _exact_link(
         "examples/python/exact_cylinder_stokes.py",
-        "Eqiora source form: canonical Python resolve/run path",
+        "Eqiora source form: Python resolve/run path",
         "#L45-L57",
     )
 
@@ -277,13 +263,11 @@ relation incompressibility on body {
             display=True,
         )
         + source_form,
-        f"<p>{WITNESS_COPY}</p>"
-        + _math(r"\nabla\cdot\boldsymbol{u}=0"),
+        _math(r"\nabla\cdot\boldsymbol{u}=0"),
         "<p>The immutable intent resolves to one Plan, Run, and Result.</p>"
         + sentinel,
         f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
         f"{PRESSURE_CAPTION}</figcaption></figure>",
-        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>"
         '<a href="/capabilities/#exact-cylinder-steady-stokes">Read the human capability boundary</a>'
         + " ".join(links),
     )
@@ -643,22 +627,6 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             )
 
         reject("reordered stages", reorder_stages, "six ordered semantic stages")
-        reject(
-            "lowercase public claim",
-            lambda artifact: _replace(
-                artifact / case, PUBLIC_CLAIM, "one" + PUBLIC_CLAIM[3:]
-            ),
-            "exact bounded public claim",
-        )
-        reject(
-            "Gmsh and interior-mesh witness omitted",
-            lambda artifact: _replace(
-                artifact / case,
-                WITNESS_COPY,
-                "The current Gmsh output is a fixed mesh and scientific oracle.",
-            ),
-            "Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness",
-        )
         inline_math = _math("H")
         reject(
             "missing KaTeX HTML half",
@@ -717,11 +685,11 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes.py",
-            "Eqiora source form: canonical Python resolve/run path",
+            "Eqiora source form: Python resolve/run path",
             "#L45-L57",
         )
         accepted_href = accepted_link.split('href="', 1)[1].split('"', 1)[0]
-        accepted_label = "Eqiora source form: canonical Python resolve/run path"
+        accepted_label = "Eqiora source form: Python resolve/run path"
         link_mutants = (
             ("empty", f'<a href="">{accepted_label}</a>'),
             ("fragment-only", f'<a href="#model-definition">{accepted_label}</a>'),
@@ -763,14 +731,6 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 "accepted source-form sentinel must be the exact-head L45-L57 anchor",
             )
 
-        for phrase in NONCLAIMS:
-            reject(
-                f"nonclaim omitted: {phrase}",
-                lambda artifact, phrase=phrase: _replace(
-                    artifact / case, phrase, "Omitted claim boundary"
-                ),
-                f"claim boundary omits {phrase!r}",
-            )
         reject(
             "reference landing guidance omitted",
             lambda artifact: _replace(

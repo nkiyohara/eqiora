@@ -14,7 +14,6 @@ import {
   assertProductTableRouteGreen,
   assertReducedMotion,
   assertSemanticStages,
-  assertSupportedStatement,
   assertVisibleSourceFallback,
   attachGrossScreenshot,
   BASE_URL,
@@ -38,7 +37,6 @@ async function assertCylinderContent(page: Page): Promise<void> {
   const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
   expect(sourceSha).toMatch(/^[0-9a-f]{40}$/u);
   await assertSemanticStages(page);
-  await assertSupportedStatement(page);
   await assertVisibleSourceFallback(page);
   const figures = page.getByRole('figure').getByRole('img');
   await expect(figures).toHaveCount(2); // Geometry and the single current pressure plot.
@@ -52,7 +50,7 @@ async function assertCylinderContent(page: Page): Promise<void> {
   ).toHaveAttribute('href', '#submit-and-result');
   await expect(
     page.getByRole('link', {
-      name: 'Eqiora source form: canonical Python resolve/run path',
+      name: 'Eqiora source form: Python resolve/run path',
       exact: true,
     }),
   ).toHaveAttribute(

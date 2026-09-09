@@ -1,27 +1,32 @@
 ---
 title: Mixed-boundary linear elasticity
-description: A static walkthrough of one bounded common-lifecycle displacement result.
+description: Build a two-dimensional elasticity model and compare reference and deformed meshes.
 ---
 
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
-import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
 
-**Static walkthrough · shared Python workflow**
-
 [Gallery](/gallery/)
 
-This page presents one accepted bounded elasticity result. It does not solve in
-the browser. The visible deformation is caller-owned presentation, and the
-reference mesh remains visible as a text-labelled comparison.
+Model a two-dimensional linear-elastic square with a fixed left edge and
+traction-free remaining edges, then compare its original and deformed mesh.
+
+## Before you begin
+
+Follow [Get started](/get-started/) and install the `matplotlib` extra.
+From the matching repository checkout, save a displacement plot with:
+
+```bash
+python examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png
+```
 
 <NotebookStage id="elasticity-problem" step={1} title="Problem and boundaries" emoji="🧱">
 
-Python authors the sole concrete $1\,\mathrm{m}\times1\,\mathrm{m}$ rectangle.
+Create a $1\,\mathrm{m}\times1\,\mathrm{m}$ rectangle.
 The left edge has zero displacement; the right, lower, and upper edges have
-zero traction. A $16\times16$ caller-owned Cartesian mesh realizes the domain.
+zero traction. A $16\times16$ Cartesian mesh realizes the domain.
 
 ```python
 graph = eqiora.geometry.GeometryGraph()
@@ -44,7 +49,7 @@ geometry = graph.build(
 
 <NotebookStage id="elasticity-model" step={2} title="Eqiora model definition" emoji="🧩">
 
-The `.eqi` Component owns displacement, material parameters, load potential,
+The `.eqi` component defines displacement, material parameters, load potential,
 equilibrium, and the four abstract supports. With displacement
 $\boldsymbol{u}$, shear modulus $\mu$, Lamé coefficient $\lambda$, and length
 $\ell$, its stress and load are
@@ -66,11 +71,9 @@ $$
 
 </NotebookStage>
 
-<NotebookStage id="elasticity-plan" step={3} title="Typed numerical plan" emoji="🔷">
+<NotebookStage id="elasticity-plan" step={3} title="Choose numerical settings" emoji="🔷">
 
-The root resolver reads physics from the compiled `Model`. Python supplies Q1
-spatial policy and one explicit linear-solve policy; neither selects a separate
-elasticity application type.
+Compile the model, then select Q1 elements and linear-solve settings.
 
 ```python
 model = eqiora.compile(
@@ -98,16 +101,15 @@ plan = eqiora.resolve(
 
 </NotebookStage>
 
-<NotebookStage id="elasticity-result" step={4} title="Run and common Result" emoji="▶">
+<NotebookStage id="elasticity-result" step={4} title="Run and inspect displacement" emoji="▶">
 
-The shared function executes one direct root lifecycle and returns the exact
-Plan together with its common Result:
+The example function runs the plan and returns it with the result:
 
 ```python
 return plan, eqiora.run(plan)
 ```
 
-The displacement is selected only by the Plan-owned field handle:
+Select the displacement field:
 
 ```python
 displacement = result.output(plan.capability.displacement)
@@ -122,40 +124,29 @@ mesh generation, or solve policy.
 
 <ResultFigure
   src={displacementImage.src}
-  alt="Reference and deformed meshes for the bounded 2D mixed-boundary elasticity example."
+  alt="Reference and deformed meshes for the 2D mixed-boundary elasticity example."
   caption="Displacement at scale 1, with the undeformed reference mesh shown for comparison."
   units="m"
   sourcePath="examples/python/mixed_boundary_elasticity.py"
   sourceFragment="L65-L74"
-  sourceLabel="View the caller-owned plotting path"
+  sourceLabel="View the plotting path"
 />
 
 The dashed mesh is the reference geometry. The orange mesh adds the displacement
-with visible scale 1. The scale changes only presentation, never the Result.
-The static image contains no motion; the full alt text and this paragraph remain
-available when images are unavailable.
+with visible scale 1. Changing the plot scale leaves the calculated displacement unchanged.
 
 </NotebookStage>
 
-<NotebookStage id="elasticity-boundary" step={6} title="Verification boundary" emoji="✅">
+<NotebookStage id="reading-displacement" step={6} title="Reading the deformation" emoji="📖">
 
-<ClaimBoundary
-  title="Verified boundary"
-  supported={[
-    'One bounded 2D mixed-boundary linear-elasticity workflow reaches a common Result and a caller-owned displacement figure through the root lifecycle.',
-    'The installed product case checks the caller Geometry, common Plan/Result composition, Plan-owned displacement projection, and headless plot.',
-    'The structural case independently owns the accepted scientific values and tolerances; publication does not derive them from pixels.',
-  ]}
-  notClaimed={[
-    'This bounded 2D linear-elasticity workflow does not cover arbitrary boundary data, stress recovery, nonlinear or dynamic structure, or wider element families.',
-    'It makes no convergence, performance, production-scale, or pixel-validation claim.',
-  ]}
-/>
+Compare the fixed left edge with the displacement toward the loaded interior.
+The equations use small-strain linear elasticity; a visually large deformation
+does not make this a large-deformation material model.
 
-<ExactSourceLink path="verify/interfaces/python-mixed-boundary-elasticity-demo/README.md" kind="blob">Installed-product dossier</ExactSourceLink>
-· <ExactSourceLink path="verify/solid/mixed-boundary-elasticity-2d/README.md" kind="blob">Scientific evidence dossier</ExactSourceLink>
-· [Read the human capability boundary](/capabilities/#mixed-boundary-elasticity)
-· [Find the checks behind this claim](/evidence/)
+<ExactSourceLink path="verify/interfaces/python-mixed-boundary-elasticity-demo/README.md" kind="blob">Python example details</ExactSourceLink>
+· <ExactSourceLink path="verify/solid/mixed-boundary-elasticity-2d/README.md" kind="blob">Elasticity evidence</ExactSourceLink>
+· [Explore related capabilities](/capabilities/#mixed-boundary-elasticity)
+· [Read the evidence](/evidence/)
 
 </NotebookStage>
 

@@ -1,6 +1,6 @@
 ---
 title: Gallery
-description: Source-traced, static walkthroughs built from admitted Eqiora results.
+description: Follow worked examples from model definition to plots and result interpretation.
 ---
 
 import GalleryGrid from '../../../components/gallery/GalleryGrid.astro';
@@ -8,9 +8,8 @@ import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-thumb
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
 import startupPoster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
 
-Explore bounded demonstrations from model definition to a linked result. Gallery
-media helps explain a run; it does not replace the registered evidence behind the
-claim.
+Choose a worked example to define a model, run it in Python, and interpret
+the resulting fields.
 
 <GalleryGrid
   cards={[
@@ -19,8 +18,8 @@ claim.
       title: 'Transient cylinder-flow startup',
       description: 'Ten startup outputs showing vorticity and its change near the cylinder.',
       imageSrc: startupPoster.src,
-      imageAlt: 'Final cell-average vorticity and its change from the first transient cylinder-flow startup output; presentation only, with no developed wake or benchmark claim.',
-      tags: ['Python', '2D', 'transient', 'unverified'],
+      imageAlt: 'Final cell-average vorticity and its change from the first transient cylinder-flow startup output.',
+      tags: ['Python', '2D', 'transient'],
     },
     {
       href: '/gallery/exact-cylinder-steady-stokes/',
@@ -35,14 +34,12 @@ claim.
       title: 'Mixed-boundary linear elasticity',
       description: 'Reference and deformed meshes from a mixed-boundary elasticity solve.',
       imageSrc: displacementImage.src,
-      imageAlt: 'Reference and deformed meshes for the bounded 2D mixed-boundary elasticity example.',
+      imageAlt: 'Reference and deformed meshes for the 2D mixed-boundary elasticity example.',
       tags: ['Python', '2D', 'linear elasticity'],
     },
   ]}
 />
 
-Open a walkthrough for its source, Result lineage, checks, and current limits.
-
-For a status label and a compact statement of each boundary, continue to
-[Capabilities](/capabilities/#fluid). Technical case detail remains in the
-[verification guide](/evidence/).
+Open a walkthrough for preparation, code, and guidance on reading its plots.
+Browse [Capabilities](/capabilities/#fluid) for related models and the
+[evidence guide](/evidence/) for numerical checks.
