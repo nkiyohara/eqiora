@@ -98,32 +98,33 @@ sampling adds no implicit delay to break an algebraic loop.
 
 ## Use packaged definitions
 
-The intended short form imports the same definitions from an exact standard control package:
+The bundled [`Eqiora.Controls.Sampled@0.1.0`](../../packages/Eqiora.Controls.Sampled/README.md)
+exports the maintained delay and integrator definitions:
 
 ```eqiora
-import Eqiora.Control.Discrete.discrete as discrete;
-
-model SampledPair(
-  clock tick: periodic,
-  input sample: V at tick,
-  input rate: V / s at tick,
-  output delayed: V at tick,
-  output integrated: V at tick
-) {
-  instance delay: discrete.UnitDelay(tick = tick, initial_value = 5 [V]);
-  instance integrator: discrete.DiscreteIntegrator(tick = tick, initial_value = 1 [V]);
-  connect sample -> delay.u;
-  connect rate -> integrator.rate;
-  relation expose at tick {
-    delayed = delay.y;
-    integrated = integrator.y;
-  }
-}
+import Eqiora.Controls.Sampled.sampled as controls;
 ```
 
-`Eqiora.Control.Discrete` is the proposed package name, not an already published dependency.
-Its delivered type-specialization interface must be checked against these concrete voltage
-instances. The package remains inspectable ordinary source; block names select no runtime code.
+`controls.UnitDelay` publishes the previous memory through `y`.
+`controls.DiscreteIntegrator` exposes both `before` and `after`; use `after` for the
+post-tick output called `y` in the concrete voltage definition above. Each occurrence
+still owns one memory, regardless of which output is connected.
+
+The bundled components take dimensionless real signals and rates in `1/s`.
+For a physical signal, divide its value, rate and initial memory by the same fixed
+nonzero physical scale, then multiply the selected output by that scale. Voltage
+uses a scale in V and a rate in V/s; displacement uses m and m/s. These explicit
+ordinary equations retain the physical dimension checks.
+
+The complete [voltage and displacement example](../../examples/standard-sampled-components/README.md)
+shows the source, offline dependency setup and installed Python execution. Its
+[maintained source](../../examples/standard-sampled-components/src/main.eqi)
+uses scales of 2 V and 0.5 m and four independent memories. The
+[installed tests](../../bindings/python/tests/test_standard_sampled_components.py)
+compare direct source with the locked package, execute quarter- and half-second
+clocks, resume checkpoints and reject wrong rate units, missing initial values and
+foreign clocks. The local voltage definitions above demonstrate the same recurrence
+without normalization; their signature is not the bundled package's signature.
 
 ## Independent tick sequence
 

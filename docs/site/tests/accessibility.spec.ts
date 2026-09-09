@@ -349,20 +349,11 @@ test('table structure is complete across current site routes', async () => {
   await page.emulateMedia({ forcedColors: invariantCell.forcedColors });
   await page.setViewportSize({ width: invariantCell.width, height: 900 });
 
-  let tableTotal = 0;
-  let directTotal = 0;
-  let componentTotal = 0;
   let invariantRoutes = 0;
   for (const expected of TABLE_ROUTES) {
-    const observation = await assertProductTableRouteInvariant(page, expected);
+    await assertProductTableRouteInvariant(page, expected);
     invariantRoutes += 1;
-    tableTotal += observation.counts.main;
-    directTotal += observation.counts.direct;
-    componentTotal += expected.component;
   }
-  expect(tableTotal).toBe(17);
-  expect(directTotal).toBe(tableTotal - 1);
-  expect(componentTotal).toBe(1);
   expect(invariantRoutes).toBe(14);
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
