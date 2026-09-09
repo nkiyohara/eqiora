@@ -388,6 +388,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         instance_path: &self.root_path.clone(),
                         display_prefix: "",
                         file: model.file,
+                        instance: SourceLocation::new(model.file, field.range()),
+                        bindings: Vec::new(),
                     },
                     &mut identities,
                 )?
@@ -1083,6 +1085,41 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     }
                 }
                 ComponentItem::Field(declaration) => {
+                    if self
+                        .allocate_record_field(
+                            &mut scope,
+                            declaration,
+                            records::RecordFieldOccurrence {
+                                namespace: &component.namespace,
+                                definition_name: component.name(),
+                                instance_path: &instance_path,
+                                display_prefix: &display_prefix,
+                                file: component.file,
+                                instance: SourceLocation::new(instance_file, instance.range()),
+                                bindings: bindings.clone(),
+                            },
+                            &mut identities,
+                        )
+                        .map_err(one_diagnostic)?
+                    {
+                        let record = self
+                            .elaborator
+                            .record_for_type(&component.namespace, declaration.value_type())
+                            .expect("allocated record");
+                        let support = declaration
+                            .domain()
+                            .and_then(|domain| scope.spatial_support(domain).cloned());
+                        for (name, value_type) in record.definition.members() {
+                            scope.insert_field_type(
+                                format!("{}.{name}", declaration.name()),
+                                eqiora_schema::kernel::typing::ExpressionType::new(
+                                    value_type.clone(),
+                                    support.clone(),
+                                ),
+                            );
+                        }
+                        continue;
+                    }
                     let support = declaration
                         .domain()
                         .and_then(|domain| scope.spatial_support(domain).cloned());
@@ -1273,9 +1310,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     &scope,
                 )
                 .map_err(one_diagnostic)?;
-                scope
-                    .field_evolution
-                    .insert(field.name().to_owned(), (field.role(), activation));
+                if let Some(record) = self
+                    .elaborator
+                    .record_for_type(&component.namespace, field.value_type())
+                {
+                    for (name, _) in record.definition.members() {
+                        scope.field_evolution.insert(
+                            format!("{}.{name}", field.name()),
+                            (field.role(), activation.clone()),
+                        );
+                    }
+                } else {
+                    scope
+                        .field_evolution
+                        .insert(field.name().to_owned(), (field.role(), activation));
+                }
             }
         }
 

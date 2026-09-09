@@ -291,6 +291,26 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     let support = declaration
                         .domain()
                         .and_then(|domain| self.scope.spatial_support(domain));
+                    if let Some(record) = self
+                        .scope
+                        .elaborator
+                        .record_for_type(&self.scope.namespace, declaration.value_type())
+                    {
+                        for (name, value_type) in record.definition.members() {
+                            self.scope.symbols.insert(
+                                format!("{}.{name}", declaration.name()),
+                                SymbolContract::Field(
+                                    eqiora_schema::kernel::typing::ExpressionType::new(
+                                        value_type.clone(),
+                                        support.clone(),
+                                    ),
+                                    declaration.role(),
+                                    declaration.activation().clone(),
+                                ),
+                            );
+                        }
+                        continue;
+                    }
                     match field_expression_type(
                         self.definition.file,
                         declaration,

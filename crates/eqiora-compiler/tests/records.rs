@@ -57,3 +57,16 @@ fn clocked_record_bus_retains_nominal_declaration_and_exact_ordered_leaves() {
         assert!(compile("bus.eqi", &invalid).is_err(), "{invalid}");
     }
 }
+
+#[test]
+fn component_record_buses_keep_distinct_occurrence_members() {
+    let source = "record Bus {value:V, valid:bool} component Sensor(){clock tick=periodic(1[s]);state bus:Bus at tick;initial{bus.value=0[V];bus.valid=false;}relation update at tick{next(bus.value)=pre(bus.value)+1[V];next(bus.valid)=true;}} model M(){instance a:Sensor();instance b:Sensor();}";
+    let models = compile("components.eqi", source).unwrap_or_else(|errors| panic!("{errors:?}"));
+    let symbols = models[0].symbols();
+    for member in ["value", "valid"] {
+        assert_ne!(
+            symbols.get(&format!("a.bus.{member}")).unwrap(),
+            symbols.get(&format!("b.bus.{member}")).unwrap()
+        );
+    }
+}

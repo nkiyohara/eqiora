@@ -8,6 +8,8 @@ pub(super) struct RecordFieldOccurrence<'a> {
     pub(super) instance_path: &'a InstancePath,
     pub(super) display_prefix: &'a str,
     pub(super) file: &'a str,
+    pub(super) instance: SourceLocation,
+    pub(super) bindings: Vec<SourceLocation>,
 }
 
 impl RootExpansion<'_, '_> {
@@ -66,6 +68,8 @@ impl RootExpansion<'_, '_> {
             instance_path,
             display_prefix,
             file,
+            instance: instance_source,
+            bindings,
         } = occurrence;
         let Some(record) = self
             .elaborator
@@ -80,8 +84,8 @@ impl RootExpansion<'_, '_> {
             path.clone(),
             EntityKind::RecordInstance,
             SourceLocation::new(file, declaration.range()),
-            SourceLocation::new(file, declaration.range()),
-            Vec::new(),
+            instance_source.clone(),
+            bindings.clone(),
         )?;
         let instance_display = if display_prefix.is_empty() {
             declaration.name().to_owned()
@@ -108,14 +112,14 @@ impl RootExpansion<'_, '_> {
                 path.clone(),
                 EntityKind::Field,
                 SourceLocation::new(&record.file, syntax.range()),
-                SourceLocation::new(file, declaration.range()),
-                Vec::new(),
+                instance_source.clone(),
+                bindings.clone(),
             )?;
             path.pop();
             let local = format!("{}.{name}", declaration.name());
             self.register_symbol(
-                local.clone(),
-                &format!("{instance_display}.{name}"),
+                format!("{instance_display}.{name}"),
+                &local,
                 &identity,
                 SymbolKind::Field,
                 scope,
