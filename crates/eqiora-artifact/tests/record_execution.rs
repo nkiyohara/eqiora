@@ -121,3 +121,110 @@ fn derived_numeric_member_retains_parameter_derivative_after_replay() {
     // derivatives at fixed y are 0 and 2; Boolean ready has no real channel.
     assert_eq!(tangent, [0.0, 2.0]);
 }
+
+const INTERACTION: &str = r"
+record SensorBus {voltage:V, valid:bool}
+record CommandBus {drive:V, enabled:bool}
+component Sensor(clock tick:periodic,state voltage:V at tick,state valid:bool at tick) {
+    relation sample at tick {next(voltage)=pre(voltage)+1[V];next(valid)=true;}
+}
+component Controller(clock tick:periodic,state voltage:V at tick,state valid:bool at tick,
+                     state drive:V at tick,state enabled:bool at tick) {
+    relation command at tick {
+        next(drive)=if pre(valid) then 2*pre(voltage) else 0[V];
+        next(enabled)=pre(valid);
+    }
+}
+model Loop() {
+    clock tick=periodic(1[s]);
+    state sensor:SensorBus at tick;
+    state command:CommandBus at tick;
+    initial {sensor.voltage=1[V];sensor.valid=false;command.drive=0[V];command.enabled=false;}
+    instance sample:Sensor(tick=tick,voltage=sensor.voltage,valid=sensor.valid);
+    instance control:Controller(tick=tick,voltage=sensor.voltage,valid=sensor.valid,
+                                drive=command.drive,enabled=command.enabled);
+}
+";
+
+#[test]
+fn components_exchange_sensor_and_command_bus_members_on_one_exact_clock() {
+    let compiled = compile("bus-loop.eqi", INTERACTION).unwrap().pop().unwrap();
+    let (transaction, model, symbols) = compiled.into_parts();
+    let voltage = symbols.get("sensor.voltage").unwrap();
+    let drive = symbols.get("command.drive").unwrap();
+    let enabled = symbols.get("command.enabled").unwrap();
+    let sample = symbols.get("sample.sample").unwrap();
+    let control = symbols.get("control.command").unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let bytes = ModelEnvelope::from_program(&program)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let program = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
+    // Borrowing creates no duplicate Fields, and both relations refer to the
+    // exact sensor member retained by the nominal record instance.
+    assert_eq!(
+        program
+            .nodes()
+            .filter(|node| matches!(node, KernelNode::Field(_)))
+            .count(),
+        4
+    );
+    for relation_id in [sample, control] {
+        let Some(KernelNode::Relation(relation)) = program.node(relation_id) else {
+            panic!("retained component relation");
+        };
+        assert!(relation.expression().nodes().iter().any(
+            |node| matches!(node, ExprNode::Symbol(SymbolRef::Pre(id)) if id.erase() == voltage)
+        ));
+    }
+    let config = ReferenceConfig::new(2.0, 1.0)
+        .unwrap()
+        .with_nonlinear_tolerances(1.0e-12, 0.0)
+        .unwrap();
+    let interpreter = Interpreter::new();
+    let mut session = interpreter.execution_session(&program, config, []).unwrap();
+    // Controller reads the previous sample: invalid at the first tick, then
+    // twice the preceding voltages 2 and 3. Sensor advances independently.
+    for (sensor, command, valid) in [(2.0, 0.0, false), (3.0, 4.0, true), (4.0, 6.0, true)] {
+        assert_eq!(session.advance_ticks(1).unwrap(), 1);
+        for (field, expected) in [(voltage, sensor), (drive, command)] {
+            let actual = session
+                .field(field)
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value();
+            assert!((actual - expected).abs() <= 8.0e-12);
+        }
+        assert_eq!(session.field(enabled).unwrap().as_bool(), Some(valid));
+        session = interpreter
+            .resume_execution(&program, &session.checkpoint())
+            .unwrap();
+    }
+    for invalid in [
+        INTERACTION
+            .replace(
+                "clock tick=periodic(1[s]);",
+                "clock tick=periodic(1[s]);clock other=periodic(1[s]);",
+            )
+            .replace(
+                "control:Controller(tick=tick",
+                "control:Controller(tick=other",
+            ),
+        INTERACTION.replace("voltage=sensor.voltage", "voltage=sensor.valid"),
+        INTERACTION.replace("voltage=sensor.voltage", "voltage=sensor.missing"),
+        INTERACTION.replace("voltage=sensor.voltage", "voltage=2*sensor.voltage"),
+    ] {
+        assert!(
+            compile("invalid-bus-binding.eqi", &invalid).is_err(),
+            "{invalid}"
+        );
+    }
+}

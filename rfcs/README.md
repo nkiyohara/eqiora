@@ -115,3 +115,4 @@ implementation or capability claim.
 - [RFC 0087: One-pass development by default](0087-one-pass-development-default.md)
 - [RFC 0088: Freeze technical evidence development (superseded)](0088-freeze-evidence-development.md)
 - [RFC 0089: Resume claim-local evidence development](0089-resume-claim-local-evidence-development.md)
+- [RFC 0090: Closed record identity](0090-closed-record-identity.md)

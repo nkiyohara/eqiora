@@ -168,6 +168,7 @@ fn validate_definition_bodies_and_parameters(
                 parent_supports,
                 &fields,
                 parent,
+                &super::parameters::RecordContext::component(elaborator, definition),
             );
             let mut occurrences_valid = true;
             let mut parent_boundary_sets = BTreeMap::new();
@@ -397,6 +398,7 @@ fn validate_definition_bodies_and_parameters(
                     definition.declaration,
                     supports,
                     &parameters,
+                    &super::parameters::RecordContext::model(elaborator, definition),
                 )
             })
             .unwrap_or_default();

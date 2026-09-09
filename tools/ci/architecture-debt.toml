@@ -150,7 +150,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 1807
+ceiling = 1634
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -436,7 +436,7 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 92
+ceiling = 94
 # #879 adds NotationLabel/NotationProfile for checked generated suffix composition
 # and shared LaTeX/MathML/Unicode/plain/speech labels. Source Notation keeps
 # its admission bounds; native and Python callers use this one projection owner.
@@ -449,8 +449,8 @@ ceiling = 92
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.
-reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed finite reduction choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions; CallArguments retains positional expressions or named bindings while shared Expr removes three operator-only expression types; EnumDecl owns ordered nominal member syntax and CaseArm owns exact pattern/value ranges and checked pattern identity for parser, native factory, compiler rewriting and editor consumers, replacing no existing equivalent owner"
-removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST; lower this allowance when existing public consumers can use a smaller shared source representation without losing typed ranges or declaration admission"
+reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed finite reduction choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions; CallArguments retains positional expressions or named bindings while shared Expr removes three operator-only expression types; EnumDecl owns ordered nominal member syntax and CaseArm owns exact pattern/value ranges and checked pattern identity for parser, native factory, compiler rewriting and editor consumers, replacing no existing equivalent owner; RFC 0090 adds RecordDecl and RecordMemberDecl as the single range-bearing closed declaration/member AST used by parser, native factory, formatter and compiler; neither homogeneous ValueTypeSyntax nor ComponentDecl preserves this nominal product contract"
+removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST; lower this allowance when existing public consumers can use a smaller shared source representation without losing typed ranges or declaration admission; withdraw the two record AST owners only when an accepted existing owner preserves exact declaration/member ranges and nominal admission"
 
 [[public_surface]]
 crate = "eqiora-meshing"
@@ -482,7 +482,7 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 93
+ceiling = 95
 reason = """
 ComparisonOp gives source compilation, typed inference, DAG/SSA execution and exact
 Model replay one closed six-operation comparison vocabulary. This single current
@@ -497,8 +497,13 @@ would distribute this same choice across those consumers, not remove it.
 EnumDef is the single exact declaration and ordered-member owner used by native
 authoring, compiler binding, SEM admission and current artifact replay. It
 prevents adapters from fabricating nominal types from labels or numeric tags.
+RFC 0090 adds RecordDef and RecordInstanceDef as the exact ordered declaration
+and occurrence expression owners shared by compiler, SEM and canonical replay.
+Homogeneous ValueType cannot carry mixed member types, and unrelated Fields lose
+nominal identity. Existing ExprDag owns member expressions; no RecordValue or
+second evaluator is added.
 """
-removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries"
+removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries; withdraw the two record owners only when an accepted existing owner retains nominal declaration identity and ordered typed expression roots without external metadata"
 
 [[public_surface]]
 crate = "eqiora-sem"

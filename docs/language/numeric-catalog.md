@@ -82,6 +82,16 @@ cannot carry individual clock clauses, and wrong-clock updates reject before exe
 Boolean, enum and integer members remain discrete. Selecting a real or complex member uses
 its ordinary mathematical type; the heterogeneous record itself is not a numeric vector.
 
+Components can exchange bus members through ordinary borrowed Field slots. For example,
+`instance control: BusController(tick = tick, voltage = sensor.voltage, valid = sensor.valid,
+drive = command.drive)` binds a controller directly to existing sensor and command bus
+members. Its signature declares those scalar Fields at its borrowed `tick`. Both producers
+and consumers retain the same exact member identities; no copy or clock conversion occurs.
+The controller can read the previous sensor sample with `pre(voltage)` and write its command
+with `next(drive)`. Binding an expression, a missing member, a different mathematical type,
+or a member owned by a different clock is rejected. This explicit member route does not
+introduce a record-valued signal Port.
+
 Closed records are available through source and `Module.record(name, members=...)` in Python.
 Python Field and Parameter handles expose `.member(name)`, and a record descriptor constructs
 values with named arguments. Current Model artifacts retain the record declaration and its
