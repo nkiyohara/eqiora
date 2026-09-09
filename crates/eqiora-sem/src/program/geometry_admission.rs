@@ -381,7 +381,7 @@ pub(super) fn admit_geometry_boundary_junctions(
         } else {
             diagnostics.push(kernel_error(
                 connection_id,
-                "geometry boundary-physical Connection requires the exact opposite-parent interface of one adjacent-partition Geometry or an exact same-support primitive pair, or an explicit spatial-periodic pair of opposite primitive faces on one exact parent",
+                "geometry boundary-physical Connection requires the exact opposite-parent interface of one Geometry or an exact same-support primitive pair, or an explicit spatial-periodic pair of opposite primitive faces on one exact parent",
             ));
         }
     }
