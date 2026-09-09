@@ -109,7 +109,7 @@ class HostedTriggerTests(unittest.TestCase):
         )[0]
         self.assertEqual(
             concurrency,
-            "  group: pages-${{ github.workflow }}-${{ github.ref }}\n"
+            "  group: pages-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}\n"
             "  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'edited' }}",
         )
         self.assertIn(
