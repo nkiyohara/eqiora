@@ -1,7 +1,7 @@
 # Deterministic host-serial solver planning
 
-This case verifies exactly one versioned planning policy over one frozen
-three-member catalog. The accepted problem is the normal-orientation,
+This case verifies exactly one versioned planning policy over its frozen General
+three-member catalog projection. The accepted problem is the normal-orientation,
 complete-diagonal, canonical CSR `f64` system
 
 ```text
@@ -32,7 +32,7 @@ only when both cases pass.
 Run:
 
 ```bash
-python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v1.py
+python3 verify/numerics/host-serial-solver-planning/references/derive_policy_v2.py
 cargo test -p eqiora-solver planning::tests
 cargo test -p eqiora --test host_serial_solver_planning
 cargo run -p eqiora-verify -- run \
@@ -42,7 +42,7 @@ cargo run -p eqiora-verify -- run \
 
 ## Boundary
 
-`Robust`, `Fast`, and `LowMemory` are names for this literal v1 rule table,
+`Robust`, `Fast`, and `LowMemory` are names for this literal v2 rule table,
 not empirical or universal optimization claims. This case proves no solver or
 provider superiority, timing, byte memory, fill, scale, fallback, retry,
 portfolio, transport, advisor, learning, mutable discovery, durable decision

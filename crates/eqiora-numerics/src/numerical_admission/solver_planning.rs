@@ -79,7 +79,7 @@ fn resolve_program_controlled(
     objective: SolverPlanningObjective,
     faer_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
-    let decision = eqiora_solver::plan_host_serial_solver_v1(
+    let decision = eqiora_solver::plan_host_serial_solver_v2(
         eqiora_solver::HostSerialSolverProfile::general_canonical_csr(),
         objective,
         request.relative_tolerance(),

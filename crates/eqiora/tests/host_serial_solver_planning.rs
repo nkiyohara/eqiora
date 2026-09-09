@@ -6,13 +6,13 @@ use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ExecutionProvider, HostSerialSolverProfile,
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    SolverPlan, SolverPlanningObjective, SolverProvider, plan_host_serial_solver_v1,
+    SolverPlan, SolverPlanningObjective, SolverProvider, plan_host_serial_solver_v2,
 };
 use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
 
 const ORACLE: &str =
-    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v1.json");
+    include_str!("../../../verify/numerics/host-serial-solver-planning/expected/policy-v2.json");
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
@@ -147,7 +147,7 @@ fn run_derivation() {
         .unwrap();
     let output = Command::new("python3")
         .current_dir(root)
-        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v1.py")
+        .arg("verify/numerics/host-serial-solver-planning/references/derive_policy_v2.py")
         .output()
         .expect("registered planning evidence requires Python 3");
     assert!(
@@ -164,7 +164,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
     assert_eq!(
         oracle["policy_id"].as_str().unwrap(),
-        "eqiora.host-serial-solver-planning/v1"
+        "eqiora.host-serial-solver-planning/v2"
     );
     assert_eq!(1.0e-12_f64.to_bits(), 0x3d71_9799_812d_ea11);
     assert_eq!(1.0e-14_f64.to_bits(), 0x3d06_849b_86a1_2b9b);
@@ -231,7 +231,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     assert_eq!(bound.to_bits(), 0x3d70_0000_0000_0000);
     for expected in oracle["objectives"].as_array().unwrap() {
         let objective = objective(expected["objective"].as_str().unwrap());
-        let decision = plan_host_serial_solver_v1(
+        let decision = plan_host_serial_solver_v2(
             HostSerialSolverProfile::general_canonical_csr(),
             objective,
             1.0e-12,
@@ -313,5 +313,157 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
             decision.execution_provider()
         );
         assert_eq!(planned.report().solver_plan(), decision.solver_plan());
+    }
+}
+
+#[test]
+fn spd_and_saddle_point_profiles_select_exact_current_backends() {
+    #[derive(Debug)]
+    struct Matrix {
+        rows: usize,
+        offsets: Vec<usize>,
+        columns: Vec<usize>,
+        values: Vec<f64>,
+        rhs: Vec<f64>,
+    }
+    impl CompleteCsrStorage for Matrix {
+        fn rows(&self) -> usize {
+            self.rows
+        }
+        fn columns(&self) -> usize {
+            self.rows
+        }
+        fn row_offsets(&self) -> &[usize] {
+            &self.offsets
+        }
+        fn column_indices(&self) -> &[usize] {
+            &self.columns
+        }
+        fn values(&self) -> &[f64] {
+            &self.values
+        }
+        fn right_hand_side(&self) -> &[f64] {
+            &self.rhs
+        }
+    }
+    // SPD: leading principal minors are 4 and 11, and A[1,2] = [6,7].
+    let spd = Matrix {
+        rows: 2,
+        offsets: vec![0, 2, 4],
+        columns: vec![0, 1, 0, 1],
+        values: vec![4., 1., 1., 3.],
+        rhs: vec![6., 7.],
+    };
+    // Gauge-resolved saddle point: K=diag(2,3), B=[1,1], Schur=-5/6.
+    // A[1,2,3] = [5,9,3]. The multiplier diagonal is structurally absent.
+    let saddle = Matrix {
+        rows: 3,
+        offsets: vec![0, 2, 4, 6],
+        columns: vec![0, 2, 1, 2, 0, 1],
+        values: vec![2., 1., 3., 1., 1., 1.],
+        rhs: vec![5., 9., 3.],
+    };
+    let faer = FaerLinearSolver;
+    for (matrix, properties, diagonal, expected, iterative) in [
+        (
+            &spd,
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            true,
+            vec![1., 2.],
+            LinearSolver::ConjugateGradient,
+        ),
+        (
+            &saddle,
+            LinearOperatorProperties::SymmetricIndefinite,
+            false,
+            vec![1., 2., 3.],
+            LinearSolver::MinimumResidual,
+        ),
+    ] {
+        let system = CanonicalCsrSystemView::new(matrix, properties).unwrap();
+        let problem = system.linear_problem().unwrap();
+        for objective in [
+            SolverPlanningObjective::Robust,
+            SolverPlanningObjective::Fast,
+            SolverPlanningObjective::LowMemory,
+        ] {
+            let decision = plan_host_serial_solver_v2(
+                HostSerialSolverProfile::canonical_csr(properties, diagonal),
+                objective,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+                &REFERENCE_LINEAR_SOLVER,
+                &faer,
+            )
+            .unwrap();
+            let backend: &dyn LinearSolverBackend = if objective == SolverPlanningObjective::Fast {
+                assert_eq!(decision.solver_plan().algorithm(), LinearSolver::SparseLu);
+                &faer
+            } else if diagonal && objective == SolverPlanningObjective::LowMemory {
+                // Both CG candidates have the same fixed-vector rank; exact ID
+                // order puts eqiora.faer before eqiora.reference.
+                assert_eq!(
+                    decision.solver_plan().algorithm(),
+                    LinearSolver::ConjugateGradient
+                );
+                &faer
+            } else {
+                assert_eq!(decision.solver_plan().algorithm(), iterative);
+                &REFERENCE_LINEAR_SOLVER
+            };
+            let uses_faer = objective == SolverPlanningObjective::Fast
+                || (diagonal && objective == SolverPlanningObjective::LowMemory);
+            let expected_plan = plan(
+                if objective == SolverPlanningObjective::Fast {
+                    LinearSolver::SparseLu
+                } else {
+                    iterative
+                },
+                if diagonal && objective == SolverPlanningObjective::LowMemory {
+                    PreconditionerPolicy::Jacobi
+                } else {
+                    PreconditionerPolicy::Identity
+                },
+                if uses_faer {
+                    ReductionPolicy::Fast
+                } else {
+                    ReductionPolicy::Reproducible
+                },
+            );
+            assert_eq!(decision.solver_plan(), expected_plan);
+            assert_eq!(decision.solver_provider(), backend.provider());
+            assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
+            let ranked = decision.solve(&problem).unwrap();
+            let manual = LinearSolveRequest::new(backend, expected_plan)
+                .solve(&problem)
+                .unwrap();
+            assert_eq!(ranked.values(), manual.values());
+            assert_eq!(ranked.report(), manual.report());
+            for (actual, expected) in ranked.values().iter().zip(&expected) {
+                assert!((actual - expected).abs() <= 2_f64.powi(-40));
+            }
+            // Independently apply the literal mathematical matrix, not provider output.
+            let x = ranked.values();
+            let residual = if diagonal {
+                vec![4. * x[0] + x[1] - 6., x[0] + 3. * x[1] - 7.]
+            } else {
+                vec![
+                    2. * x[0] + x[2] - 5.,
+                    3. * x[1] + x[2] - 9.,
+                    x[0] + x[1] - 3.,
+                ]
+            };
+            assert!(residual.iter().all(|r| r.abs() <= 2_f64.powi(-38)));
+            let mismatched =
+                CanonicalCsrSystemView::new(matrix, LinearOperatorProperties::General).unwrap();
+            assert!(
+                decision
+                    .solve(&mismatched.linear_problem().unwrap())
+                    .unwrap_err()
+                    .message()
+                    .contains("profile.operator-properties-mismatch")
+            );
+        }
     }
 }

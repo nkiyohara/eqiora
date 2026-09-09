@@ -10,11 +10,17 @@ use crate::{
     SolverPlan, SolverProvider,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v1";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v2";
 
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
+
+const REFERENCE_CG_ID: &str = "eqiora.reference.cg-spd-identity-reproducible-f64";
+const FAER_CG_ID: &str = "eqiora.faer.cg-spd-jacobi-fast-f64";
+const FAER_SPD_LU_ID: &str = "eqiora.faer.sparse-lu-spd-identity-fast-f64";
+const REFERENCE_MINRES_ID: &str = "eqiora.reference.minres-indefinite-identity-reproducible-f64";
+const FAER_INDEFINITE_LU_ID: &str = "eqiora.faer.sparse-lu-indefinite-identity-fast-f64";
 
 const REFERENCE_EVIDENCE: &str = "fluid.cartesian-advection-diffusion-fvm-2d";
 const FAER_EVIDENCE: &str = "numerics.linear-backends";
@@ -40,7 +46,8 @@ pub enum SolverPlanningObjective {
     Robust,
     /// Prefer Fast reduction and then the frozen direct candidate.
     Fast,
-    /// Prefer the frozen fixed-vector Krylov execution shape.
+    /// Prefer catalog iterative candidates before direct factorization.
+    /// This is a deterministic preference, not a memory-usage guarantee.
     LowMemory,
 }
 
@@ -57,6 +64,29 @@ impl HostSerialSolverProfile {
     pub const fn general_canonical_csr() -> Self {
         Self {
             facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
+        }
+    }
+
+    /// Describe a normal-orientation canonical CSR f64 operator using exact
+    /// method-owned mathematical properties and structural diagonal availability.
+    ///
+    /// Properties are assertions supplied by the mathematical admission owner.
+    /// This profile does not establish positive definiteness, remove a nullspace,
+    /// authenticate a pressure gauge, or preserve a typed block decomposition.
+    /// Constraint/gauge elimination must already be complete. No matrix values
+    /// are inspected while planning; execution rechecks these structural facts.
+    #[must_use]
+    pub const fn canonical_csr(
+        properties: LinearOperatorProperties,
+        complete_diagonal: bool,
+    ) -> Self {
+        Self {
+            facts: PlanningProfileFacts {
+                properties,
+                orientation: LinearOperatorOrientation::Normal,
+                canonical_csr: true,
+                complete_diagonal,
+            },
         }
     }
 }
@@ -170,7 +200,7 @@ impl<'problem, 'backend> HostSerialSolverDecision<'problem, 'backend> {
     }
 }
 
-/// Exact executable plan selected from the v1 host-serial catalog before
+/// Exact executable plan selected from the v2 host-serial catalog before
 /// numerical operator construction.
 #[derive(Debug)]
 pub struct ResolvedHostSerialSolverPlan<'backend> {
@@ -238,7 +268,7 @@ impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
         let actual = PlanningProfileFacts::from_problem(problem);
         if actual != self.profile.facts {
-            return Err(invalid_profile(actual));
+            return Err(invalid_profile(self.profile.facts, actual));
         }
         self.selected.request().solve(problem)
     }
@@ -286,14 +316,14 @@ struct ResolvedCandidateSet<'backend> {
     reasons: Vec<(&'static str, &'static str)>,
 }
 
-/// Plan one exact executable candidate from the frozen v1 host-serial catalog
+/// Plan one exact executable candidate from the frozen v2 host-serial catalog
 /// using structural operator facts and caller-owned convergence controls.
 ///
 /// # Errors
 /// Returns `EQ0807` when controls, provider identity, the exact capability
 /// tuples, or the structural profile fail admission. Planning performs no
 /// numerical operator action and executes no backend.
-pub fn plan_host_serial_solver_v1<'backend>(
+pub fn plan_host_serial_solver_v2<'backend>(
     profile: HostSerialSolverProfile,
     objective: SolverPlanningObjective,
     relative_tolerance: f64,
@@ -302,47 +332,32 @@ pub fn plan_host_serial_solver_v1<'backend>(
     reference_backend: &'backend dyn crate::LinearSolverBackend,
     faer_backend: &'backend dyn crate::LinearSolverBackend,
 ) -> Result<ResolvedHostSerialSolverPlan<'backend>, Diagnostic> {
-    let reference = catalog_plan(
-        LinearSolver::BiConjugateGradientStabilized,
-        PreconditionerPolicy::Jacobi,
-        ReductionPolicy::Reproducible,
-        relative_tolerance,
-        absolute_tolerance,
-        maximum_iterations,
-    )?;
-    let faer_bicgstab = catalog_plan(
-        LinearSolver::BiConjugateGradientStabilized,
-        PreconditionerPolicy::Jacobi,
-        ReductionPolicy::Fast,
-        relative_tolerance,
-        absolute_tolerance,
-        maximum_iterations,
-    )?;
-    let faer_sparse_lu = catalog_plan(
-        LinearSolver::SparseLu,
-        PreconditionerPolicy::Identity,
-        ReductionPolicy::Fast,
-        relative_tolerance,
-        absolute_tolerance,
-        maximum_iterations,
-    )?;
-    let candidates = [
-        HostSerialSolverCandidate::new(
-            REFERENCE_ID,
-            REFERENCE_EVIDENCE,
-            LinearSolveRequest::new(reference_backend, reference),
-        ),
-        HostSerialSolverCandidate::new(
-            FAER_BICGSTAB_ID,
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(faer_backend, faer_bicgstab),
-        ),
-        HostSerialSolverCandidate::new(
-            FAER_SPARSE_LU_ID,
-            FAER_EVIDENCE,
-            LinearSolveRequest::new(faer_backend, faer_sparse_lu),
-        ),
-    ];
+    let candidates = catalog_ids(profile.facts.properties)
+        .iter()
+        .map(|id| {
+            let expected = expected_candidate(id);
+            let backend = if expected.provider == REFERENCE_PROVIDER {
+                reference_backend
+            } else {
+                faer_backend
+            };
+            Ok(HostSerialSolverCandidate::new(
+                id,
+                expected.evidence_case,
+                LinearSolveRequest::new(
+                    backend,
+                    catalog_plan(
+                        expected.algorithm,
+                        expected.preconditioner,
+                        expected.reduction,
+                        relative_tolerance,
+                        absolute_tolerance,
+                        maximum_iterations,
+                    )?,
+                ),
+            ))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
     let resolved = resolve_candidates(profile.facts, objective, &candidates)?;
     Ok(ResolvedHostSerialSolverPlan {
         profile,
@@ -373,14 +388,14 @@ fn catalog_plan(
     })
 }
 
-/// Resolve one exact candidate from the frozen v1 host-serial catalog.
+/// Resolve one exact candidate from the frozen v2 host-serial catalog.
 ///
 /// # Errors
 /// Returns `EQ0807` when inventory, common controls, catalog identity, problem
 /// profile, or exact backend capability admission fails. Resolution performs
 /// no numerical operator action and executes no backend.
 #[cfg(test)]
-fn resolve_host_serial_solver_v1<'problem, 'backend>(
+fn resolve_host_serial_solver_v2<'problem, 'backend>(
     problem: &'problem LinearProblem<'problem>,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
@@ -466,26 +481,58 @@ fn resolve_candidates<'backend>(
     })
 }
 
-fn validate_inventory(candidates: &[HostSerialSolverCandidate<'_>]) -> Result<(), Diagnostic> {
-    let mut reference = 0_usize;
-    let mut faer_bicgstab = 0_usize;
-    let mut faer_sparse_lu = 0_usize;
-    let mut unknown = false;
-    for candidate in candidates {
-        match candidate.id() {
-            REFERENCE_ID => reference += 1,
-            FAER_BICGSTAB_ID => faer_bicgstab += 1,
-            FAER_SPARSE_LU_ID => faer_sparse_lu += 1,
-            _ => unknown = true,
+fn catalog_ids(properties: LinearOperatorProperties) -> &'static [&'static str] {
+    match properties {
+        LinearOperatorProperties::General => &[REFERENCE_ID, FAER_BICGSTAB_ID, FAER_SPARSE_LU_ID],
+        LinearOperatorProperties::SymmetricPositiveDefinite => {
+            &[REFERENCE_CG_ID, FAER_CG_ID, FAER_SPD_LU_ID]
+        }
+        LinearOperatorProperties::SymmetricIndefinite => {
+            &[REFERENCE_MINRES_ID, FAER_INDEFINITE_LU_ID]
         }
     }
-    if reference == 0 || faer_bicgstab == 0 || faer_sparse_lu == 0 {
+}
+
+fn validate_inventory(candidates: &[HostSerialSolverCandidate<'_>]) -> Result<(), Diagnostic> {
+    // A catalog is complete for one exact operator class. Mixed-class catalogs
+    // cannot be used to reinterpret the supplied mathematical properties.
+    let ids = if candidates
+        .iter()
+        .any(|c| catalog_ids(LinearOperatorProperties::General).contains(&c.id()))
+    {
+        catalog_ids(LinearOperatorProperties::General)
+    } else if candidates
+        .iter()
+        .any(|c| catalog_ids(LinearOperatorProperties::SymmetricPositiveDefinite).contains(&c.id()))
+    {
+        catalog_ids(LinearOperatorProperties::SymmetricPositiveDefinite)
+    } else if candidates
+        .iter()
+        .any(|c| catalog_ids(LinearOperatorProperties::SymmetricIndefinite).contains(&c.id()))
+    {
+        catalog_ids(LinearOperatorProperties::SymmetricIndefinite)
+    } else {
+        return Err(invalid_catalog("catalog.missing-id"));
+    };
+    if ids
+        .iter()
+        .any(|id| !candidates.iter().any(|candidate| candidate.id() == *id))
+    {
         return Err(invalid_catalog("catalog.missing-id"));
     }
-    if reference > 1 || faer_bicgstab > 1 || faer_sparse_lu > 1 {
+    if ids.iter().any(|id| {
+        candidates
+            .iter()
+            .filter(|candidate| candidate.id() == *id)
+            .count()
+            > 1
+    }) {
         return Err(invalid_catalog("catalog.duplicate-id"));
     }
-    if unknown {
+    if candidates
+        .iter()
+        .any(|candidate| !ids.contains(&candidate.id()))
+    {
         return Err(invalid_catalog("catalog.unknown-id"));
     }
     Ok(())
@@ -525,8 +572,14 @@ fn rejection_reason(
     if !plan_tuple_matches(candidate.request().plan(), expected) {
         return Some("catalog.plan-mismatch");
     }
-    if profile.properties != LinearOperatorProperties::General {
-        return Some("profile.general-required");
+    if profile.properties != expected.properties {
+        return Some(match expected.properties {
+            LinearOperatorProperties::General => "profile.general-required",
+            LinearOperatorProperties::SymmetricPositiveDefinite => "profile.spd-required",
+            LinearOperatorProperties::SymmetricIndefinite => {
+                "profile.symmetric-indefinite-required"
+            }
+        });
     }
     if profile.orientation != LinearOperatorOrientation::Normal {
         return Some("profile.normal-required");
@@ -534,12 +587,12 @@ fn rejection_reason(
     if !profile.canonical_csr {
         return Some("profile.canonical-csr-required");
     }
-    if !profile.complete_diagonal {
+    if expected.preconditioner == PreconditionerPolicy::Jacobi && !profile.complete_diagonal {
         return Some("profile.complete-diagonal-required");
     }
     let required = SolverCapability {
         algorithm: expected.algorithm,
-        operator_properties: LinearOperatorProperties::General,
+        operator_properties: expected.properties,
         preconditioner: expected.preconditioner,
         reduction: expected.reduction,
         scalar_type: ScalarType::F64,
@@ -558,6 +611,7 @@ fn rejection_reason(
 
 #[derive(Debug, Clone, Copy)]
 struct ExpectedCandidate {
+    properties: LinearOperatorProperties,
     evidence_case: &'static str,
     provider: SolverProvider,
     algorithm: LinearSolver,
@@ -568,6 +622,7 @@ struct ExpectedCandidate {
 fn expected_candidate(id: &str) -> ExpectedCandidate {
     match id {
         REFERENCE_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::General,
             evidence_case: REFERENCE_EVIDENCE,
             provider: REFERENCE_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
@@ -575,6 +630,7 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Reproducible,
         },
         FAER_BICGSTAB_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::General,
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
@@ -582,6 +638,47 @@ fn expected_candidate(id: &str) -> ExpectedCandidate {
             reduction: ReductionPolicy::Fast,
         },
         FAER_SPARSE_LU_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::General,
+            evidence_case: FAER_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+        },
+        REFERENCE_CG_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            evidence_case: FAER_EVIDENCE,
+            provider: REFERENCE_PROVIDER,
+            algorithm: LinearSolver::ConjugateGradient,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Reproducible,
+        },
+        FAER_CG_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            evidence_case: FAER_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::ConjugateGradient,
+            preconditioner: PreconditionerPolicy::Jacobi,
+            reduction: ReductionPolicy::Fast,
+        },
+        FAER_SPD_LU_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+            evidence_case: FAER_EVIDENCE,
+            provider: FAER_PROVIDER,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+        },
+        REFERENCE_MINRES_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricIndefinite,
+            evidence_case: "numerics.reference-minres-w64",
+            provider: REFERENCE_PROVIDER,
+            algorithm: LinearSolver::MinimumResidual,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Reproducible,
+        },
+        FAER_INDEFINITE_LU_ID => ExpectedCandidate {
+            properties: LinearOperatorProperties::SymmetricIndefinite,
             evidence_case: FAER_EVIDENCE,
             provider: FAER_PROVIDER,
             algorithm: LinearSolver::SparseLu,
@@ -623,7 +720,7 @@ fn rank_key(
             candidate.id(),
         ),
         SolverPlanningObjective::LowMemory => (
-            u8::from(plan.algorithm() != LinearSolver::BiConjugateGradientStabilized),
+            u8::from(plan.algorithm() == LinearSolver::SparseLu),
             0,
             candidate.id(),
         ),
@@ -645,15 +742,15 @@ fn invalid_catalog(fragment: &'static str) -> Diagnostic {
     )
 }
 
-fn invalid_profile(actual: PlanningProfileFacts) -> Diagnostic {
-    let reason = if actual.properties != LinearOperatorProperties::General {
-        "profile.general-required"
-    } else if actual.orientation != LinearOperatorOrientation::Normal {
-        "profile.normal-required"
-    } else if !actual.canonical_csr {
-        "profile.canonical-csr-required"
+fn invalid_profile(expected: PlanningProfileFacts, actual: PlanningProfileFacts) -> Diagnostic {
+    let reason = if actual.properties != expected.properties {
+        "profile.operator-properties-mismatch"
+    } else if actual.orientation != expected.orientation {
+        "profile.orientation-mismatch"
+    } else if actual.canonical_csr != expected.canonical_csr {
+        "profile.canonical-csr-mismatch"
     } else {
-        "profile.complete-diagonal-required"
+        "profile.diagonal-availability-mismatch"
     };
     Diagnostic::error(
         codes::INVALID_REALIZATION,
