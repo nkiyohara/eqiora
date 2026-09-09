@@ -1,0 +1,5 @@
+model M() {
+ parameter x:1=3; parameter y:1=3;
+ let z=x*x;
+ relation r { partial(z,wrt=x)=6; partial(z,wrt=y)=0; partial(x*x*y,wrt=x)=18; }
+}

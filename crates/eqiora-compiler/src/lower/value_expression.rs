@@ -3,6 +3,13 @@
 use super::*;
 
 impl LoweringExpression {
+    pub(crate) fn partial(value: Self, wrt: String, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Partial { value, wrt }),
+            range,
+            structural_parameters: None,
+        }
+    }
     pub(crate) fn from_source(expression: &Expr) -> Self {
         expression::from_source(expression)
     }

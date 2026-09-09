@@ -677,6 +677,7 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
 
 fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
     match expression.kind() {
+        ExprKind::Partial { value, .. } => expression_contains_call(value, expected),
         ExprKind::Case { value, arms } => {
             expression_contains_call(value, expected)
                 || arms

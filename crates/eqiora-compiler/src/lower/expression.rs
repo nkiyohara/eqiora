@@ -1,3 +1,4 @@
+mod pure_operator;
 mod record;
 pub(super) use record::lower_record;
 mod source;
@@ -6,8 +7,10 @@ mod contextual;
 mod enumeration;
 mod event;
 mod observable;
+mod partial;
 pub(super) use observable::lower_observable;
 mod physical_accessors;
+pub(crate) use partial::result_type as partial_result_type;
 mod piecewise;
 use super::*;
 pub(super) use event::lower_event_guard;
@@ -209,6 +212,9 @@ impl ExpressionLowerer<'_> {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
+            LoweringExpressionNode::Partial { value, wrt } => {
+                self.lower_partial(expression, value, wrt)
+            }
             LoweringExpressionNode::Number(_) => {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -793,30 +799,6 @@ impl ExpressionLowerer<'_> {
         self.dependencies.insert(field.erase());
         self.builder
             .symbol(symbol)
-            .map(|id| TypedExpression { id, dimension })
-            .map_err(|diagnostic| self.builder_error(expression, diagnostic))
-    }
-
-    fn lower_pure_operator(
-        &mut self,
-        expression: &LoweringExpression,
-        definition: &PureOperatorDefinition,
-        arguments: &[LoweringExpression],
-    ) -> Result<TypedExpression, Diagnostic> {
-        let arguments = arguments
-            .iter()
-            .map(|argument| self.lower(argument))
-            .collect::<Result<Vec<_>, _>>()?;
-        let dimension = instantiate_pure_dimension(definition, &arguments).ok_or_else(|| {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.file,
-                expression.range(),
-                "pure-operator result dimension overflows the portable SI exponent range",
-            )
-        })?;
-        self.builder
-            .pure_operator(definition, arguments.iter().map(|argument| argument.id))
             .map(|id| TypedExpression { id, dimension })
             .map_err(|diagnostic| self.builder_error(expression, diagnostic))
     }

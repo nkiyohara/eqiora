@@ -3209,6 +3209,19 @@ Explicitly project an index's ordinary integer ordinal.
 def ordinal(value: Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-partial"></a>
+
+### `eqiora.lang.partial`
+
+Differentiate an explicit real scalar polynomial at an independent binding.
+
+Holding contains compile-time assertions for distinct other independent bindings.
+The compiler retains alias dependencies and checks binding identity and dimensions.
+
+```python
+def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=()) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-derivative"></a>
 
 ### `eqiora.lang.derivative`

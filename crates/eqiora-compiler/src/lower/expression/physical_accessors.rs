@@ -89,7 +89,8 @@ impl LoweringExpression {
                     }
                     pending.push(argument);
                 }
-                LoweringExpressionNode::Neg(value)
+                LoweringExpressionNode::Partial { value, .. }
+                | LoweringExpressionNode::Neg(value)
                 | LoweringExpressionNode::Not(value)
                 | LoweringExpressionNode::Index { value, .. }
                 | LoweringExpressionNode::Sample { value, .. } => pending.push(value),

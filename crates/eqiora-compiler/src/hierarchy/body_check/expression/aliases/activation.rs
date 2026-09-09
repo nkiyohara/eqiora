@@ -121,7 +121,7 @@ impl DependencyActivation {
                     pending.push(value);
                     Self::Static
                 }
-                ExprKind::Unary { value, .. } => {
+                ExprKind::Unary { value, .. } | ExprKind::Partial { value, .. } => {
                     pending.push(value);
                     Self::Static
                 }

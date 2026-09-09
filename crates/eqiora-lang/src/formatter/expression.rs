@@ -15,6 +15,26 @@ pub(super) fn format_expression(
         output.push('(');
     }
     match &expression.kind {
+        ExprKind::Partial {
+            value,
+            wrt,
+            holding,
+        } => {
+            output.push_str("partial(");
+            format_expression(value, 0, output);
+            write!(output, ", wrt = {wrt}").expect("String write");
+            if !holding.is_empty() {
+                output.push_str(", holding = (");
+                for (index, name) in holding.iter().enumerate() {
+                    if index > 0 {
+                        output.push_str(", ");
+                    }
+                    write!(output, "{name}").expect("String write");
+                }
+                output.push(')');
+            }
+            output.push(')');
+        }
         ExprKind::Member { value, member } => {
             format_expression(value, 19, output);
             write!(output, ".{member}").expect("String write");
@@ -204,6 +224,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::Path(_)
         | ExprKind::BoundaryPortSelection { .. }
         | ExprKind::Call { .. }
+        | ExprKind::Partial { .. }
         | ExprKind::Reduction { .. }
         | ExprKind::Array(_)
         | ExprKind::Index { .. }

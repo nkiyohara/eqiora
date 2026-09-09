@@ -716,6 +716,16 @@ def div(value: Expression) -> Expression:
 
     ...
 
+def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
+    """Differentiate an explicit real scalar polynomial at an independent binding.
+
+    Holding contains compile-time assertions for distinct other independent bindings.
+    The compiler retains alias dependencies and checks binding identity and dimensions.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::partial``.
+    """
+    ...
+
 def derivative(value: Expression) -> Expression:
     """Author a continuous State derivative; the compiler checks role and activation.
 
@@ -828,6 +838,7 @@ __all__ = [
     "math",
     "normal",
     "ordinal",
+    "partial",
     "derivative",
     "pre",
     "next",

@@ -19,6 +19,7 @@ mod instance;
 mod nominal;
 mod notation;
 mod operator;
+mod partial;
 mod property;
 mod record;
 mod recovery;

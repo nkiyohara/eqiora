@@ -8,6 +8,22 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::Partial {
+            value,
+            wrt,
+            holding,
+        } => {
+            encoder.u16(20)?;
+            encode_expression(encoder, value, budget, next_depth(depth)?)?;
+            encode_path(encoder, wrt, budget)?;
+            encoder.u32(as_u32(holding.len(), "partial holding bindings")?)?;
+            let mut holding = holding.iter().collect::<Vec<_>>();
+            holding.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+            for binding in holding {
+                encode_path(encoder, binding, budget)?;
+            }
+            Ok(())
+        }
         ExprKind::Case { value, arms } => {
             encoder.u8(18)?;
             encode_expression(encoder, value, budget, next_depth(depth)?)?;

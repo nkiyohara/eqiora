@@ -14,6 +14,7 @@ mod declaration;
 mod domain;
 mod domain_contract;
 mod expression;
+pub(crate) use expression::partial_result_type;
 mod external;
 mod integer;
 mod native;
@@ -225,6 +226,10 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
+    Partial {
+        value: LoweringExpression,
+        wrt: String,
+    },
     Number(eqiora_lang::DecimalLiteral),
     Literal(eqiora_core::ValueLiteral),
     IntegerCall {

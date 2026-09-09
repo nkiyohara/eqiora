@@ -1,0 +1,9 @@
+operator f(input x:1,input y:1):1=x*x*y;
+operator square(input z:1):1=z*z;
+operator dx(input x:1,input y:1):1=partial(f(x=x,y=y),wrt=x,holding=(y));
+operator dy(input x:1,input y:1):1=partial(x*x*y,wrt=y);
+operator composed(input x:1,input y:1):1=partial(square(z=f(x=x,y=y)),wrt=x);
+model M() {
+ parameter x:1=3; parameter y:1=5;
+ relation r { dx(x=x,y=y)=30; dy(x=x,y=y)=9; composed(x=x,y=y)=2700; }
+}
