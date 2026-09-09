@@ -8,10 +8,9 @@ use eqiora::api::{ModelDocument, StructuralSemanticFingerprint, ValueEditPlan};
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
-use eqiora::kernel::KernelNode;
 use eqiora::package::PackageCompilationRecordV2;
 use eqiora::{Diagnostic, EntityKind, RawId};
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
@@ -20,8 +19,12 @@ use crate::geometry::PyGeometry;
 use crate::model_io::{self, DecodedModel};
 
 mod authored_formulation;
+mod enumeration;
 mod notation;
 pub(crate) use notation::PyQuantityLabel;
+pub(crate) use notation::parse_profile;
+mod rendering;
+pub(crate) use rendering::{PyMathReference, PyMathRendering};
 mod parameter_ref;
 pub(crate) use parameter_ref::PyModelParameterRef;
 
@@ -682,7 +685,7 @@ impl PyModel {
     }
 
     /// Full-scope labels or an exact identity-selected subview, never re-resolved.
-    #[pyo3(signature = (profile="rich", *, identities=None))]
+    #[pyo3(signature = (profile="latex", *, identities=None))]
     fn notation_labels(
         &self,
         py: Python<'_>,
@@ -690,6 +693,23 @@ impl PyModel {
         identities: Option<Vec<String>>,
     ) -> PyResult<Py<PyTuple>> {
         notation::project(self, py, profile, identities)
+    }
+
+    /// Render exact retained equations without substituting identifier text.
+    #[pyo3(signature = (relation, profile="latex"))]
+    fn render_equations(
+        &self,
+        py: Python<'_>,
+        relation: &str,
+        profile: &str,
+    ) -> PyResult<Py<PyTuple>> {
+        rendering::equations(self, py, relation, profile)
+    }
+
+    /// Render retained authored forms through the same accessible projections.
+    #[pyo3(signature = (profile="latex"))]
+    fn render_formulations(&self, py: Python<'_>, profile: &str) -> PyResult<Py<PyTuple>> {
+        rendering::formulations(self, py, profile)
     }
 
     /// Alpha-normalized structural evidence, separate from exact artifact identity.
@@ -801,30 +821,7 @@ impl PyModel {
         py: Python<'_>,
         selection: &str,
     ) -> PyResult<crate::modeling::enumeration::PyEnum> {
-        let document = self
-            .document()
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        let alias = document.aliases().get(selection).copied();
-        let definition = document
-            .program()
-            .nodes()
-            .find_map(|node| {
-                let KernelNode::Enum(value) = node else {
-                    return None;
-                };
-                (alias == Some(value.id().erase()) || value.id().ulid().to_string() == selection)
-                    .then_some(value)
-            })
-            .ok_or_else(|| PyValueError::new_err("selection is not an exact Enum in this Model"))?;
-        let name = document
-            .aliases()
-            .iter()
-            .find(|(_, id)| **id == definition.id().erase())
-            .map(|(name, _)| name.clone());
-        Ok(crate::modeling::enumeration::PyEnum {
-            name,
-            value: definition.clone(),
-        })
+        enumeration::select(self, py, selection)
     }
 
     /// Resolve a source alias or exact ULID once into an exact Parameter role.

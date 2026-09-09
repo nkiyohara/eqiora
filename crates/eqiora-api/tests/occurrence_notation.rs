@@ -35,7 +35,9 @@ fn source_labels_do_not_change_model_meaning_and_bare_replay_does_not_guess_them
         assert_ne!(entry.render(NotationProfile::Plain), "z");
     }
     for profile in [
-        NotationProfile::Rich,
+        NotationProfile::Latex,
+        NotationProfile::MathMl,
+        NotationProfile::Unicode,
         NotationProfile::Plain,
         NotationProfile::Speech,
     ] {

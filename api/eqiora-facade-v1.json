@@ -107,6 +107,8 @@
         { "name": "DifferentiationEvidence", "from": "eqiora_api::DifferentiationEvidence" },
         { "name": "DifferentiationMode", "from": "eqiora_api::DifferentiationMode" },
         { "name": "LinearizationState", "from": "eqiora_api::LinearizationState" },
+        { "name": "MathReference", "from": "eqiora_api::MathReference" },
+        { "name": "MathRendering", "from": "eqiora_api::MathRendering" },
         { "name": "MlDatasetArtifactsV1", "from": "eqiora_api::MlDatasetArtifactsV1" },
         { "name": "MlDatasetBlockArrayV1", "from": "eqiora_api::MlDatasetBlockArrayV1" },
         { "name": "MlDatasetDerivationPlanV1", "from": "eqiora_api::MlDatasetDerivationPlanV1" },

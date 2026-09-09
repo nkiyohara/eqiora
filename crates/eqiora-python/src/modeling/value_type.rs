@@ -65,6 +65,14 @@ impl PyValueType {
             .map_err(|error| PyValueError::new_err(error.to_string()))
     }
 
+    /// Present this exact checked type without inferring type from symbol style.
+    #[pyo3(signature = (profile="latex"))]
+    fn render(&self, py: Python<'_>, profile: &str) -> PyResult<crate::model::PyMathRendering> {
+        eqiora::api::MathRendering::value_type(&self.value, crate::model::parse_profile(profile)?)
+            .map(|value| crate::model::PyMathRendering { value })
+            .map_err(|error| crate::error::diagnostic_error(py, &[error]))
+    }
+
     #[staticmethod]
     fn boolean() -> Self {
         Self {

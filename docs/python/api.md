@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 245 canonical declaration summaries are source-traced; non-dunder member coverage remains **20 authoritative summaries and 731 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 247 canonical declaration summaries are source-traced; non-dunder member coverage remains **20 authoritative summaries and 744 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 282 literal public spellings, 245 canonical grouped declarations, 976 visible method signatures (751 non-dunder and 225 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 284 literal public spellings, 247 canonical grouped declarations, 991 visible method signatures (764 non-dunder and 227 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -768,6 +768,7 @@ Authority: [`crates/eqiora-python/src/modeling/value_type.rs::PyValueType`](../.
 @final
 class ValueType:
     def to_eqi(self) -> str: ...
+    def render(self, profile: Literal['latex', 'mathml', 'unicode', 'plain', 'speech']='latex') -> MathRendering: ...
     @staticmethod
     def integer() -> ValueType: ...
     @staticmethod
@@ -1216,6 +1217,56 @@ class LinearizationState:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-MathReference"></a>
+
+### `eqiora.MathReference`
+
+Exact semantic targets shared by every mathematical presentation profile.
+
+Authority: [`crates/eqiora-python/src/model/rendering.rs::PyMathReference`](../../crates/eqiora-python/src/model/rendering.rs)
+
+```python
+@final
+class MathReference:
+    def __repr__(self) -> str: ...
+    @property
+    def graph_id(self) -> str | None: ...
+    @property
+    def role(self) -> str | None: ...
+    @property
+    def declarations(self) -> tuple[str, ...]: ...
+    @property
+    def operator(self) -> str | None: ...
+```
+
+<a id="api-eqiora-MathRendering"></a>
+
+### `eqiora.MathRendering`
+
+Immutable equation or type presentation with accessible text and exact references.
+
+If `used_fallback` is true, `text` is plain text rather than rich markup.
+
+Authority: [`crates/eqiora-python/src/model/rendering.rs::PyMathRendering`](../../crates/eqiora-python/src/model/rendering.rs)
+
+```python
+@final
+class MathRendering:
+    def __repr__(self) -> str: ...
+    @property
+    def profile(self) -> str: ...
+    @property
+    def text(self) -> str: ...
+    @property
+    def plain(self) -> str: ...
+    @property
+    def speech(self) -> str: ...
+    @property
+    def used_fallback(self) -> bool: ...
+    @property
+    def references(self) -> tuple[MathReference, ...]: ...
+```
+
 <a id="api-eqiora-Model"></a>
 
 ### `eqiora.Model`
@@ -1243,7 +1294,9 @@ class Model:
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def domain(self, selection: str) -> DomainRef: ...
-    def notation_labels(self, profile: Literal['rich', 'plain', 'speech']='rich', *, identities: Sequence[str] | None=None) -> tuple[QuantityLabel, ...]: ...
+    def notation_labels(self, profile: Literal['latex', 'mathml', 'unicode', 'plain', 'speech']='latex', *, identities: Sequence[str] | None=None) -> tuple[QuantityLabel, ...]: ...
+    def render_equations(self, relation: str, profile: Literal['latex', 'mathml', 'unicode', 'plain', 'speech']='latex') -> tuple[MathRendering, ...]: ...
+    def render_formulations(self, profile: Literal['latex', 'mathml', 'unicode', 'plain', 'speech']='latex') -> tuple[MathRendering, ...]: ...
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...

@@ -1,14 +1,19 @@
-//! Checked structural qualification of declaration symbols, not expression rendering.
+//! Checked structural qualification and safe projections of declaration symbols.
 
 use crate::{Notation, NotationAtom, NotationNode};
 
+mod markup;
 mod projection;
 
 /// A declaration-label output profile. Accessibility deliberately drops styles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotationProfile {
-    /// Canonical TeX-shaped symbol algebra, without a math delimiter.
-    Rich,
+    /// LaTeX symbol algebra, without a math delimiter or executable input.
+    Latex,
+    /// Presentation MathML elements, without a surrounding math element.
+    MathMl,
+    /// Unicode atoms with explicit styles and script boundaries.
+    Unicode,
     /// ASCII names and explicit script delimiters, without typographic styles.
     Plain,
     /// Spoken atom names and explicit script boundaries, without styles.
@@ -78,7 +83,9 @@ impl NotationLabel {
         let label = Self { root };
         // Count projected bytes before allocating any output string.
         [
-            NotationProfile::Rich,
+            NotationProfile::Latex,
+            NotationProfile::MathMl,
+            NotationProfile::Unicode,
             NotationProfile::Plain,
             NotationProfile::Speech,
         ]

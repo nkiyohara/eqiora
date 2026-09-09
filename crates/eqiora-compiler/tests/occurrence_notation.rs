@@ -16,7 +16,9 @@ fn labels(model: &CompiledModel, profile: NotationProfile) -> BTreeMap<String, S
 }
 fn unique(model: &CompiledModel) {
     for profile in [
-        NotationProfile::Rich,
+        NotationProfile::Latex,
+        NotationProfile::MathMl,
+        NotationProfile::Unicode,
         NotationProfile::Plain,
         NotationProfile::Speech,
     ] {
@@ -40,7 +42,7 @@ model Circuit() { instance left:Resistor(resistance=2 [V/A]); instance right:Res
 fn resistors_roles_source_trace_and_full_scope_views_share_one_resolver() {
     let compiled = model(RESISTORS);
     unique(&compiled);
-    let rich = labels(&compiled, NotationProfile::Rich);
+    let rich = labels(&compiled, NotationProfile::Latex);
     assert_eq!(rich["left.resistance"], "R_{l e f t}");
     assert_eq!(rich["right.resistance"], "R_{r i g h t}");
     assert_eq!(compiled.notation().iter().len(), 10);
@@ -65,13 +67,13 @@ fn resistors_roles_source_trace_and_full_scope_views_share_one_resolver() {
         .view([i.identity(), p.identity(), p.identity()]);
     assert_eq!(view.len(), 2);
     for entry in view {
-        assert_eq!(entry.render(NotationProfile::Rich), rich[entry.selector()]);
+        assert_eq!(entry.render(NotationProfile::Latex), rich[entry.selector()]);
     }
     let reordered = model(&RESISTORS.replace(
         "instance left:Resistor(resistance=2 [V/A]); instance right:Resistor(resistance=3 [V/A]);",
         "instance right:Resistor(resistance=3 [V/A]); instance left:Resistor(resistance=2 [V/A]);",
     ));
-    assert_eq!(rich, labels(&reordered, NotationProfile::Rich));
+    assert_eq!(rich, labels(&reordered, NotationProfile::Latex));
 }
 
 #[test]
@@ -85,7 +87,7 @@ fn existing_scripts_styles_glyphs_and_same_scope_are_disambiguated() {
     }",
     );
     unique(&compiled);
-    let rich = labels(&compiled, NotationProfile::Rich);
+    let rich = labels(&compiled, NotationProfile::Latex);
     assert_eq!(rich["a"], r"\sigma_{i j a v a l u e}");
     assert_eq!(rich["b"], r"\sigma_{i j b v a l u e}");
     assert!(!rich["c"].ends_with('x'));
@@ -101,7 +103,7 @@ fn explicit_qualifiers_and_derived_suffixes_cannot_capture_each_other() {
     }";
     let compiled = model(source);
     unique(&compiled);
-    let labels = labels(&compiled, NotationProfile::Rich);
+    let labels = labels(&compiled, NotationProfile::Latex);
     assert!(labels["first.value"].starts_with("x_{r "));
     assert!(labels["second.value"].starts_with("x_{r "));
 }
@@ -114,7 +116,7 @@ fn fluid_and_solid_properties_use_occurrences_not_contract_names() {
     model M() {instance fluid:Material(density=Measured);instance solid:Material(density=Measured);}";
     let compiled = model(source);
     unique(&compiled);
-    let labels = labels(&compiled, NotationProfile::Rich);
+    let labels = labels(&compiled, NotationProfile::Latex);
     assert_eq!(labels["fluid.density"], r"\rho_{f l u i d}");
     assert_eq!(labels["solid.density"], r"\rho_{s o l i d}");
 }
@@ -128,7 +130,7 @@ fn bounded_generated_exhaustion_never_rejects_a_valid_physical_model() {
     let compiled = model(&source);
     unique(&compiled);
     assert!(
-        labels(&compiled, NotationProfile::Rich)
+        labels(&compiled, NotationProfile::Latex)
             .values()
             .all(|value| value.len() < 16384)
     );
@@ -191,7 +193,10 @@ fn boundary_family_members_preserve_exact_selectors_and_roles() {
         QuantityRole::Trace | QuantityRole::Flux
     )));
     for entry in entries {
-        assert_eq!(entry.render(NotationProfile::Rich).matches("_{").count(), 1);
+        assert_eq!(
+            entry.render(NotationProfile::Latex).matches("_{").count(),
+            1
+        );
     }
 }
 
@@ -305,8 +310,8 @@ fn deep_resolved_declarations_keep_physical_admission_and_exact_labels() {
     );
     let reordered = compile(true, true);
     assert_eq!(
-        labels(&compiled, NotationProfile::Rich),
-        labels(&reordered, NotationProfile::Rich)
+        labels(&compiled, NotationProfile::Latex),
+        labels(&reordered, NotationProfile::Latex)
     );
     let by_name = compiled
         .notation()

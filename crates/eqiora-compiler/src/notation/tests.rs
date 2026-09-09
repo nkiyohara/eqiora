@@ -24,7 +24,9 @@ fn spec(byte: u8, path: &[&str], declared: &str) -> NotationSpec {
 
 fn distinct(catalog: &ModelNotation) {
     for profile in [
-        NotationProfile::Rich,
+        NotationProfile::Latex,
+        NotationProfile::MathMl,
+        NotationProfile::Unicode,
         NotationProfile::Plain,
         NotationProfile::Speech,
     ] {
@@ -48,7 +50,7 @@ fn shortest_suffix_and_repeated_identity_are_discovery_order_independent() {
     assert_eq!(a, b);
     let labels = a
         .iter()
-        .map(|entry| entry.render(NotationProfile::Rich))
+        .map(|entry| entry.render(NotationProfile::Latex))
         .collect::<Vec<_>>();
     assert_eq!(labels, ["x_{l e f t l e a f}", "x_{r i g h t l e a f}"]);
     distinct(&a);
@@ -94,7 +96,7 @@ fn explicit_versus_derived_qualification_collisions_are_rechecked_globally() {
             .iter()
             .find(|entry| entry.selector() == "quantity2")
             .unwrap()
-            .render(NotationProfile::Rich),
+            .render(NotationProfile::Latex),
         "x_{s}"
     );
 }

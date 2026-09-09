@@ -51,14 +51,15 @@ pub mod api {
         DifferentiableScalarType, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
         EvaluationMapExecutionPolicy, EvaluationMapJvp, EvaluationMapOccurrence, EvaluationMapPlan,
         EvaluationMapProducts, EvaluationMapRetention, EvaluationMapTerminalReport,
-        EvaluationMapVjp, LinearizationState, MlDatasetArtifactsV1, MlDatasetBlockArrayV1,
-        MlDatasetDerivationPlanV1, MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1,
-        MlDatasetMaterializationV1, MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1,
-        ModelDocument, ModelFieldRef, ModelParameterRef, ParameterGeometryRegenerationPlan,
-        ParameterGeometryRegenerationResult, ParameterSampler, RemeshingTrajectoryReplayInputV1,
-        RunRequest, SampledParameterPoint, SamplingCoupling, SamplingGenerator, SamplingIdentity,
-        SemanticFingerprintGeneration, StructuralSemanticFingerprint, ValueEditPlan,
-        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
+        EvaluationMapVjp, LinearizationState, MathReference, MathRendering, MlDatasetArtifactsV1,
+        MlDatasetBlockArrayV1, MlDatasetDerivationPlanV1, MlDatasetFieldSelectionV1,
+        MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1, MlDatasetSampleArraysV1,
+        MlDatasetSampleSelectionV1, ModelDocument, ModelFieldRef, ModelParameterRef,
+        ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult, ParameterSampler,
+        RemeshingTrajectoryReplayInputV1, RunRequest, SampledParameterPoint, SamplingCoupling,
+        SamplingGenerator, SamplingIdentity, SemanticFingerprintGeneration,
+        StructuralSemanticFingerprint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
+        derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
 
     /// Fresh XDMF artifact derivation and verified persisted replay.

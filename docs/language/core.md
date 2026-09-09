@@ -119,7 +119,7 @@ The resolver applies declared notation, explicit instance notation, the shortest
 distinguishing instance-path suffix, then declaration, connector-role and family-member
 qualifiers. If those still collide or exceed the generated-label budget, the exact
 resolved identity supplies a total deterministic fallback. Collision checks include
-rich, plain and speech profiles; losing boldface or a distinct Greek glyph must not
+LaTeX, MathML, Unicode, plain and speech profiles; losing boldface or a distinct Greek glyph must not
 make two quantities indistinguishable. Adding occurrences can change labels.
 
 ```python
@@ -146,7 +146,31 @@ Source/package recompilation retains authored labels. Bare canonical Model artif
 carry physical meaning, not presentation metadata, so reopening them produces
 exact-Kernel-identity labels with no invented source locations. Value edits preserve
 labels when the occurrence inventory is unchanged; structural edits rebuild their
-complete identity-only catalog. These are declaration labels, not equation rendering.
+complete identity-only catalog.
+
+### Mathematical rendering
+
+`model.render_equations("law", "mathml")` presents the retained left and right
+sides of each equation in authored order. `model.render_formulations("latex")`
+presents authored forms, including their exact test, trial and integration-support
+references. Both use the same typed projection as declaration labels; gradient,
+time derivative, power, array index and inner-product notation comes from semantic
+operators, never from identifier spellings. Pure operators without a retained
+source alias are named by their exact definition digest and keep argument order.
+
+Each immutable `MathRendering` contains `text`, `plain`, `speech` and `references`.
+Profiles are `latex`, `mathml`, `unicode`, `plain` and `speech`. MathML output is a
+complete `<math>` element. If `used_fallback` is true, `text` is plain text instead
+of rich markup. Renderers should display that text normally, not interpret it as
+HTML or TeX. Generated output is bounded to 65,536 bytes per profile.
+
+References retain the exact graph target, quantity role and declaration identities.
+When several authored declarations share one physical target, all are retained and
+the equation uses an identity label rather than choosing one alias. Intrinsic
+prime or transpose marks remain part of a declaration label; an expression power
+or index is a separate operation. `value_type.render("speech")` describes the
+checked scalar domain, channel and spatial axes, frame, nominal basis and exact
+rational dimensions independently of the symbol's style.
 
 ### Declaration documentation
 
