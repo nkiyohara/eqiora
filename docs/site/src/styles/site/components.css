@@ -9,7 +9,7 @@
  */
 
 /* ---------------------------------------------------------------------------
- * CapabilitySummary: readable claim boundary before technical evidence
+ * CapabilitySummary: capability descriptions and related guides
  * ------------------------------------------------------------------------- */
 
 .eq-capability-grid {
@@ -36,30 +36,7 @@
 
 .eq-capability__header h3 { margin: 0; }
 
-.eq-capability__status {
-  flex: 0 0 auto;
-  border-color: var(--eq-color-border-strong);
-  color: var(--eq-color-text);
-}
-
 .eq-capability__outcome { font-weight: 600; }
-
-.eq-capability dl,
-.eq-capability dl > div {
-  display: grid;
-  gap: var(--eq-space-2);
-}
-
-.eq-capability dl { margin-block: var(--eq-space-4); }
-
-.eq-capability dl > div {
-  grid-template-columns: minmax(8rem, 0.3fr) minmax(0, 1fr);
-  padding-block: var(--eq-space-3);
-  border-top: 1px solid var(--eq-color-border);
-}
-
-.eq-capability dt { font-weight: 650; }
-.eq-capability dd { margin: 0; }
 
 .eq-capability__links {
   display: flex;
@@ -70,7 +47,6 @@
 
 @media (max-width: 32rem) {
   .eq-capability { padding: var(--eq-space-4); }
-  .eq-capability dl > div { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------------------------------------------------------------------------
