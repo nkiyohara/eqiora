@@ -905,6 +905,7 @@ dependencies = [
  "eqiora-core",
  "eqiora-meshing",
  "eqiora-schema",
+ "num-rational",
  "serde",
  "serde_json",
  "sha2",
