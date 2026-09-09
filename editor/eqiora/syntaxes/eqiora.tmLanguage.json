@@ -24,7 +24,7 @@
           "captures": { "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "entity.name.namespace.eqiora" } }
         },
         {
-          "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension|enum|indexset|space))\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension|enum|record|indexset|space))\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "keyword.declaration.eqiora" },
             "3": { "name": "keyword.declaration.eqiora" }, "4": { "name": "keyword.declaration.eqiora" },
@@ -48,7 +48,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|case|citation|clock|complete_exterior|component|components|composition|connect|connector|contract|crossing|delta|derivatives|dimension|direction|discrete|domain|else|enum|event|field|flux(?!\\s*\\()|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|orientation|output|over|pairing|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|case|citation|clock|complete_exterior|component|components|composition|connect|connector|contract|crossing|delta|derivatives|dimension|direction|discrete|domain|else|enum|event|field|flux(?!\\s*\\()|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|orientation|output|over|pairing|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|record|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume)\\b"
       }]
     },
     "functions": {
