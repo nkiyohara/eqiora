@@ -252,3 +252,145 @@ fn external_family_rejects_foreign_selection_and_parent_before_topology() {
         );
     }
 }
+
+fn selected_exterior_source() -> String {
+    EXTERIOR.replace("support left: boundary(parent = body), support right:", "support exterior: complete_exterior(parent = body), support left: boundary(parent = body), support right:")
+        .replace("boundaries(left, right, bottom, top)", "exterior")
+        .replace("component Wrapper", "public component Wrapper")
+}
+
+#[test]
+fn direct_selected_exterior_retains_exact_members_in_source_and_native() {
+    let geometry = rectangle(false);
+    let source = selected_exterior_source();
+    let members = ["left", "right", "bottom", "top"].map(|name| geometry.entity_set(name).unwrap());
+    let reversed = members.iter().rev().copied().collect::<Vec<_>>();
+    for entry in ["M", "Wrapper"] {
+        let compile = |members| {
+            let mut bindings = vec![
+                ("body", selection(&geometry, "body", None)),
+                (
+                    "exterior",
+                    StaticBindingValue::CompleteExterior {
+                        geometry: &geometry,
+                        members,
+                        parent: geometry.entity_set("body").unwrap(),
+                    },
+                ),
+            ];
+            if entry == "M" {
+                bindings.extend(
+                    exterior_bindings(&geometry)
+                        .into_iter()
+                        .filter(|(name, _)| *name != "body"),
+                );
+            }
+            let direct =
+                CompiledModel::compile_selected("selected-exterior.eqi", &source, entry, &bindings)
+                    .unwrap_or_else(|errors| panic!("{entry}: {errors:?}"));
+            let native = eqiora_lang::Module::from_document(
+                eqiora_lang::parse("selected-exterior.eqi", &source)
+                    .into_document()
+                    .unwrap(),
+            );
+            let replay = eqiora_compiler::lower_module(&native, Some(entry), &bindings)
+                .unwrap_or_else(|errors| panic!("{entry}: {errors:?}"));
+            assert_eq!(direct.transaction().ops(), replay.transaction().ops());
+            assert_eq!(direct.symbols(), replay.symbols());
+            direct
+        };
+        let direct = compile(&members);
+        let permuted = compile(&reversed);
+        assert_eq!(direct.transaction().ops(), permuted.transaction().ops());
+        assert_eq!(direct.symbols(), permuted.symbols());
+        let body = direct.symbols().get("body").unwrap();
+        assert_eq!(
+            direct
+                .transaction()
+                .ops()
+                .iter()
+                .filter(|op| matches!(op,
+                    Op::Connect { to, edge: EdgeKind::BoundaryOf, .. } if *to == body
+                ))
+                .count(),
+            4
+        );
+    }
+}
+
+#[test]
+fn direct_selected_exterior_rejects_incomplete_duplicate_and_foreign_members() {
+    let geometry = rectangle(false);
+    let foreign = rectangle(true);
+    let source = selected_exterior_source();
+    let exact = |name| geometry.entity_set(name).unwrap();
+    for (members, parent, expected) in [
+        (
+            vec![exact("left"), exact("right"), exact("bottom")],
+            exact("body"),
+            "missing Cartesian side",
+        ),
+        (
+            vec![
+                exact("left"),
+                exact("right"),
+                exact("bottom"),
+                exact("bottom"),
+            ],
+            exact("body"),
+            "more than once",
+        ),
+        (
+            vec![exact("body"), exact("right"), exact("bottom"), exact("top")],
+            exact("body"),
+            "does not bind exact parent",
+        ),
+        (
+            vec![
+                foreign.entity_set("left").unwrap(),
+                exact("right"),
+                exact("bottom"),
+                exact("top"),
+            ],
+            exact("body"),
+            "foreign or stale",
+        ),
+        (
+            vec![exact("left"), exact("right"), exact("bottom"), exact("top")],
+            foreign.entity_set("body").unwrap(),
+            "foreign or stale parent",
+        ),
+        (
+            vec![exact("left"), exact("right"), exact("bottom"), exact("top")],
+            exact("left"),
+            "does not bind exact parent",
+        ),
+        (vec![], exact("body"), "no members"),
+    ] {
+        let mut bindings = vec![
+            ("body", selection(&geometry, "body", None)),
+            (
+                "exterior",
+                StaticBindingValue::CompleteExterior {
+                    geometry: &geometry,
+                    members: &members,
+                    parent,
+                },
+            ),
+        ];
+        bindings.extend(
+            exterior_bindings(&geometry)
+                .into_iter()
+                .filter(|(name, _)| *name != "body"),
+        );
+        let errors =
+            CompiledModel::compile_selected("bad-selected-exterior.eqi", &source, "M", &bindings)
+                .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains(expected)),
+            "expected {expected}: {errors:?}"
+        );
+    }
+}
