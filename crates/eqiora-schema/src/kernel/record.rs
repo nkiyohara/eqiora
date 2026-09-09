@@ -1,7 +1,5 @@
 //! Nominal heterogeneous products over existing typed values and field symbols.
-use eqiora_core::{
-    Diagnostic, EntityKind, Id, RawId, ValueLiteral, ValueType, diagnostic::codes, entity::kinds,
-};
+use eqiora_core::{Diagnostic, Id, ValueLiteral, ValueType, diagnostic::codes, entity::kinds};
 use std::collections::BTreeSet;
 
 /// One exact closed record declaration with ordered heterogeneous member types.
@@ -95,40 +93,31 @@ impl RecordValue {
     }
 }
 
-/// An occurrence-owned product bound to exact existing Field or Parameter members.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// An occurrence-owned product retaining declaration-ordered typed member expressions.
+/// Static expressions preserve Parameter dependence; bus roots name exact Fields.
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecordInstanceDef {
     id: Id<kinds::RecordInstance>,
     definition: Id<kinds::Record>,
-    members: Vec<RawId>,
+    expression: super::ExprDag,
 }
 impl RecordInstanceDef {
-    /// Construct ordered leaf identities; whole-Model admission checks the declaration,
-    /// complete member types and one shared exact temporal ownership.
+    /// Retain one existing expression DAG with one root per declared member.
+    /// Whole-Model admission owns the exact member types and static/bus temporal contract.
     pub fn new(
         id: Id<kinds::RecordInstance>,
         definition: Id<kinds::Record>,
-        members: Vec<RawId>,
+        expression: super::ExprDag,
     ) -> Result<Self, Diagnostic> {
-        if members.is_empty() || members.len() > RecordDef::MAX_MEMBERS {
+        if expression.roots().is_empty() || expression.roots().len() > RecordDef::MAX_MEMBERS {
             return Err(invalid(
-                "record instance requires between 1 and 65536 members",
+                "record instance requires between 1 and 65536 member roots",
             ));
-        }
-        let mut seen = BTreeSet::new();
-        for member in &members {
-            if !matches!(member.kind(), EntityKind::Field | EntityKind::Parameter)
-                || !seen.insert(*member)
-            {
-                return Err(invalid(
-                    "record instance requires distinct exact Field or Parameter identities",
-                ));
-            }
         }
         Ok(Self {
             id,
             definition,
-            members,
+            expression,
         })
     }
     /// Exact occurrence identity.
@@ -139,11 +128,12 @@ impl RecordInstanceDef {
     pub const fn definition(&self) -> Id<kinds::Record> {
         self.definition
     }
-    /// Ordered exact member identities; members are never inferred from display names.
-    pub fn members(&self) -> &[RawId] {
-        &self.members
+    /// Shared expression DAG whose roots follow declaration member order.
+    pub const fn expression(&self) -> &super::ExprDag {
+        &self.expression
     }
 }
+
 fn invalid(message: &str) -> Diagnostic {
     Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, message)
 }

@@ -8,7 +8,9 @@ A closed record owns an ordered, nonempty set of uniquely named members. Each
 member retains its complete existing mathematical value type. A value or bus
 belongs to exactly one declaration, independently of its display name, member
 names, or matching numerical values. Current Model replay must preserve this
-identity and reject foreign, missing, duplicate, or reordered member bindings.
+identity, reject foreign, missing, or mistyped member bindings, and retain
+declaration order as part of value meaning. Swapping same-typed members changes
+the value rather than making an otherwise valid record undecodable.
 
 The homogeneous `ValueType` owner cannot represent heterogeneous dimensions and
 scalar domains without inventing misleading scalar, shape, frame, and dimension
@@ -19,7 +21,7 @@ coincidentally similar group of fields. An external compiler catalog would make
 canonical Model admission depend on authority outside the Model.
 
 Consequently two semantic entities own the irreducible facts: `Record` owns the
-ordered declaration, and `RecordInstance` binds its exact ordered member symbols.
+ordered declaration, and `RecordInstance` retains an existing expression DAG with one root per ordered member.
 Ordinary Fields and Parameters continue to own leaf execution, differentiation,
 and storage. Record instances neither add an evaluator nor masquerade as vectors.
 Source and native authoring consume the same checked definitions; canonical
@@ -29,7 +31,9 @@ Model admission and replay independently validate their typed member references.
 
 A bus has one explicit activation shared by its members. Mixed-clock ownership
 is rejected, and no member clock is inferred or coerced. Static record values
-contain only static member values. Enum, Boolean, and integer members stay
+contain only static member expressions, preserving original Parameter dependence.
+Bus roots directly select existing Fields; arithmetic on a member is an ordinary
+leaf expression and does not change bus ownership. Enum, Boolean, and integer members stay
 discrete; admitted real/complex leaves use the existing differentiation owner.
 Declaration order is canonical even when a constructor supplies members in a
 different order. Missing, duplicate, unknown, and foreign members reject before
