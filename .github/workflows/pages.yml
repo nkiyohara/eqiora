@@ -208,6 +208,13 @@ jobs:
           cargo +stable --version
           rustc +stable -Vv
 
+          # Pages uses the pinned Playwright browser, not the runner's Chrome feed.
+          for source in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            test -f "$source" || continue
+            if sudo grep -Eq 'https?://dl\.google\.com/linux/chrome(-stable)?/deb/?([[:space:]]|$)' "$source"; then
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
             libclang-dev libffi-dev libopenmpi-dev openmpi-bin

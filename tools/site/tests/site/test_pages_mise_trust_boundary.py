@@ -32,6 +32,37 @@ def _named_step(workflow: str, name: str) -> str:
 
 
 class PagesMiseTrustBoundaryTests(unittest.TestCase):
+    def test_unused_chrome_feed_is_disabled_before_apt_updates(self) -> None:
+        supply = _named_step(
+            WORKFLOW.read_text(encoding="utf-8"),
+            "Supply locked native, Rust, Python, Node, and browser inputs",
+        )
+        start = supply.index("          for source in /etc/apt/sources.list.d/")
+        end = supply.index("          sudo apt-get update", start)
+        script = textwrap.dedent(supply[start:end])
+        SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            root = Path(temporary)
+            feeds = {
+                "chrome.list": "deb https://dl.google.com/linux/chrome/deb/ stable main\n",
+                "chrome.sources": "Types: deb\nURIs: https://dl.google.com/linux/chrome-stable/deb\n",
+                "ubuntu.sources": "Types: deb\nURIs: http://archive.ubuntu.com/ubuntu/\n",
+                "unrelated.list": "deb https://example.com/linux/chrome/deb/ stable main\n",
+            }
+            for name, content in feeds.items():
+                (root / name).write_text(content, encoding="utf-8")
+            command = 'sudo() { "$@"; }\n' + script.replace(
+                "/etc/apt/sources.list.d/", f"{root}/"
+            )
+            for _ in range(2):
+                subprocess.run(["bash", "-eu", "-c", command], check=True)
+            for name, content in feeds.items():
+                disabled = name.startswith("chrome.")
+                path = root / (name + ".disabled" if disabled else name)
+                self.assertEqual(path.read_text(encoding="utf-8"), content)
+                if disabled:
+                    self.assertFalse((root / name).exists())
+
     def test_playwright_cache_uses_the_reviewed_action_release(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
         step = _named_step(workflow, "Restore the exact Playwright browser cache")
