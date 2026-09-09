@@ -9,7 +9,10 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
-use eqiora_schema::kernel::{ConnectionSemantics, DomainKind, KernelNode};
+use eqiora_schema::kernel::{
+    BoundaryPhysicalPortContract, BoundarySide, CartesianPeriodicBoundaryIdentification,
+    ConnectionSemantics, DomainKind, KernelNode, validate_spatial_periodic_boundary_connection,
+};
 
 use super::{edge_targets, kernel_error, kernel_path};
 
@@ -28,9 +31,10 @@ pub(crate) struct GeometryBoundaryEmbedding {
     pub(crate) dimensions: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct GeometryBoundaryJunction {
     pub(crate) dimensions: usize,
+    pub(crate) periodic: Option<(CartesianPeriodicBoundaryIdentification, RawId)>,
 }
 
 /// Index one exact closed artifact bundle.
@@ -239,9 +243,8 @@ pub(super) fn admit_entity_sets(
     }
 }
 
-/// Admit only the construction-owned, opposite-parent internal interface of
-/// the exact adjacent-partition Geometry family. This is intentionally not a
-/// generic non-Cartesian Connection fallback.
+/// Admit construction-owned opposite-parent interfaces and explicit periodic
+/// pairs of opposite primitive faces. Unsupported geometry has no chart fallback.
 pub(super) fn admit_geometry_boundary_junctions(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
@@ -275,9 +278,12 @@ pub(super) fn admit_geometry_boundary_junctions(
         if geometry_ports.is_empty() {
             continue;
         }
+        let mut periodic = None;
         let valid = (|| {
-            if connection.semantics() != ConnectionSemantics::Conserving
-                || ports.len() != 2
+            if !matches!(
+                connection.semantics(),
+                ConnectionSemantics::Conserving | ConnectionSemantics::SpatialPeriodic
+            ) || ports.len() != 2
                 || geometry_ports.len() != 2
             {
                 return false;
@@ -287,7 +293,6 @@ pub(super) fn admit_geometry_boundary_junctions(
             if first_port == second_port
                 || first_connector != second_connector
                 || first_boundary == second_boundary
-                || first.parent == second.parent
                 || first.geometry != second.geometry
                 || first.dimensions != second.dimensions
             {
@@ -310,12 +315,47 @@ pub(super) fn admit_geometry_boundary_junctions(
                 return false;
             }
             artifacts.get(&first.geometry).is_some_and(|artifact| {
-                artifact.selections_form_opposite_parent_interface(
-                    &first.entity_set,
-                    &first.parent_entity_set,
-                    &second.entity_set,
-                    &second.parent_entity_set,
-                )
+                if connection.semantics() == ConnectionSemantics::SpatialPeriodic {
+                    let contract = |connector, boundary, embedding: &GeometryBoundaryEmbedding| {
+                        Some(BoundaryPhysicalPortContract {
+                            connector,
+                            boundary,
+                            parent: embedding.parent,
+                            embedding: artifact.cartesian_boundary_embedding(
+                                artifact.entity_set(&embedding.entity_set)?,
+                                artifact.entity_set(&embedding.parent_entity_set)?,
+                            )?,
+                        })
+                    };
+                    let Some(first_contract) = contract(first_connector, first_boundary, first)
+                    else {
+                        return false;
+                    };
+                    let Some(second_contract) = contract(second_connector, second_boundary, second)
+                    else {
+                        return false;
+                    };
+                    let lower_port = if first_contract.embedding.side() == BoundarySide::Lower {
+                        first_port
+                    } else {
+                        second_port
+                    };
+                    let Ok(identification) = validate_spatial_periodic_boundary_connection(&[
+                        first_contract,
+                        second_contract,
+                    ]) else {
+                        return false;
+                    };
+                    periodic = Some((identification, lower_port));
+                    return true;
+                }
+                first.parent != second.parent
+                    && artifact.selections_form_opposite_parent_interface(
+                        &first.entity_set,
+                        &first.parent_entity_set,
+                        &second.entity_set,
+                        &second.parent_entity_set,
+                    )
             })
         })();
         if valid {
@@ -324,12 +364,13 @@ pub(super) fn admit_geometry_boundary_junctions(
                 connection_id,
                 GeometryBoundaryJunction {
                     dimensions: geometry_ports[0].3.dimensions,
+                    periodic,
                 },
             );
         } else {
             diagnostics.push(kernel_error(
                 connection_id,
-                "geometry boundary-physical Connection must be the exact two-sided opposite-parent interface of one admitted adjacent-partition Geometry",
+                "geometry boundary-physical Connection requires the exact opposite-parent interface of one adjacent-partition Geometry or an explicit spatial-periodic pair of opposite primitive faces on one exact parent",
             ));
         }
     }
