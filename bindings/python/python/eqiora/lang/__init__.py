@@ -1933,8 +1933,10 @@ class Module:
         return ModuleRef(_CREATE, self._owner, alias, module)
 
     def _closure(self):
-        units, active = {}, set()
+        units, active, visited = {}, set(), set()
         def visit(module):
+            if module in visited:
+                return
             identity = (module._package, module._name)
             if identity in active:
                 raise ModuleError("recursive module imports are not supported")
@@ -1943,8 +1945,11 @@ class Module:
             if previous is not None:
                 if not graph.same_graph(previous._freeze()):
                     raise ModuleError("one logical module name has conflicting contents")
-                return
-            if len(units) + len(active) >= _MAX_DECLARATIONS:
+                attachments = lambda item: {alias: (target._package, target._name)
+                                            for alias, target in item._imports.items()}
+                if attachments(module) != attachments(previous):
+                    raise ModuleError("one logical module name has conflicting explicit imports")
+            if len(visited) + len(active) >= _MAX_DECLARATIONS:
                 raise ModuleError("module closure exceeds the bounded module count")
             active.add(identity)
             for alias, target in graph.imports():
@@ -1953,6 +1958,7 @@ class Module:
                     raise ModuleError(f"explicit module import {alias!r} has no matching attached source")
                 visit(imported)
             active.remove(identity)
+            visited.add(module)
             units[identity] = module
         visit(self)
         return [module for _, module in sorted(units.items())]

@@ -41,9 +41,29 @@ def test_module_package_names_use_the_canonical_package_validator(package):
 
 
 def test_frozen_import_attachment_rejects_a_different_exact_package():
-    root = eqiora.Module.parse("main", "import org.example.Library.ports as parts; model Main() {}",
+    root = eqiora.Module.parse("main", "import org.example.Library.ports as parts; model Main() { parameter gain:1=1; relation value {gain-1=0;} }",
                                package="org.example.Application")
     with pytest.raises(eqiora.lang.ModuleError, match="exact existing import"):
         root.import_module("parts", eqiora.Module.parse("ports", LIBRARY, package="org.example.Other"))
     root.import_module("parts", eqiora.Module.parse("ports", LIBRARY, package="org.example.Library"))
     assert eqiora.compile(source=root, entry="Main").digest
+
+
+@pytest.mark.parametrize("reverse", (False, True))
+def test_duplicate_module_handles_cannot_hide_conflicting_attached_transitive_sources(reverse):
+    package = "org.example.Closure"
+    middle_source = "import org.example.Closure.leaf; public component Middle() {}"
+    middles = []
+    for value in (1, 2):
+        leaf = eqiora.Module.parse("leaf", f"public component Leaf() {{parameter gain:1={value};}}", package=package)
+        middle = eqiora.Module.parse("middle", middle_source, package=package)
+        middle.import_module("leaf", leaf)
+        middles.append(middle)
+    if reverse:
+        middles.reverse()
+    root = eqiora.Module("main", package=package)
+    root.import_module("first", middles[0])
+    root.import_module("second", middles[1])
+    root.model("Main")
+    with pytest.raises(eqiora.lang.ModuleError, match="conflicting contents"):
+        eqiora.compile(source=root, entry="Main")
