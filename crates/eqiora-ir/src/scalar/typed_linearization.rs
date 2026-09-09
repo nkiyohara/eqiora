@@ -110,6 +110,7 @@ impl ScalarOperatorIr {
                     }
                     Instruction::Neg(a)
                     | Instruction::PowI(a, _)
+                    | Instruction::Sin(a)
                     | Instruction::Sqrt(a)
                     | Instruction::Not(a) => at(a),
                     Instruction::Add(a, b)
