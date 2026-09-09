@@ -4,6 +4,7 @@ pub(super) use observable::validate_observable;
 mod channels;
 mod enumeration;
 mod integer;
+mod partial;
 mod reductions;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
@@ -293,6 +294,34 @@ impl ExpressionChecker<'_, '_, '_> {
             return self.check_physical_member(member, &port);
         }
         match expression.kind() {
+            ExprKind::Partial {
+                value,
+                wrt,
+                holding,
+            } => {
+                let selected = self.partial_binding(wrt)?;
+                let mut seen = std::collections::BTreeSet::from([wrt.as_str()]);
+                for binding in holding {
+                    self.partial_binding(binding)?;
+                    if !seen.insert(binding.as_str()) {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            binding.range(),
+                            "partial holding requires distinct other independent bindings",
+                        ));
+                    }
+                }
+                let value = self.check(value)?;
+                crate::lower::partial_result_type(&value, &selected).map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        message,
+                    )
+                })
+            }
             ExprKind::Reduction { .. } => self.reduction(expression),
             ExprKind::Array(_) | ExprKind::Index { .. } | ExprKind::Slice { .. } => {
                 self.channels(expression)

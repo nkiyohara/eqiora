@@ -54,7 +54,7 @@ mod indexed;
 mod input_bindings;
 mod model_items;
 mod model_lets;
-mod names;
+pub(super) mod names;
 mod nominal;
 mod notation;
 mod records;

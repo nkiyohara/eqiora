@@ -203,7 +203,8 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                     eqiora_lang::ExprKind::Index { value, index } => {
                         pending.extend([value.as_ref(), index.as_ref()])
                     }
-                    eqiora_lang::ExprKind::Unary { value, .. } => pending.push(value),
+                    eqiora_lang::ExprKind::Unary { value, .. }
+                    | eqiora_lang::ExprKind::Partial { value, .. } => pending.push(value),
                     eqiora_lang::ExprKind::Binary { left, right, .. } => {
                         pending.push(right);
                         pending.push(left);

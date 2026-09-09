@@ -138,7 +138,8 @@ pub(crate) fn expression(
             expression(scope, then_value, visit);
             expression(scope, else_value, visit);
         }
-        ExprKind::Unary { value, .. }
+        ExprKind::Partial { value, .. }
+        | ExprKind::Unary { value, .. }
         | ExprKind::Member { value, .. }
         | ExprKind::Reduction { value, .. } => expression(scope, value, visit),
         ExprKind::Binary { left, right, .. } => {

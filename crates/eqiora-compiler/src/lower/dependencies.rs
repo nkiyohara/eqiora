@@ -39,6 +39,12 @@ impl LoweringExpression {
                 continue;
             }
             match value.node.as_ref() {
+                LoweringExpressionNode::Partial { value, wrt } => {
+                    if include_symbols {
+                        names.insert(wrt.clone());
+                    }
+                    pending.push(value);
+                }
                 LoweringExpressionNode::Name(name) if include_symbols => {
                     names.insert(name.clone());
                 }

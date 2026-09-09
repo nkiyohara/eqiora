@@ -113,6 +113,39 @@ impl PyAstExpression {
         })
     }
 
+    #[staticmethod]
+    fn partial(value: &Self, wrt: &Self, holding: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let held = expressions(holding)?;
+        let binding = |expression: &Self| match expression.value.kind() {
+            ExprKind::Name(name) => path(name),
+            ExprKind::Path(path) => Ok(path.clone()),
+            _ => Err(syntax_error(
+                "partial bindings must be exact declared names",
+            )),
+        };
+        let selected = binding(wrt)?;
+        let mut seen = std::collections::BTreeSet::from([selected.as_str().to_owned()]);
+        let held = held
+            .iter()
+            .map(|expression| {
+                let path = binding(expression)?;
+                if !seen.insert(path.as_str().to_owned()) {
+                    return Err(syntax_error(
+                        "partial holding requires distinct other bindings",
+                    ));
+                }
+                Ok(path)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Self::build(&[value], held.len() + 2, || {
+            Ok(ExprKind::Partial {
+                value: Box::new(value.value.clone()),
+                wrt: selected,
+                holding: held,
+            })
+        })
+    }
+
     fn boundary_port(&self, member: &str, target: &str) -> PyResult<Self> {
         Self::build(&[self], 1, || {
             let port = match self.value.kind() {

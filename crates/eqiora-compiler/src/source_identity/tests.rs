@@ -4,6 +4,7 @@ use super::*;
 
 mod let_alias;
 mod namespace;
+mod partials;
 
 fn document(source: &str) -> Document {
     parse("fixture.eqi", source).into_document().unwrap()

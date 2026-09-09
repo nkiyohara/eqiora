@@ -15,6 +15,10 @@ impl LoweringExpression {
             return value.clone();
         }
         let node = match self.node.as_ref() {
+            LoweringExpressionNode::Partial { value, wrt } => LoweringExpressionNode::Partial {
+                value: value.clone_shared(cache),
+                wrt: wrt.clone(),
+            },
             LoweringExpressionNode::Number(value) => LoweringExpressionNode::Number(value.clone()),
             LoweringExpressionNode::Literal(value) => {
                 LoweringExpressionNode::Literal(value.clone())

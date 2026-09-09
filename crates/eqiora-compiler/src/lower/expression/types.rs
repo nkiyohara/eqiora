@@ -74,6 +74,18 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::Partial { value, wrt } => {
+            let value = infer(value)?;
+            let selected = infer(&LoweringExpression::name(wrt.clone(), expression.range()))?;
+            super::partial::result_type(&value, &selected).map_err(|message| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    message,
+                )
+            })
+        }
         LoweringExpressionNode::IntegerCall {
             operator,
             arguments,

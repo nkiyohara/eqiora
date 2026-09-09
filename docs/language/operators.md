@@ -44,13 +44,19 @@ proof normalization does not authorize reassociating floating-point operations.
 The native scalar calculus owner exposes inspectable first and second partial derivative
 graphs. For the example, the temperature derivatives at 20 K are 0.14 W/(m*K^2) and
 0.002 W/(m*K^3). A zero partial retains its derived dimensions and support. Unsupported
-orders or profiles reject rather than substituting finite differences. General source-level
-`partial`, mixed derivative products and solved sensitivities follow the separate
-[calculus contract](calculus.md); this operator profile does not claim them.
+orders or profiles reject rather than substituting finite differences. Source
+`partial(expression, wrt = binding, holding = (...))` admits real scalar polynomial
+arithmetic and local operator composition at exact declared formals, Parameters, or continuous
+state Fields. Let aliases retain dependencies and cannot be differentiation or holding bindings.
+A Component Parameter slot preserves a directly bound parent Parameter direction; a literal
+or derived binding does not introduce a new independent value.
+The [formal partial evidence](../../verify/language/formal-partials/README.md) checks analytic
+values and quotient dimensions. General smooth functions, coordinate derivatives, mixed source
+partials, and solved sensitivities remain outside this executable profile.
 
-Python `Source.operator` authors a local concrete scalar definition from typed formal handles
+Python `Module.operator` authors a local concrete scalar definition from typed formal handles
 and a callback invoked once. Its returned handle accepts named arguments. Formal handles
-cannot escape their scope, and a foreign Source cannot acquire a call merely because every
+cannot escape their scope, and a foreign Module cannot acquire a call merely because every
 argument is a literal. Qualified imported operator calls remain available through source
 compilation rather than a raw qualified-name handle constructor.
 

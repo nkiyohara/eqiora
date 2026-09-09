@@ -17,6 +17,22 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     }
     checked_range(expression.range())?;
     match expression.kind() {
+        ExprKind::Partial {
+            value,
+            wrt,
+            holding,
+        } => {
+            validate_name_path(wrt)?;
+            if holding.len() > super::SourceAstFactory::MAX_EXPRESSION_NODES {
+                return Err(AstConstructionError::new(
+                    "partial holding set exceeds expression resource bound",
+                ));
+            }
+            for name in holding {
+                validate_name_path(name)?;
+            }
+            validate_expression_depth(value, depth + 1)
+        }
         ExprKind::Number(_) | ExprKind::Boolean(_) => Ok(()),
         ExprKind::Member { value, member } => {
             if !matches!(
@@ -93,9 +109,9 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
         }
         ExprKind::Call { callee, arguments } => {
             validate_name_path(callee)?;
-            if matches!(callee.as_str(), "sum" | "product") {
+            if matches!(callee.as_str(), "sum" | "product" | "partial") {
                 return Err(AstConstructionError::new(
-                    "sum/product require a structured reduction binder",
+                    "sum/product/partial require structured compile-time bindings",
                 ));
             }
             if let Some(bindings) = arguments.named() {

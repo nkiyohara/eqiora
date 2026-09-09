@@ -67,6 +67,24 @@ impl Expr {
         rewrite: &mut dyn FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
+            ExprKind::Partial {
+                value,
+                wrt,
+                holding,
+            } => ExprKind::Partial {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                wrt: rewrite(wrt)
+                    .unwrap_or_else(|| wrt.clone())
+                    .with_range(wrt.range()),
+                holding: holding
+                    .iter()
+                    .map(|name| {
+                        rewrite(name)
+                            .unwrap_or_else(|| name.clone())
+                            .with_range(name.range())
+                    })
+                    .collect(),
+            },
             ExprKind::Member { value, member } => ExprKind::Member {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 member: member.clone(),
@@ -214,6 +232,15 @@ fn expression_name(path: NamePath) -> ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprKind {
+    /// An explicit first partial with compile-time independent-input bindings.
+    Partial {
+        /// Explicit expression; aliases retain their ordinary dependencies.
+        value: Box<Expr>,
+        /// Declared independent value or lexical operator formal.
+        wrt: NamePath,
+        /// Additional held-fixed binding assertions, never runtime arguments.
+        holding: Vec<NamePath>,
+    },
     /// Boolean truth value, distinct from numeric literals.
     Boolean(bool),
     /// Exact decimal literal, interpreted in its required value-domain context.

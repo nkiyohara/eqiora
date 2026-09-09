@@ -286,6 +286,10 @@ impl Resolver<'_> {
                 callee: callee.clone(),
                 argument: self.resolve(argument, None)?,
             },
+            LoweringExpressionNode::Partial { value, wrt } => LoweringExpressionNode::Partial {
+                value: self.resolve(value, Some(ScalarDomain::Real))?,
+                wrt: wrt.clone(),
+            },
             LoweringExpressionNode::Sample { value, clock } => LoweringExpressionNode::Sample {
                 value: self.resolve(value, None)?,
                 clock: clock.clone(),

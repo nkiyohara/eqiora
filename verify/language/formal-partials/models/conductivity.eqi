@@ -1,0 +1,3 @@
+operator conductivity(input T:K,input T0:K,input k0:W/m/K,input a:1/K):W/m/K=k0*(1+a*(T-T0)+a*a*(T-T0)*(T-T0));
+operator slope(input T:K,input T0:K,input k0:W/m/K,input a:1/K):W/m/K/K=partial(conductivity(T=T,T0=T0,k0=k0,a=a),wrt=T,holding=(T0,k0,a));
+model M() { relation r { slope(T=320 [K],T0=300 [K],k0=10 [W/m/K],a=0.01 [1/K])=0.14 [W/m/K/K]; } }

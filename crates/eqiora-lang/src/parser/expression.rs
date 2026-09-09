@@ -359,6 +359,9 @@ impl Parser<'_> {
             } else {
                 NamePath::single(name, token.range())
             };
+            if self.at(TokenKind::LeftParen) && path.as_str() == "partial" {
+                return self.parse_partial(path);
+            }
             if self.at(TokenKind::LeftParen)
                 && matches!(path.as_str(), "sum" | "product" | "min" | "max")
             {

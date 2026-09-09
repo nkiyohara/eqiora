@@ -51,6 +51,57 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         }
     }
     let lowered = match expression.kind() {
+        ExprKind::Partial {
+            value,
+            wrt,
+            holding,
+        } => {
+            let independent = |binding: &NamePath| -> Result<String, Diagnostic> {
+                // The definition checker already excludes let aliases. Component
+                // Parameter slots are terms, and a direct binding preserves the
+                // exact parent Parameter rather than allocating another entity.
+                if let Some(parameter) = scope.parameter(binding.as_str()) {
+                    return match parameter.lineage {
+                        super::super::parameters::ParameterLineage::Parameter(identity) => {
+                            Ok(super::super::expand::names::internal_name(identity))
+                        }
+                        _ => Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            binding.range(),
+                            "partial binding must retain an independent Parameter; a specialized literal or derived term is not a new independent value",
+                        )),
+                    };
+                }
+                let symbol = resolve_expression_symbol(file, binding, scope)?;
+                if !matches!(symbol.kind, SymbolKind::Parameter | SymbolKind::Field) {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        binding.range(),
+                        "partial binding must name a declared independent Parameter or continuous state Field",
+                    ));
+                }
+                Ok(symbol.internal_name.clone())
+            };
+            let selected = independent(wrt)?;
+            let mut seen = std::collections::BTreeSet::from([selected.clone()]);
+            for binding in holding {
+                if !seen.insert(independent(binding)?) {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        binding.range(),
+                        "partial holding requires distinct other independent bindings",
+                    ));
+                }
+            }
+            LoweringExpression::partial(
+                rewrite_expression_with_boundary_member(file, value, scope, active)?,
+                selected,
+                expression.range(),
+            )
+        }
         ExprKind::Case { value, arms } => {
             let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;
             let arms = arms

@@ -1,30 +1,24 @@
-//! Ordered formal differentiation; normalization remains a separate proof view.
-use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+//! Ordered formal differentiation delegates to the schema-owned transform.
+use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_schema::kernel::typing::ExpressionType;
 use eqiora_schema::kernel::{ExprDagBuilder, ExprId};
 
-use super::{CalculusError, ScalarCalculus, ScalarCalculusNode, calculus_index};
-
-#[derive(Clone, Copy)]
-struct Jet {
-    value: usize,
-    first: Option<usize>,
-    second: Option<usize>,
-}
+use super::{
+    CalculusBuilder, CalculusError, CalculusNode, PureValueClass, ScalarCalculus,
+    ScalarCalculusNode,
+};
 
 impl<I: Clone> ScalarCalculus<I> {
-    /// Append the ordered first or second formal derivative as an ordinary DAG.
-    /// The returned type includes the exact quotient of physical dimensions.
-    /// Arguments substitute the corresponding checked formal types. Only work
-    /// reachable from the requested derivative is appended. Product-rule terms
-    /// retain their order; no floating reassociation occurs.
+    /// Append an ordered first or second formal partial as an ordinary DAG.
+    /// Other inputs are held fixed. Only reachable derivative work is appended;
+    /// dimensions, product-rule order and input occurrence identities are retained.
     ///
     /// # Errors
-    /// Rejects non-real or shaped formals/results, unsupported orders, wrong
-    /// arity, invalid argument IDs, and unrepresentable derivative dimensions.
+    /// Rejects non-real/shaped inputs or results, unsupported orders, invalid
+    /// argument IDs, and unrepresentable dimensions or calculus resource bounds.
     pub fn partial(
         &self,
-        builder: &mut ExprDagBuilder,
+        destination: &mut ExprDagBuilder,
         arguments: &[ExprId],
         formal: u16,
         order: u8,
@@ -46,7 +40,7 @@ impl<I: Clone> ScalarCalculus<I> {
             return Err(CalculusError::UnsupportedDerivative);
         }
         for argument in arguments {
-            builder
+            destination
                 .validate_prior_operand(*argument)
                 .map_err(projection)?;
         }
@@ -55,130 +49,74 @@ impl<I: Clone> ScalarCalculus<I> {
             .pow(i32::from(order), 1)
             .and_then(|denominator| self.result_type.dimension().div(denominator))
             .ok_or(CalculusError::UnsupportedDerivative)?;
-        let result_type = ExpressionType::scalar(dimension, self.result_type.support.clone());
-        let destination = builder;
-        let mut plan = PartialPlan::default();
-        let builder = &mut plan;
-        let arguments = arguments
-            .iter()
-            .map(|id| builder.push(PartialNode::Argument(*id)))
-            .collect::<Vec<_>>();
-        let mut jets: Vec<Jet> = Vec::with_capacity(self.nodes.len());
-        for node in &self.nodes {
-            let jet = match node {
-                ScalarCalculusNode::Rational { value, dimension } => Jet {
-                    value: constant(builder, *dimension, value.as_f64())?,
-                    first: None,
-                    second: None,
-                },
-                ScalarCalculusNode::FormalComponent(atom) => Jet {
-                    value: arguments[usize::from(atom.formal())],
-                    first: if atom.formal() == formal {
-                        Some(constant(builder, DimExponents::DIMENSIONLESS, 1.0)?)
-                    } else {
-                        None
-                    },
-                    second: None,
-                },
-                ScalarCalculusNode::Neg(id) => {
-                    let a = jets[calculus_index(*id, jets.len())?];
-                    Jet {
-                        value: builder.neg(a.value).map_err(projection)?,
-                        first: negate(builder, a.first)?,
-                        second: negate(builder, a.second)?,
-                    }
-                }
-                ScalarCalculusNode::Add(left, right) => {
-                    let a = jets[calculus_index(*left, jets.len())?];
-                    let b = jets[calculus_index(*right, jets.len())?];
-                    Jet {
-                        value: builder.add(a.value, b.value).map_err(projection)?,
-                        first: add(builder, a.first, b.first)?,
-                        second: add(builder, a.second, b.second)?,
-                    }
-                }
-                ScalarCalculusNode::Mul(left, right) => {
-                    let a = jets[calculus_index(*left, jets.len())?];
-                    let b = jets[calculus_index(*right, jets.len())?];
-                    let first_left = mul(builder, a.first, Some(b.value))?;
-                    let first_right = mul(builder, Some(a.value), b.first)?;
-                    let first = add(builder, first_left, first_right)?;
-                    let second = if order == 2 {
-                        let ll = mul(builder, a.second, Some(b.value))?;
-                        let lr = mul(builder, a.first, b.first)?;
-                        let rl = mul(builder, a.first, b.first)?;
-                        let rr = mul(builder, Some(a.value), b.second)?;
-                        let left = add(builder, ll, lr)?;
-                        let right = add(builder, rl, rr)?;
-                        add(builder, left, right)?
-                    } else {
-                        None
-                    };
-                    Jet {
-                        value: builder.mul(a.value, b.value).map_err(projection)?,
-                        first,
-                        second,
-                    }
-                }
-            };
-            jets.push(jet);
-        }
-        let jet = jets[calculus_index(self.root, jets.len())?];
-        let derivative = if order == 1 { jet.first } else { jet.second };
-        let root = match derivative {
-            Some(root) => root,
-            None => constant(builder, dimension, 0.0)?,
+        let class = |dimension| {
+            PureValueClass::invariant_scalar()
+                .with_dimension(dimension)
+                .with_scalar_domain(ScalarDomain::Real)
         };
-        Ok((plan.append(root, destination)?, result_type))
+        let formals = self
+            .argument_types
+            .iter()
+            .map(|ty| class(ty.dimension()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut builder = CalculusBuilder::new(formals, class(dimension)?)?;
+        for node in &self.nodes {
+            builder.push(match node {
+                ScalarCalculusNode::Rational { value, dimension } => CalculusNode::Rational {
+                    value: *value,
+                    dimension: *dimension,
+                },
+                ScalarCalculusNode::FormalComponent(atom) => CalculusNode::FormalComponent {
+                    formal: atom.formal(),
+                    axes: Box::new([]),
+                },
+                ScalarCalculusNode::Neg(value) => CalculusNode::Neg(*value),
+                ScalarCalculusNode::Add(left, right) => CalculusNode::Add(*left, *right),
+                ScalarCalculusNode::Mul(left, right) => CalculusNode::Mul(*left, *right),
+            })?;
+        }
+        let mut root = self.root;
+        for _ in 0..order {
+            root = builder.partial(root, formal)?;
+        }
+        let definition = builder.finish(root)?;
+        let mut plan = PartialPlan::default();
+        let mut mapped = Vec::with_capacity(definition.nodes().len());
+        for node in definition.nodes() {
+            let get = |id: super::CalculusNodeId| mapped[id.index() as usize];
+            let next = match node {
+                CalculusNode::Rational { value, dimension } => plan.push(PartialNode::Constant(
+                    ValueLiteral::from_real(
+                        ValueType::scalar(ScalarDomain::Real, *dimension)
+                            .map_err(|_| CalculusError::UnsupportedDerivative)?,
+                        value.as_f64(),
+                    )
+                    .map_err(|error| CalculusError::DerivativeProjection(error.to_string()))?,
+                )),
+                CalculusNode::FormalComponent { formal, .. } => {
+                    plan.push(PartialNode::Argument(arguments[usize::from(*formal)]))
+                }
+                CalculusNode::Neg(value) => plan.push(PartialNode::Neg(get(*value))),
+                CalculusNode::Add(left, right) => {
+                    plan.push(PartialNode::Add(get(*left), get(*right)))
+                }
+                CalculusNode::Mul(left, right) => {
+                    plan.push(PartialNode::Mul(get(*left), get(*right)))
+                }
+                _ => return Err(CalculusError::UnsupportedDerivative),
+            };
+            mapped.push(next);
+        }
+        let root = mapped[definition.root().index() as usize];
+        Ok((
+            plan.append(root, destination)?,
+            ExpressionType::scalar(dimension, self.result_type.support.clone()),
+        ))
     }
 }
 
 fn projection(error: eqiora_core::Diagnostic) -> CalculusError {
     CalculusError::DerivativeProjection(error.to_string())
-}
-
-fn constant(
-    builder: &mut PartialPlan,
-    dimension: DimExponents,
-    value: f64,
-) -> Result<usize, CalculusError> {
-    builder
-        .constant(
-            ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, dimension).expect("numeric scalar type"),
-                value,
-            )
-            .map_err(|error| CalculusError::DerivativeProjection(error.to_string()))?,
-        )
-        .map_err(projection)
-}
-
-fn negate(builder: &mut PartialPlan, value: Option<usize>) -> Result<Option<usize>, CalculusError> {
-    value
-        .map(|value| builder.neg(value).map_err(projection))
-        .transpose()
-}
-
-fn add(
-    builder: &mut PartialPlan,
-    a: Option<usize>,
-    b: Option<usize>,
-) -> Result<Option<usize>, CalculusError> {
-    match (a, b) {
-        (Some(a), Some(b)) => builder.add(a, b).map(Some).map_err(projection),
-        (a, b) => Ok(a.or(b)),
-    }
-}
-
-fn mul(
-    builder: &mut PartialPlan,
-    a: Option<usize>,
-    b: Option<usize>,
-) -> Result<Option<usize>, CalculusError> {
-    match (a, b) {
-        (Some(a), Some(b)) => builder.mul(a, b).map(Some).map_err(projection),
-        _ => Ok(None),
-    }
 }
 
 #[derive(Default)]
@@ -200,19 +138,6 @@ impl PartialPlan {
         self.nodes.push(node);
         id
     }
-    fn constant(&mut self, value: ValueLiteral) -> Result<usize, eqiora_core::Diagnostic> {
-        Ok(self.push(PartialNode::Constant(value)))
-    }
-    fn neg(&mut self, value: usize) -> Result<usize, eqiora_core::Diagnostic> {
-        Ok(self.push(PartialNode::Neg(value)))
-    }
-    fn add(&mut self, a: usize, b: usize) -> Result<usize, eqiora_core::Diagnostic> {
-        Ok(self.push(PartialNode::Add(a, b)))
-    }
-    fn mul(&mut self, a: usize, b: usize) -> Result<usize, eqiora_core::Diagnostic> {
-        Ok(self.push(PartialNode::Mul(a, b)))
-    }
-
     fn append(self, root: usize, builder: &mut ExprDagBuilder) -> Result<ExprId, CalculusError> {
         let mut reachable = vec![false; self.nodes.len()];
         let mut pending = vec![root];

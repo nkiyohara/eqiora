@@ -3,7 +3,7 @@ use eqiora_schema::kernel::BoundarySide;
 use crate::identity::{ElaborationIdentityLimits, FullElaborationIdentity, InstancePath};
 use eqiora_core::Diagnostic;
 
-pub(super) fn internal_name(identity: FullElaborationIdentity) -> String {
+pub(in crate::hierarchy) fn internal_name(identity: FullElaborationIdentity) -> String {
     format!("e{identity}")
 }
 

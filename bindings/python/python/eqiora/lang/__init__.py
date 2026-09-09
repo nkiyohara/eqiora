@@ -586,6 +586,31 @@ def _expression(value: object) -> Expression:
     return Expression(_CREATE, _Ast.number(text), None)
 
 
+def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
+    """Differentiate an explicit scalar expression at a declared independent binding."""
+    value = _expression(value)
+    if not isinstance(wrt, Expression):
+        raise TypeError("partial wrt requires a declared expression binding")
+    if isinstance(holding, (str, bytes)) or not isinstance(holding, Sequence):
+        raise TypeError("partial holding requires a sequence of declared bindings")
+    if len(holding) > _MAX_EXPRESSION_NODES:
+        raise ModuleError("partial holding exceeds the expression node limit")
+    inputs = [value, wrt]
+    for binding in holding:
+        if not isinstance(binding, Expression):
+            raise TypeError("partial holding requires declared expression bindings")
+        inputs.append(binding)
+    owner = None
+    for item in inputs:
+        if owner is not None and item._owner is not None and owner is not item._owner:
+            raise ModuleError("partial bindings must belong to the same lexical owner")
+        if item._owner is not None:
+            owner = item._owner
+    return Expression(_CREATE, _Ast.partial(value._ast, wrt._ast, [item._ast for item in holding]), owner,
+                      _binders=frozenset().union(*(item._binders for item in inputs)),
+                      _sources=frozenset().union(*(item._sources for item in inputs)))
+
+
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression:
     """Construct a uniform spatial value in an explicitly referenced Cartesian frame.
 
@@ -2319,6 +2344,7 @@ __all__ = [
     "math",
     "normal",
     "ordinal",
+    "partial",
     "derivative",
     "pre",
     "next",

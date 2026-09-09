@@ -35,6 +35,7 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
                     | "isotropic_lift"
                     | "normal"
                     | "derivative"
+                    | "partial"
                     | "pre"
                     | "next"
                     | "sample"
@@ -118,6 +119,7 @@ fn compile_local(
             ));
         }
         match expression.kind() {
+            ExprKind::Partial { value, .. } => pending.push((value, depth + 1)),
             ExprKind::Call { callee, arguments } => {
                 if declaration
                     .formals()
@@ -307,6 +309,40 @@ fn compile_expression(
     builder: &mut CalculusBuilder,
 ) -> Result<CalculusNodeId, Diagnostic> {
     let node = match expression.kind() {
+        ExprKind::Partial {
+            value,
+            wrt,
+            holding,
+        } => {
+            let selected = *formals.get(wrt.as_str()).ok_or_else(|| {
+                pure_error(
+                    file,
+                    wrt.range(),
+                    "partial wrt must name an independent lexical formal",
+                )
+            })?;
+            let mut seen = std::collections::BTreeSet::new();
+            for binding in holding {
+                if !formals.contains_key(binding.as_str())
+                    || binding.as_str() == wrt.as_str()
+                    || !seen.insert(binding.as_str())
+                {
+                    return Err(pure_error(
+                        file,
+                        binding.range(),
+                        "partial holding requires distinct other independent formals",
+                    ));
+                }
+            }
+            let root = compile_expression(file, value, formals, sources, compiled, builder)?;
+            return builder.partial(root, selected).map_err(|error| {
+                pure_error(
+                    file,
+                    expression.range(),
+                    format!("unsupported partial of explicit real scalar polynomial: {error}"),
+                )
+            });
+        }
         ExprKind::Boolean(value) => CalculusNode::Boolean(*value),
         ExprKind::Quantity { value, unit } => {
             let (dimension, shift) = crate::units::exact_unit(unit)
