@@ -90,11 +90,12 @@ fn wire(program: &KernelProgram) -> Value {
     )
     .unwrap()
 }
-fn reopen(value: &Value) -> Result<KernelProgram, eqiora_core::Diagnostic> {
+fn reopen(value: &Value) -> Result<KernelProgram, Vec<eqiora_core::Diagnostic>> {
     ModelEnvelope::from_json(
         &serde_json::to_vec(value).unwrap(),
         ModelDecoderLimits::default(),
-    )?
+    )
+    .map_err(|error| vec![error])?
     .to_program()
 }
 fn definition<'a>(wire: &'a mut Value, kind: &str) -> &'a mut Value {
