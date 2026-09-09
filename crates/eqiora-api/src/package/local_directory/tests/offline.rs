@@ -183,7 +183,7 @@ fn conflicting_local_standard_release_and_invalid_transport_are_rejected() {
         .replace("1.0.0", "0.3.0");
     fs::write(conflicting.join(PROJECT_MANIFEST), manifest).unwrap();
     let original = fs::read_to_string(project.join(PROJECT_MANIFEST)).unwrap();
-    fs::write(project.join(PROJECT_MANIFEST), format!("{original}\n[dependencies.\"Eqiora.Mechanics.Interfaces\"]\nversion = \"0.3.0\"\npath = \"../mechanics\"\n")).unwrap();
+    fs::write(project.join(PROJECT_MANIFEST), format!("{original}\n[dependencies.\"Eqiora.Mechanics.Interfaces\"]\nversion = \"0.3.0\"\nsources = [{{ path = \"../mechanics\" }}]\n")).unwrap();
     PackagedModelDocument::resolve_local_package_project_v1(&project, &store).unwrap();
     let manifest = fs::read(project.join(PROJECT_MANIFEST)).unwrap();
     let lock = fs::read(project.join(PROJECT_LOCK)).unwrap();
@@ -194,17 +194,14 @@ fn conflicting_local_standard_release_and_invalid_transport_are_rejected() {
         "0.6.0",
     )
     .unwrap_err();
-    assert!(
-        error.to_string().contains("conflicting local and bundled"),
-        "{error}"
-    );
+    assert!(error.to_string().contains("conflicting content"), "{error}");
     assert_eq!(fs::read(project.join(PROJECT_MANIFEST)).unwrap(), manifest);
     assert_eq!(fs::read(project.join(PROJECT_LOCK)).unwrap(), lock);
     fs::write(
         project.join(PROJECT_MANIFEST),
         String::from_utf8(manifest).unwrap().replace(
             "path = \"../mechanics\"",
-            "path = \"../mechanics\"\nbundled = true",
+            "path = \"../mechanics\", bundled = true",
         ),
     )
     .unwrap();

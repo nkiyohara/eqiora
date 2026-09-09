@@ -413,11 +413,11 @@ resolution = eqiora.add_bundled_dependency(
 )
 ```
 
-Create the store directory first. The request must match the exact release
+Create the store directory first. The request must match the release
 shipped in the distribution. The solid package is
 `Eqiora.Solid.LinearElasticity`, version `0.6.0`.
-The manifest records `version = "0.6.0"` and `bundled = true` for the fluid
-dependency; local dependencies instead record an explicit `path`.
+The manifest records `version = "0.6.0"` and `sources = [{ bundled = true }]`
+for the fluid dependency. Each dependency lists its explicit candidate sources.
 
 `eqiora.toml` is the author-maintained project and package manifest. It owns the
 canonical name, exact version, source root, entry module, and direct
@@ -431,12 +431,12 @@ source = "src"
 entry = "models.main"
 
 [dependencies."org.example.materials"]
-version = "1.0.0"
-path = "packages/materials"
+version = "1"
+sources = [{ path = "packages/materials-1.2" }, { path = "packages/materials-1.3" }]
 
 [dependencies."org.example.components"]
 version = "2.1.0"
-path = "packages/components"
+sources = [{ path = "packages/components" }]
 ```
 
 Each dependency directory contains its own `eqiora.toml`. Dependency paths are
@@ -444,6 +444,36 @@ relative to the declaring manifest; `../library` explicitly selects a sibling
 outside the project directory. Absolute paths and parent segments after named
 directories are rejected. Each package's source root remains confined to that
 package directory. Package names, not local aliases, authorize imports.
+
+Requests are literal constraints, not caret compatibility promises:
+
+| Request | Matching releases |
+| --- | --- |
+| `1` | Stable `1.x.x` |
+| `1.2` | Stable `1.2.x` |
+| `1.2.3` | Exactly `1.2.3` |
+| `0.3` | Stable `0.3.x`; bare `0` is rejected |
+| `1.2.3-rc.1` | Exactly that prerelease |
+| `>=1.2.3,<2.0.0` | Stable versions between the stated endpoints |
+
+Bounded ranges require a complete lower and upper stable version, using `>` or
+`>=` followed by `<` or `<=`. Endpoints cannot contain prerelease or build
+metadata. Exact requests retain build metadata. There is no `latest`, wildcard,
+caret or automatic prerelease advancement.
+
+Explicit update freezes all configured candidate manifests, source files and
+README bytes before searching. Canonical package-name order and descending
+SemVer precedence select the first complete transitive solution, backtracking
+when requests conflict. One canonical name has one release throughout the graph.
+Identical content mirrors coalesce; different content for the same release and
+unresolved equal-precedence alternatives are rejected. Diagnostics include the
+conflicting requests and dependency paths. A cache hit never changes selection.
+
+Version matching is not scientific equivalence. The existing compiler still
+checks schema, public declarations, units, types and signatures before accepting
+the selected closure. Acquisition or validation failure does not select an older
+release. A failed selection, installation or publication preserves the accepted
+manifest/lock pair.
 
 `entry` selects a module relative to the source root: `models.main` selects
 `src/models/main.eqi` with the default source root. The generated package
@@ -483,6 +513,30 @@ The CLI uses the same operations: `package add --bundled`, `package fetch`,
 `package update`, `package vendor --destination`, and `package check`, each with
 the project path and `--store`.
 
+Inspect a frozen update before committing it:
+
+```python
+proposal = eqiora.preview_local_project(".")
+print(proposal.explanation)
+proposed_lock = proposal.lock
+resolution = proposal.commit(store_root)
+assert Path("eqiora.lock").read_bytes() == proposed_lock
+```
+
+`proposal.resolution` contains the exact semantic closure; `proposal.lock` also
+records authored requests and Git provenance. Commit consumes the proposal and
+publishes the already validated bytes, without selecting or downloading again.
+If the manifest or lock changed after preview, create a fresh proposal. The CLI's
+`eqiora package preview .` prints the same canonical proposed lock as JSON without
+installing packages or writing a lock. `package update` performs a fresh explicit
+preview and commit through the same native owner.
+
+Ordinary reopen, compile and run use the existing exact lock. Adding a newer
+candidate does not advance it; fetch only materializes its selected content.
+Changing a request, even to a wider range containing the current selection,
+requires an explicit update. Transport relocation alone does not change package
+identity or the accepted semantic edge.
+
 ### Explicit Git sources
 
 On Linux, add a public HTTPS repository or an explicit absolute/`./`/`../` local
@@ -500,8 +554,14 @@ The CLI equivalent is `eqiora package add . org.example.Materials --version 1.0.
 Revisions are lowercase full 40-digit commit IDs or explicit `refs/heads/...` /
 `refs/tags/...` names. Arbitrary revision expressions are rejected.
 
-`eqiora.lock` is a project envelope containing the exact semantic resolution and
-immutable Git commit selections. API return bytes remain the semantic resolution
+`eqiora.lock` uses the current `eqiora.project-lock.v2` envelope, containing authored
+requests, exact selected semantic edges and separate immutable Git commits.
+HTTPS commit provenance retains the explicit public repository locator so sources
+using the same ref name cannot borrow each other's pin. Changing that locator
+requires an explicit update. Local Git paths are not stored in the lock: a
+relocated explicit local source may supply the same accepted commit. Transport
+errors and rejected objects are failures, not permission to select an older version.
+API return bytes remain the semantic resolution
 accepted by `compile_package`; they are not the entire project lock. `fetch_project`
 retains the accepted commit even if its branch moves. `update_project` explicitly
 resolves the authored request again. `open_project`, compile and run never invoke Git.

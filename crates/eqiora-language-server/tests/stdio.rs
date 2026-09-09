@@ -436,7 +436,7 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
     write_package(&root_path, &root_sources);
     fs::write(
         fixture.0.join("eqiora.toml"),
-        "[package]\nname = \"org.example.EditorRoot\"\nversion = \"1.0.0\"\nsource = \"root/src\"\nentry = \"main\"\n\n[dependencies.\"org.example.EditorLibrary\"]\nversion = \"1.0.0\"\npath = \"library\"\n",
+        "[package]\nname = \"org.example.EditorRoot\"\nversion = \"1.0.0\"\nsource = \"root/src\"\nentry = \"main\"\n\n[dependencies.\"org.example.EditorLibrary\"]\nversion = \"1.0.0\"\nsources = [{ path = \"library\" }]\n",
     )
     .expect("write project manifest");
     fs::write(

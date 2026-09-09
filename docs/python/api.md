@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 243 canonical declaration summaries are source-traced; non-dunder member coverage remains **19 authoritative summaries and 728 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 245 canonical declaration summaries are source-traced; non-dunder member coverage remains **20 authoritative summaries and 731 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 280 literal public spellings, 243 canonical grouped declarations, 971 visible method signatures (747 non-dunder and 224 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 282 literal public spellings, 245 canonical grouped declarations, 976 visible method signatures (751 non-dunder and 225 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -2075,6 +2075,38 @@ Authority: [`bindings/python/python/eqiora/__init__.py::resolve`](../../bindings
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
 
+<a id="api-eqiora-ProjectUpdate"></a>
+
+### `eqiora.ProjectUpdate`
+
+A validated selection that can be inspected and committed once.
+
+Authority: [`crates/eqiora-python/src/package/update.rs::PyProjectUpdate`](../../crates/eqiora-python/src/package/update.rs)
+
+```python
+class ProjectUpdate:
+    @property
+    def resolution(self) -> bytes: ...
+    @property
+    def lock(self) -> bytes: ...
+    @property
+    def explanation(self) -> str: ...
+    def __repr__(self) -> str: ...
+    def commit(self, store_root: str | PathLike[str]) -> bytes: ...
+```
+
+<a id="api-eqiora-preview_local_project"></a>
+
+### `eqiora.preview_local_project`
+
+Preview the validated selection without installing or publishing it.
+
+Authority: [`crates/eqiora-python/src/package/update.rs::preview_local_project`](../../crates/eqiora-python/src/package/update.rs)
+
+```python
+def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: ...
+```
+
 <a id="api-eqiora-resolve_local_project"></a>
 
 ### `eqiora.resolve_local_project`
@@ -2091,7 +2123,7 @@ def resolve_local_project(project_root: str | PathLike[str], store_root: str | P
 
 ### `eqiora.add_local_dependency`
 
-Add or replace an exact dependency and publish the manifest and lock.
+Add or replace a dependency request and publish its exact selection.
 
 Authority: [`crates/eqiora-python/src/package.rs::add_local_dependency`](../../crates/eqiora-python/src/package.rs)
 

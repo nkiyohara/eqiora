@@ -47,7 +47,7 @@ def project(root: Path) -> tuple[Path, Path]:
     )
     (application / "eqiora.toml").write_text(
         '[package]\nname = "org.example.Portable"\nversion = "1.0.0"\nentry = "main"\n'
-        '[dependencies."org.example.External"]\nversion = "1.0.0"\npath = "../external"\n',
+        '[dependencies."org.example.External"]\nversion = "1.0.0"\nsources = [{ path = "../external" }]\n',
         encoding="utf-8",
     )
     store = root / "store"

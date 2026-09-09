@@ -1,5 +1,7 @@
 //! Exact offline Model Package compilation through the existing Python Model.
 
+mod update;
+
 use std::path::PathBuf;
 
 use eqiora::Diagnostic;
@@ -54,7 +56,7 @@ fn resolve_local_project(
     update_local_project(py, project_root, store_root, LocalDependencyEdit::Lock)
 }
 
-/// Add or replace one exact local dependency and update the project lock.
+/// Add or replace one authored local request and update its exact project lock.
 #[pyfunction]
 #[pyo3(signature = (project_root, store_root, name, *, version, path))]
 fn add_local_dependency(
@@ -608,6 +610,7 @@ fn compatibility_failure(message: impl Into<String>) -> CompilePackageFailure {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    update::register(module)?;
     module.add_function(wrap_pyfunction!(add_bundled_dependency, module)?)?;
     module.add_function(wrap_pyfunction!(add_git_dependency, module)?)?;
     module.add_function(wrap_pyfunction!(fetch_project, module)?)?;

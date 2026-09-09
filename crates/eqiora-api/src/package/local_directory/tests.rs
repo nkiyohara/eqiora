@@ -12,6 +12,7 @@ use crate::package::PackagedModelDocument;
 #[cfg(target_os = "linux")]
 mod git;
 mod offline;
+mod version_requests;
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 const SOURCE_PATH: &str = "src/main.eqi";
@@ -93,7 +94,7 @@ fn write_package(
     for (dependency, dependency_path) in dependencies {
         let identity = dependency.package_identity().expect("dependency identity");
         manifest.push_str(&format!(
-            "\n[dependencies.\"{}\"]\nversion = \"{}\"\npath = \"{dependency_path}\"\n",
+            "\n[dependencies.\"{}\"]\nversion = \"{}\"\nsources = [{{ path = \"{dependency_path}\" }}]\n",
             identity.name, identity.version
         ));
     }
@@ -404,12 +405,12 @@ fn local_dependency_cycle_is_rejected_before_lock() {
     write_package(&child, "src", &dependency, &[]);
     fs::write(
         fixture.0.join(PROJECT_MANIFEST),
-        "[package]\nname = \"org.example.Root\"\nversion = \"1.0.0\"\nentry = \"main\"\n\n[dependencies.\"org.example.Child\"]\nversion = \"1.0.0\"\npath = \"child\"\n",
+        "[package]\nname = \"org.example.Root\"\nversion = \"1.0.0\"\nentry = \"main\"\n\n[dependencies.\"org.example.Child\"]\nversion = \"1.0.0\"\nsources = [{ path = \"child\" }]\n",
     )
     .expect("write root manifest");
     fs::write(
         child.join(PROJECT_MANIFEST),
-        "[package]\nname = \"org.example.Child\"\nversion = \"1.0.0\"\nentry = \"main\"\n\n[dependencies.\"org.example.Root\"]\nversion = \"1.0.0\"\npath = \"..\"\n",
+        "[package]\nname = \"org.example.Child\"\nversion = \"1.0.0\"\nentry = \"main\"\n\n[dependencies.\"org.example.Root\"]\nversion = \"1.0.0\"\nsources = [{ path = \"..\" }]\n",
     )
     .expect("write child manifest");
 
@@ -449,7 +450,7 @@ fn partial_lock_write_preserves_the_accepted_project_pair() {
     let failure = transaction::commit_using(
         &candidate.project,
         &manifest,
-        &lock::ProjectLock::new(changed, vec![])
+        &lock::ProjectLock::new(changed, vec![], vec![])
             .unwrap()
             .bytes()
             .unwrap(),
@@ -510,9 +511,11 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
             "org.example.Library".to_owned(),
             LocalProjectDependency {
                 version: version.to_owned(),
-                path: Some("library".to_owned()),
-                bundled: false,
-                git: None,
+                sources: vec![LocalDependencySource {
+                    path: Some("library".to_owned()),
+                    bundled: false,
+                    git: None,
+                }],
             },
         );
         let candidate = prepare_local_package_project(
@@ -530,7 +533,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
             assert_eq!(candidate.root.dependencies.len(), 1);
         } else {
             let error = candidate.err().expect("reject foreign dependency version");
-            assert!(error.to_string().contains("instead of"));
+            assert!(error.to_string().contains("no single release satisfies"));
         }
         assert_eq!(
             fs::read(fixture.0.join(PROJECT_MANIFEST)).unwrap(),
@@ -597,20 +600,19 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
 fn dependency_depth_is_bounded_before_reading_another_manifest() {
     let fixture = TestDirectory::create("depth");
     let directory = open_project_root(&fixture.0).expect("project root");
-    let result = load_local_package(
+    let result = inventory::load(
         &directory,
         &fixture.0,
         PathBuf::new(),
         MAX_LOCAL_DEPENDENCY_DEPTH + 1,
         &mut LocalProjectOverrides::default(),
-        &mut BTreeMap::new(),
-        &mut BTreeMap::new(),
+        &mut inventory::Frozen::default(),
     );
     assert!(
         result
             .expect_err("bounded depth")
             .to_string()
-            .contains("depth limit")
+            .contains("depth bounds")
     );
 }
 
@@ -639,7 +641,7 @@ fn dependency_cannot_replace_an_ancestor_from_another_directory() {
     write_package(&duplicate, "src", &root_sources, &[]);
     let error = resolve_local_package_project_v1(&fixture.0, &store)
         .expect_err("duplicate ancestor must fail before preparation");
-    assert!(error.to_string().contains("supplied by both"));
+    assert!(error.to_string().contains("conflicting content"));
     assert!(!fixture.0.join(PROJECT_LOCK).exists());
 }
 
@@ -670,7 +672,7 @@ fn project_preparation_and_lock_publication_retain_the_opened_directory() {
     transaction::commit(
         &candidate.project,
         &manifest,
-        &lock::ProjectLock::new(resolution.clone(), vec![])
+        &lock::ProjectLock::new(resolution.clone(), vec![], vec![])
             .unwrap()
             .bytes()
             .unwrap(),
@@ -678,7 +680,7 @@ fn project_preparation_and_lock_publication_retain_the_opened_directory() {
     .unwrap();
     assert_eq!(
         fs::read(moved.join(PROJECT_LOCK)).unwrap(),
-        lock::ProjectLock::new(resolution, vec![])
+        lock::ProjectLock::new(resolution, vec![], vec![])
             .unwrap()
             .bytes()
             .unwrap()

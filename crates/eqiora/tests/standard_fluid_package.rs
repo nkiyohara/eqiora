@@ -178,7 +178,7 @@ entry = "main"
 
 [dependencies."Eqiora.Fluid"]
 version = "0.4.0"
-path = "fluid"
+sources = [{ path = "fluid" }]
 "#,
     )
     .expect("write project manifest");
@@ -191,7 +191,7 @@ entry = "fluid"
 
 [dependencies."Eqiora.Mechanics.Interfaces"]
 version = "0.3.0"
-path = "../mechanics"
+sources = [{ path = "../mechanics" }]
 "#,
     )
     .expect("write fluid manifest");
