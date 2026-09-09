@@ -460,10 +460,18 @@ impl ExpandedBlueprint {
                     definition: eqiora_schema::kernel::RecordInstanceDef::new(
                         staged.resolve::<kinds::RecordInstance>(identity.full)?.id(),
                         *definition,
-                        members
-                            .iter()
-                            .map(|member| resolve_raw(staged, *member))
-                            .collect::<Result<Vec<_>, _>>()?,
+                        {
+                            let mut expression = eqiora_schema::kernel::ExprDagBuilder::new();
+                            let roots = members
+                                .iter()
+                                .map(|member| {
+                                    expression.symbol(eqiora_schema::kernel::SymbolRef::Field(
+                                        staged.resolve::<kinds::Field>(member.full)?.id(),
+                                    ))
+                                })
+                                .collect::<Result<Vec<_>, Diagnostic>>()?;
+                            expression.finish(roots)?
+                        },
                     )?
                     .into(),
                 },

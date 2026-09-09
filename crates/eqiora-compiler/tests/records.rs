@@ -32,8 +32,20 @@ fn clocked_record_bus_retains_nominal_declaration_and_exact_ordered_leaves() {
         .unwrap();
     assert_eq!(instance.definition(), record.id());
     assert_eq!(
-        instance.members(),
-        &[
+        instance
+            .expression()
+            .roots()
+            .iter()
+            .map(|root| {
+                match instance.expression().node(*root).unwrap() {
+                    eqiora_schema::kernel::ExprNode::Symbol(
+                        eqiora_schema::kernel::SymbolRef::Field(id),
+                    ) => id.erase(),
+                    node => panic!("bus root must retain its exact Field: {node:?}"),
+                }
+            })
+            .collect::<Vec<_>>(),
+        vec![
             model.symbols().get("bus.voltage").unwrap(),
             model.symbols().get("bus.mode").unwrap()
         ]
