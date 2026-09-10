@@ -125,9 +125,12 @@ impl CommonElasticityPlan {
         })
     }
 
-    pub(crate) fn run(&self) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
+    pub(crate) fn run(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        self.admission.execute_elasticity(&REFERENCE_LINEAR_SOLVER)
+        self.admission.execute_elasticity(backend)
     }
 
     /// Project scientific observations through this exact admitted Plan.
@@ -167,8 +170,11 @@ impl CommonElasticityPlan {
     }
 
     /// Execute and authenticate observations without exposing a re-pairing seam.
-    fn run_observed(&self) -> Result<CommonElasticityRunOutput, Diagnostic> {
-        let solution = self.run()?;
+    fn run_observed(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonElasticityRunOutput, Diagnostic> {
+        let solution = self.run(backend)?;
         let observation = self.observe(&solution)?;
         Ok(CommonElasticityRunOutput {
             plan_identity: self.identity().to_owned(),
@@ -178,8 +184,17 @@ impl CommonElasticityPlan {
     }
 
     /// Execute solely from retained Plan state and publish one complete Result.
-    pub fn run_result(&self) -> Result<crate::CommonResult, Diagnostic> {
-        crate::CommonResult::accept_elasticity(self.clone(), 0.0, self.run_observed()?)
+    pub fn run_result(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<crate::CommonResult, Diagnostic> {
+        crate::CommonResult::accept_elasticity(self.clone(), 0.0, self.run_observed(backend)?)
+    }
+
+    /// Exact selected solver release and library inventory.
+    #[must_use]
+    pub const fn solver_provider(&self) -> SolverProvider {
+        self.admission.linear.provider
     }
 
     #[must_use]

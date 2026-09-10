@@ -599,10 +599,6 @@
       "rejected_candidate_ids": []
     }
   ],
-  "authoring": {
-    "base_revision": "f36f6f029e7cdc59b81163355ff07ec1cdb9c78e",
-    "boundary": "fresh-context non-implementer; no planning implementation or Rust-derived oracle"
-  },
   "call_ledgers": {
     "candidate_rejection_before_execution": {
       "capability": {
@@ -678,7 +674,7 @@
         "operator_identity": "exact-owned-canonical-view",
         "reference_backend_solve_calls": 0
       },
-      "profile-complete-diagonal": {
+      "profile-general": {
         "faer_bicgstab_backend_solve_calls": 0,
         "faer_sparse_lu_backend_solve_calls": 0,
         "operator_apply_calls": 0,
@@ -686,7 +682,7 @@
         "operator_identity": "exact-owned-canonical-view",
         "reference_backend_solve_calls": 0
       },
-      "profile-general": {
+      "profile-jacobi-diagonal": {
         "faer_bicgstab_backend_solve_calls": 0,
         "faer_sparse_lu_backend_solve_calls": 0,
         "operator_apply_calls": 0,
@@ -1417,7 +1413,7 @@
   },
   "no_admitted_candidate": {
     "diagnostic_code": "EQ0807",
-    "diagnostic_message": "eqiora.host-serial-solver-planning/v1 no admitted candidate; trace=[eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
+    "diagnostic_message": "eqiora.host-serial-solver-planning/v2 no admitted candidate; trace=[eqiora.faer.bicgstab-general-jacobi-fast-f64=catalog.evidence-mismatch,eqiora.faer.sparse-lu-general-identity-fast-f64=catalog.evidence-mismatch,eqiora.reference.bicgstab-general-jacobi-reproducible-f64=catalog.evidence-mismatch]",
     "ordered_reasons": [
       [
         "eqiora.faer.bicgstab-general-jacobi-fast-f64",
@@ -1571,7 +1567,7 @@
       "selected_candidate_id": "eqiora.faer.bicgstab-general-jacobi-fast-f64"
     }
   ],
-  "policy_id": "eqiora.host-serial-solver-planning/v1",
+  "policy_id": "eqiora.host-serial-solver-planning/v2",
   "reason_ordering": [
     "ascending_candidate_id",
     "one_first_rejection_or_candidate.admitted",

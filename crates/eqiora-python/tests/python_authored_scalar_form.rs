@@ -53,7 +53,15 @@ parameters = {"diffusion": 1.0, "other_diffusion": 2.0, "source_scale": 1.0, "ot
 model = eqiora.compile(source=source, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
 mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(3, 3)))
 mesh = eqiora.meshing.generate(mesh_plan)
-linear = eqiora.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=1000)
+linear = eqiora.solve.Linear(
+    algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Reproducible,
+    provider=eqiora.solve.SolverProvider.reference(),
+    relative_tolerance=1e-10,
+    absolute_tolerance=1e-12,
+    maximum_iterations=1000,
+)
 plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
 assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
 assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity
@@ -68,7 +76,7 @@ assert replayed.formulation.requested == eqiora.FormulationSelectionMode.Authore
 assert replayed.formulation.requested_source_identity == plan.formulation.requested_source_identity
 assert eqiora.run(replayed).plan_key == plan.identity
 try:
-    eqiora.Plan.from_bytes(plan_bytes.replace(b"resolved-common-plan/v2", b"resolved-common-plan/v1"))
+    eqiora.Plan.from_bytes(plan_bytes.replace(b"resolved-common-plan/v3", b"resolved-common-plan/v1"))
 except eqiora.ValidationError:
     pass
 else:

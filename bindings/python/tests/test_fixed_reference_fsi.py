@@ -76,6 +76,10 @@ def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
         ),
         temporal=eqiora.time.BackwardEuler(step_s=0.05),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-11,
             absolute_tolerance=1.0e-13,
             maximum_iterations=20_000,
@@ -87,6 +91,10 @@ def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
 
 def linear(**overrides: float | int) -> eqiora.solve.Linear:
     values = {
+        "algorithm": eqiora.solve.LinearSolver.MinimumResidual,
+        "preconditioner": eqiora.solve.Preconditioner.Identity,
+        "reduction": eqiora.solve.Reduction.Reproducible,
+        "provider": eqiora.solve.SolverProvider.reference(),
         "relative_tolerance": 1.0e-11,
         "absolute_tolerance": 1.0e-13,
         "maximum_iterations": 20_000,
@@ -306,6 +314,10 @@ def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
         ),
         temporal=eqiora.time.BackwardEuler(step_s=0.05),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,
@@ -612,9 +624,15 @@ plan = eqiora.resolve(
     spatial=(eqiora.fem.MiniP1().at(model.domain("fluid")),
              eqiora.fem.P1().at(model.domain("solid"))),
     temporal=eqiora.time.BackwardEuler(step_s=0.05),
-    solve=eqiora.solve.Linear(relative_tolerance=1e-11,
-                              absolute_tolerance=1e-13,
-                              maximum_iterations=20000),
+    solve=eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        provider=eqiora.solve.SolverProvider.reference(),
+        relative_tolerance=1e-11,
+        absolute_tolerance=1e-13,
+        maximum_iterations=20000,
+    ),
 )
 fv, fp, sv, sd = plan.fields
 state = eqiora.State.initial(plan, time_s=0.0, fields=(

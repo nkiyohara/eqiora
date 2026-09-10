@@ -14,6 +14,22 @@ use eqiora_solver::{
 
 use eqiora_compiler::{CompiledModel, StaticBindingValue};
 
+fn exact_reference_linear(
+    algorithm: LinearSolver,
+    relative: f64,
+    absolute: f64,
+    maximum: NonZeroUsize,
+) -> CommonLinearRequest {
+    CommonLinearRequest::exact(
+        SolverPlan::new(algorithm, relative, absolute, maximum)
+            .unwrap()
+            .with_preconditioner(PreconditionerPolicy::Identity)
+            .with_reduction(ReductionPolicy::Reproducible),
+        REFERENCE_LINEAR_SOLVER.provider(),
+    )
+    .unwrap()
+}
+
 const COMPONENT: &str = r#"
 public component PoissonRectangle(
   support region: volume(ambient_dimension = 2),

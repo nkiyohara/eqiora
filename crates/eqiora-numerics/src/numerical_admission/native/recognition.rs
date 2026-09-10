@@ -268,61 +268,23 @@ pub(crate) fn require_policy_compatibility(
     spatial: NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
 ) -> Result<(), Diagnostic> {
-    let (properties, method_specific_tuple) = match (capability, spatial) {
-        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarQ1) => (
-            LinearOperatorProperties::General,
-            linear.planning_objective.is_none().then_some((
-                LinearSolver::BiConjugateGradientStabilized,
-                PreconditionerPolicy::Identity,
-                ReductionPolicy::Reproducible,
-            )),
-        ),
-        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarTpfa) => (
-            LinearOperatorProperties::SymmetricPositiveDefinite,
-            Some((
-                LinearSolver::ConjugateGradient,
-                PreconditionerPolicy::Identity,
-                ReductionPolicy::Reproducible,
-            )),
-        ),
-        (NativeCapability::IsotropicElasticity, NativeSpatialPolicy::ElasticityQ1) => (
-            LinearOperatorProperties::SymmetricPositiveDefinite,
-            Some((
-                LinearSolver::ConjugateGradient,
-                PreconditionerPolicy::Identity,
-                ReductionPolicy::Reproducible,
-            )),
-        ),
-        (NativeCapability::SteadyIncompressibleStokes, NativeSpatialPolicy::StokesMiniP1(_)) => (
-            LinearOperatorProperties::SymmetricIndefinite,
-            Some((
-                LinearSolver::SparseLu,
-                PreconditionerPolicy::Identity,
-                ReductionPolicy::Fast,
-            )),
-        ),
-        (
+    let properties = match (capability, spatial) {
+        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarQ1)
+        | (
             NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientMiniP1(_),
-        ) => (
-            LinearOperatorProperties::General,
-            Some((
-                LinearSolver::SparseLu,
-                PreconditionerPolicy::Identity,
-                ReductionPolicy::Fast,
-            )),
-        ),
-        (
+        )
+        | (
             NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientCellCentered(_),
-        ) => (
-            LinearOperatorProperties::General,
-            linear.planning_objective.is_none().then_some((
-                LinearSolver::BiConjugateGradientStabilized,
-                PreconditionerPolicy::Identity,
-                ReductionPolicy::Reproducible,
-            )),
-        ),
+        ) => LinearOperatorProperties::General,
+        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarTpfa)
+        | (NativeCapability::IsotropicElasticity, NativeSpatialPolicy::ElasticityQ1) => {
+            LinearOperatorProperties::SymmetricPositiveDefinite
+        }
+        (NativeCapability::SteadyIncompressibleStokes, NativeSpatialPolicy::StokesMiniP1(_)) => {
+            LinearOperatorProperties::SymmetricIndefinite
+        }
         _ => {
             return Err(invalid(
                 "Model capability and spatial policy are cross-wired",
@@ -330,11 +292,6 @@ pub(crate) fn require_policy_compatibility(
         }
     };
     if !linear.planning_audit_is_coherent()
-        || method_specific_tuple.is_some_and(|(algorithm, preconditioner, reduction)| {
-            linear.solver.algorithm() != algorithm
-                || linear.solver.preconditioner() != preconditioner
-                || linear.solver.reduction() != reduction
-        })
         || linear.execution != SERIAL_EXECUTION_PROVIDER
         || linear.workers != NonZeroUsize::MIN
     {

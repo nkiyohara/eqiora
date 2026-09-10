@@ -40,7 +40,7 @@ pub use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 pub use crate::linearized_output::CartesianScalarFieldLinearization;
 pub use crate::physical_network::{
     ScalarPhysicalAffineProblem, ScalarPhysicalAffineSolution, lower_scalar_physical_affine,
-    solve_scalar_physical_affine, solve_scalar_physical_affine_with_initial_guess,
+    solve_scalar_physical_affine,
 };
 pub use crate::poisson::{
     DirichletBoundary1d, PiecewiseLinearField1d, PoissonComparisonRow, PoissonSolution1d,

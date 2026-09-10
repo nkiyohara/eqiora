@@ -269,7 +269,7 @@ fn python_common_finite_route_owns_exact_plan_state_and_result() -> PyResult<()>
         )?;
         py.run(c_str!(r#"
 model = eqiora.compile(source=source)
-plan = eqiora.resolve(model, solve=eqiora.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
+plan = eqiora.resolve(model, solve=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100))
 assert plan.mesh is None
 assert plan.temporal is None
 state = eqiora.State.initial(plan)

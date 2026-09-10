@@ -12,11 +12,31 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
     let temporal = CommonBackwardEuler::from_seconds(step_s).unwrap();
     let scaling =
         IncompressibleScalingRequest2d::from_si(Some(0.41), Some(0.3), Some(0.09)).unwrap();
-    let linear =
-        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(2_000).unwrap()).unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
     let resolve = |owner, spatial| {
+        let linear = if spatial == CommonSpatialPolicy::MiniP1 {
+            CommonLinearRequest::exact(
+                SolverPlan::new(
+                    LinearSolver::SparseLu,
+                    1e-10,
+                    1e-12,
+                    NonZeroUsize::new(2_000).unwrap(),
+                )
+                .unwrap()
+                .with_preconditioner(PreconditionerPolicy::Identity)
+                .with_reduction(ReductionPolicy::Fast),
+                ResolveOnlyBackend.provider(),
+            )
+            .unwrap()
+        } else {
+            exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(2_000).unwrap(),
+            )
+        };
         resolve_common_plan(
             &model,
             owner,
@@ -79,13 +99,46 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         ModelDecoderLimits::default(),
     )
     .unwrap();
-    let linear =
-        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(2_000).unwrap()).unwrap();
+    let linear = CommonLinearRequest::exact(
+        SolverPlan::new(
+            LinearSolver::SparseLu,
+            1e-10,
+            1e-12,
+            NonZeroUsize::new(2_000).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(PreconditionerPolicy::Identity)
+        .with_reduction(ReductionPolicy::Fast),
+        ResolveOnlyBackend.provider(),
+    )
+    .unwrap();
     let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
     let resolve = |model: &ModelEnvelope, owner, spatial, formulation| {
+        let linear = if spatial == CommonSpatialPolicy::MiniP1 {
+            CommonLinearRequest::exact(
+                SolverPlan::new(
+                    LinearSolver::SparseLu,
+                    1e-10,
+                    1e-12,
+                    NonZeroUsize::new(2_000).unwrap(),
+                )
+                .unwrap()
+                .with_preconditioner(PreconditionerPolicy::Identity)
+                .with_reduction(ReductionPolicy::Fast),
+                ResolveOnlyBackend.provider(),
+            )
+            .unwrap()
+        } else {
+            exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(2_000).unwrap(),
+            )
+        };
         let method = match formulation {
             None => CommonMethodRequest::Uniform(spatial),
             Some(formulation) => CommonMethodRequest::Exact {
@@ -187,7 +240,15 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &model,
         resources(&geometry),
         CommonSpatialPolicy::CellCentered,
-        newton_policy(linear, nonlinear),
+        newton_policy(
+            exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(2_000).unwrap(),
+            ),
+            nonlinear,
+        ),
         Some(alternate_scaling),
         Some(temporal),
         &ResolveOnlyBackend,
@@ -211,7 +272,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     assert_ne!(fast.identity(), low_memory.identity());
     assert_eq!(
         robust.selected_solver_candidate_id(),
-        Some("eqiora.reference.bicgstab-general-jacobi-reproducible-f64")
+        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
     );
     assert_eq!(
         fast.selected_solver_candidate_id(),
@@ -219,17 +280,17 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
     assert_eq!(
         low_memory.selected_solver_candidate_id(),
-        Some("eqiora.faer.bicgstab-general-jacobi-fast-f64")
+        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
     );
     for plan in [&robust, &fast, &low_memory] {
         assert_eq!(
             plan.solver_planning_policy_id(),
-            Some("eqiora.host-serial-solver-planning/v1")
+            Some("eqiora.host-serial-solver-planning/v2")
         );
-        assert_eq!(plan.solver_planning_reasons().len(), 6);
+        assert_eq!(plan.solver_planning_reasons().len(), 4);
         assert!(plan.selected_solver_evidence_case().is_some());
     }
-    let unsupported_mini = resolve_common_plan(
+    let planned_mini = resolve_common_plan(
         &model,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
@@ -248,11 +309,10 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         &PlanningFaerBackend,
         None,
     )
-    .unwrap_err();
-    assert!(
-        unsupported_mini
-            .message()
-            .contains("cell-centered General canonical-CSR")
+    .unwrap();
+    assert_eq!(
+        planned_mini.selected_solver_candidate_id(),
+        Some("eqiora.faer.sparse-lu-general-identity-fast-f64")
     );
     assert_eq!(
         mini.formulation().effective(),

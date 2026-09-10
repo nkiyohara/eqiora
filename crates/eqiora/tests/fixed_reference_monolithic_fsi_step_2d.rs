@@ -419,8 +419,21 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         ),
         CommonScopedSpatialPolicy::new(model_digest.clone(), solid_domain, CommonSpatialPolicy::P1),
     ]);
-    let requested =
-        CommonSolvePolicy::linear(1.0e-11, 1.0e-13, NonZeroUsize::new(20_000).unwrap()).unwrap();
+    let requested = CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            eqiora::solver::SolverPlan::new(
+                eqiora::solver::LinearSolver::MinimumResidual,
+                1.0e-11,
+                1.0e-13,
+                NonZeroUsize::new(20_000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora::solver::ReductionPolicy::Reproducible),
+            eqiora::solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    );
     let common_plans = [
         (
             "manual legacy scaling",

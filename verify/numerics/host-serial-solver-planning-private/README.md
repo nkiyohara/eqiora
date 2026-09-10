@@ -52,9 +52,13 @@ cargo run --locked -p eqiora-verify -- run \
   --case numerics.host-serial-solver-planning-private
 ```
 
-At the frozen preimplementation revision, `planning.rs` and its crate-root test
-wiring do not exist. The public integration target therefore fails at the
-absent planning API, and this exact library selector fails closed because the
-aggregator is absent. These are the intentional red boundaries until production
-and integration-owned wiring are composed. This private case adds no public
-surface or product capability.
+For structurally missing diagonal entries, the v2 check independently rejects
+both Jacobi candidates and retains identity-preconditioned SparseLU. LU does not
+require diagonal storage to admit a nonsingular matrix. Resolution still performs
+zero numerical actions; numerical nonsingularity and original-residual acceptance
+remain execution responsibilities. The original General rational oracle and all
+other exact catalog, control, and provider falsifiers remain applicable.
+
+This registered case covers the General catalog projection. SPD and symmetric-
+indefinite profiles have separate ordinary product tests; this case does not prove
+typed constraint/gauge authenticity or common Python integration for those profiles.

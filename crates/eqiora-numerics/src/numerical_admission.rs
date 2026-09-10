@@ -293,51 +293,75 @@ impl CommonBackwardEuler {
     }
 }
 
-/// Algorithm-neutral linear request admitted by the common resolver.
+/// Explicit linear-solver intent admitted by the common resolver.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CommonLinearRequest {
     relative_tolerance: f64,
     absolute_tolerance: f64,
     maximum_iterations: NonZeroUsize,
-    objective: Option<SolverPlanningObjective>,
+    selection: CommonLinearSelection,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum CommonLinearSelection {
+    Exact {
+        plan: SolverPlan,
+        provider: SolverProvider,
+    },
+    ProgramControlled(SolverPlanningObjective),
 }
 
 impl CommonLinearRequest {
-    /// Construct validated convergence controls without selecting an algorithm.
-    pub fn new(
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: NonZeroUsize,
-    ) -> Result<Self, Diagnostic> {
-        if !relative_tolerance.is_finite()
-            || !absolute_tolerance.is_finite()
-            || relative_tolerance < 0.0
-            || absolute_tolerance < 0.0
-            || (relative_tolerance == 0.0 && absolute_tolerance == 0.0)
-        {
-            return Err(invalid(
-                "solver tolerances must be finite and non-negative, with at least one positive",
-            ));
-        }
-        Ok(Self {
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-            objective: None,
-        })
+    /// Request exactly one caller-owned plan and complete provider release.
+    /// Admission never substitutes another algorithm, provider, or objective.
+    pub fn exact(plan: SolverPlan, provider: SolverProvider) -> Result<Self, Diagnostic> {
+        provider.validate()?;
+        Self::validated(
+            plan.relative_tolerance(),
+            plan.absolute_tolerance(),
+            plan.maximum_iterations(),
+            CommonLinearSelection::Exact { plan, provider },
+        )
     }
 
-    /// Construct a program-controlled request ranked by the versioned
-    /// host-serial policy after hard capability admission.
+    /// Request ranking by the versioned host-serial policy after hard admission.
     pub fn program_controlled(
         relative_tolerance: f64,
         absolute_tolerance: f64,
         maximum_iterations: NonZeroUsize,
         objective: SolverPlanningObjective,
     ) -> Result<Self, Diagnostic> {
-        Self::new(relative_tolerance, absolute_tolerance, maximum_iterations).map(|mut request| {
-            request.objective = Some(objective);
-            request
+        Self::validated(
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+            CommonLinearSelection::ProgramControlled(objective),
+        )
+    }
+
+    fn validated(
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        selection: CommonLinearSelection,
+    ) -> Result<Self, Diagnostic> {
+        if !relative_tolerance.is_finite()
+            || !absolute_tolerance.is_finite()
+            || relative_tolerance < 0.0
+            || absolute_tolerance < 0.0
+            || relative_tolerance.to_bits() == (-0.0_f64).to_bits()
+            || absolute_tolerance.to_bits() == (-0.0_f64).to_bits()
+            || (relative_tolerance == 0.0 && absolute_tolerance == 0.0)
+        {
+            return Err(invalid(
+                "solver tolerances must be finite and non-negative, without signed zero, with at least one positive",
+            ));
+        }
+        Ok(Self {
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+            selection,
         })
     }
 
@@ -359,81 +383,37 @@ impl CommonLinearRequest {
         self.maximum_iterations
     }
 
-    /// Program-controlled objective, or `None` for the capability's existing
-    /// exact method-specific request.
+    /// Explicit ranked objective; exact manual requests have no objective.
     #[must_use]
     pub const fn objective(self) -> Option<SolverPlanningObjective> {
-        self.objective
+        match self.selection {
+            CommonLinearSelection::ProgramControlled(objective) => Some(objective),
+            CommonLinearSelection::Exact { .. } => None,
+        }
     }
 
-    fn resolve(
-        self,
-        algorithm: LinearSolver,
-        reduction: ReductionPolicy,
-    ) -> Result<SolverPlan, Diagnostic> {
-        SolverPlan::new(
-            algorithm,
-            self.relative_tolerance,
-            self.absolute_tolerance,
-            self.maximum_iterations,
-        )
-        .map(|plan| plan.with_reduction(reduction))
+    /// Exact caller-owned plan and provider, absent for ranked requests.
+    #[must_use]
+    pub const fn exact_request(self) -> Option<(SolverPlan, SolverProvider)> {
+        match self.selection {
+            CommonLinearSelection::Exact { plan, provider } => Some((plan, provider)),
+            CommonLinearSelection::ProgramControlled(_) => None,
+        }
     }
 }
 
-/// Closed linear or Newton/linear hierarchy requested from the common resolver.
+/// Closed linear or Newton/linear hierarchy with explicit solver intent.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CommonSolvePolicy {
     /// One linear solve for a steady linearized problem.
     Linear(CommonLinearRequest),
-    /// One bounded Newton policy owning its nested linear controls.
+    /// One bounded Newton policy owning its explicit nested linear request.
     Newton {
         /// Nonlinear convergence/globalization policy.
         nonlinear: NonlinearSolvePlan,
-        /// Nested linear controls.
+        /// Exact or program-controlled linear request.
         linear: CommonLinearRequest,
     },
-}
-
-impl CommonSolvePolicy {
-    /// Construct one admitted algorithm-neutral linear request.
-    pub fn linear(
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: NonZeroUsize,
-    ) -> Result<Self, Diagnostic> {
-        CommonLinearRequest::new(relative_tolerance, absolute_tolerance, maximum_iterations)
-            .map(Self::Linear)
-    }
-
-    /// Construct one admitted bounded Newton policy around exact linear controls.
-    pub fn newton(
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: NonZeroUsize,
-        nonlinear: NonlinearSolvePlan,
-    ) -> Result<Self, Diagnostic> {
-        CommonLinearRequest::new(relative_tolerance, absolute_tolerance, maximum_iterations)
-            .map(|linear| Self::Newton { nonlinear, linear })
-    }
-
-    /// Construct one bounded Newton request whose nested linear solve is
-    /// selected by the versioned host-serial planning policy.
-    pub fn newton_program_controlled(
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: NonZeroUsize,
-        nonlinear: NonlinearSolvePlan,
-        objective: SolverPlanningObjective,
-    ) -> Result<Self, Diagnostic> {
-        CommonLinearRequest::program_controlled(
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-            objective,
-        )
-        .map(|linear| Self::Newton { nonlinear, linear })
-    }
 }
 
 /// Pressure representative retained by an admitted transient Plan.
@@ -491,11 +471,7 @@ pub struct CommonFsiPlan {
     scaling: FixedReferenceFsiScaleProfile2d,
     scaling_receipt: IncompressibleScalingReceipt2d,
     temporal: CommonBackwardEuler,
-    linear: SolverPlan,
-    solver_provider: SolverProvider,
-    solver_capabilities: SolverCapabilities,
-    execution_provider: ExecutionProvider,
-    workers: NonZeroUsize,
+    linear: NativeLinearPolicy,
     lineage: CommonSpatialPlanLineage,
     field_ids: [String; 4],
     domain_ids: [String; 2],

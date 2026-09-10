@@ -14,7 +14,7 @@ use crate::{
     SolverPlan, SolverProvider, TransposeLinearOperator, Transposed,
 };
 
-const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v1";
+const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v2";
 const REFERENCE_ID: &str = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64";
 const FAER_BICGSTAB_ID: &str = "eqiora.faer.bicgstab-general-jacobi-fast-f64";
 const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64";
@@ -776,7 +776,7 @@ fn exact_catalog_decisions_and_reasons_are_permutation_invariant() {
 
     for candidates in permutations {
         for objective in OBJECTIVES {
-            let decision = resolve_host_serial_solver_v1(&problem, objective, &candidates).unwrap();
+            let decision = resolve_host_serial_solver_v2(&problem, objective, &candidates).unwrap();
             assert_eq!(decision.objective(), objective);
             assert_eq!(decision.policy_id(), POLICY_ID);
             assert_eq!(decision.selected().id(), expected_selection(objective));
@@ -834,7 +834,7 @@ fn every_observable_admitted_subset_has_exact_reranking_and_trace() {
             )
         });
         for objective in OBJECTIVES {
-            let decision = resolve_host_serial_solver_v1(&problem, objective, &candidates).unwrap();
+            let decision = resolve_host_serial_solver_v2(&problem, objective, &candidates).unwrap();
             assert_eq!(
                 decision.selected().id(),
                 expected_subset_selection(admitted_mask, objective)
@@ -901,7 +901,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
     ] {
         actual_operator_ledger.reset();
         let error =
-            resolve_host_serial_solver_v1(&problem, SolverPlanningObjective::Robust, candidates)
+            resolve_host_serial_solver_v2(&problem, SolverPlanningObjective::Robust, candidates)
                 .unwrap_err();
         assert_inventory_failure(&error, fragment);
         assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
@@ -962,7 +962,7 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
             catalog[2],
         ];
         let error =
-            resolve_host_serial_solver_v1(&problem, SolverPlanningObjective::Fast, &candidates)
+            resolve_host_serial_solver_v2(&problem, SolverPlanningObjective::Fast, &candidates)
                 .unwrap_err();
         assert_inventory_failure(&error, "catalog.control-mismatch");
         assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
@@ -1125,7 +1125,7 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
             ),
         ),
     ];
-    let error = resolve_host_serial_solver_v1(
+    let error = resolve_host_serial_solver_v2(
         &nongeneral.linear_problem().unwrap(),
         SolverPlanningObjective::LowMemory,
         &plan_before_profile,
@@ -1223,7 +1223,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
         LinearOperatorProperties::SymmetricPositiveDefinite,
     );
     nongeneral_storage.reset_after_legitimate_construction();
-    let error = resolve_host_serial_solver_v1(
+    let error = resolve_host_serial_solver_v2(
         &nongeneral.linear_problem().unwrap(),
         SolverPlanningObjective::LowMemory,
         &candidates,
@@ -1241,7 +1241,7 @@ fn assert_faer_bicgstab_rejection(
     reason: &'static str,
 ) {
     for objective in OBJECTIVES {
-        let decision = resolve_host_serial_solver_v1(problem, objective, candidates).unwrap();
+        let decision = resolve_host_serial_solver_v2(problem, objective, candidates).unwrap();
         assert_eq!(
             decision.selected().id(),
             expected_subset_selection(FAER_SPARSE_LU_BIT | REFERENCE_BIT, objective)
@@ -1290,7 +1290,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     );
     nongeneral_storage.reset_after_legitimate_construction();
     assert_all_rejected(
-        &resolve_host_serial_solver_v1(
+        &resolve_host_serial_solver_v2(
             &nongeneral.linear_problem().unwrap(),
             SolverPlanningObjective::Robust,
             &catalog,
@@ -1309,7 +1309,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     )
     .unwrap();
     assert_all_rejected(
-        &resolve_host_serial_solver_v1(&hand_built, SolverPlanningObjective::Robust, &catalog)
+        &resolve_host_serial_solver_v2(&hand_built, SolverPlanningObjective::Robust, &catalog)
             .unwrap_err(),
         "profile.canonical-csr-required",
     );
@@ -1324,7 +1324,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     )
     .unwrap();
     assert_all_rejected(
-        &resolve_host_serial_solver_v1(&matrix_free, SolverPlanningObjective::Fast, &catalog)
+        &resolve_host_serial_solver_v2(&matrix_free, SolverPlanningObjective::Fast, &catalog)
             .unwrap_err(),
         "profile.canonical-csr-required",
     );
@@ -1340,7 +1340,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     )
     .unwrap();
     let transposed_error =
-        resolve_host_serial_solver_v1(&transposed, SolverPlanningObjective::Robust, &catalog)
+        resolve_host_serial_solver_v2(&transposed, SolverPlanningObjective::Robust, &catalog)
             .unwrap_err();
     let normal_trace = [
         (FAER_BICGSTAB_ID, "profile.normal-required"),
@@ -1373,14 +1373,19 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
         let (missing, missing_operator_ledger) =
             instrumented_canonical_system(&missing_storage, LinearOperatorProperties::General);
         missing_storage.reset_after_legitimate_construction();
-        assert_all_rejected(
-            &resolve_host_serial_solver_v1(
-                &missing.linear_problem().unwrap(),
-                SolverPlanningObjective::Robust,
-                &catalog,
-            )
-            .unwrap_err(),
-            "profile.complete-diagonal-required",
+        let problem = missing.linear_problem().unwrap();
+        let decision =
+            resolve_host_serial_solver_v2(&problem, SolverPlanningObjective::Robust, &catalog)
+                .unwrap();
+        assert_eq!(decision.selected().id(), FAER_SPARSE_LU_ID);
+        assert_eq!(
+            decision.reasons().collect::<Vec<_>>(),
+            vec![
+                (FAER_BICGSTAB_ID, "profile.complete-diagonal-required"),
+                (FAER_SPARSE_LU_ID, "candidate.admitted"),
+                (FAER_SPARSE_LU_ID, "candidate.selected.robust-reproducible"),
+                (REFERENCE_ID, "profile.complete-diagonal-required"),
+            ]
         );
         assert_zero_canonical_ledger(&missing_storage, &missing_operator_ledger);
         assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
@@ -1404,7 +1409,7 @@ fn no_admitted_diagnostic_freezes_the_complete_ordered_trace() {
         )
     });
     for objective in OBJECTIVES {
-        let error = resolve_host_serial_solver_v1(&problem, objective, &candidates).unwrap_err();
+        let error = resolve_host_serial_solver_v2(&problem, objective, &candidates).unwrap_err();
         assert_all_rejected(&error, "catalog.evidence-mismatch");
         assert_zero_canonical_ledger(&storage, &actual_operator_ledger);
         assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
@@ -1478,7 +1483,7 @@ fn selected_failure_executes_once_without_retry_plan_mutation_or_problem_substit
         let problem = system.linear_problem().unwrap();
         let (reference, faer_bicgstab, faer_sparse_lu) = backends();
         let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-        let decision = resolve_host_serial_solver_v1(&problem, objective, &catalog).unwrap();
+        let decision = resolve_host_serial_solver_v2(&problem, objective, &catalog).unwrap();
         assert_eq!(decision.selected().id(), expected_selection(objective));
         assert!(std::ptr::eq(decision.problem(), &problem));
         assert!(std::ptr::eq(
@@ -1519,7 +1524,7 @@ fn selected_success_executes_once_and_applies_exact_problem_for_both_true_residu
         let faer_bicgstab = CountingBackend::successful(FAER_PROVIDER, faer_bicgstab_plan());
         let faer_sparse_lu = CountingBackend::successful(FAER_PROVIDER, faer_sparse_lu_plan());
         let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
-        let decision = resolve_host_serial_solver_v1(&problem, objective, &catalog).unwrap();
+        let decision = resolve_host_serial_solver_v2(&problem, objective, &catalog).unwrap();
         assert_eq!(decision.selected().id(), expected_selection(objective));
         assert!(std::ptr::eq(decision.problem(), &problem));
         assert!(std::ptr::eq(
@@ -1566,5 +1571,83 @@ fn registered_host_serial_planning_oracle_executes_all_private_falsifiers() {
     assert_eq!(checks.len(), 10, "the frozen private oracle inventory");
     for check in checks {
         check();
+    }
+}
+
+#[test]
+fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
+    for (properties, algorithm, id) in [
+        (
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            LinearSolver::ConjugateGradient,
+            "eqiora.reference.cg-spd-identity-reproducible-f64",
+        ),
+        (
+            LinearOperatorProperties::SymmetricIndefinite,
+            LinearSolver::MinimumResidual,
+            "eqiora.reference.minres-indefinite-identity-reproducible-f64",
+        ),
+    ] {
+        let exact = plan(
+            algorithm,
+            PreconditionerPolicy::Identity,
+            ReductionPolicy::Reproducible,
+        );
+        let mut reference = CountingBackend::new(REFERENCE_PROVIDER, exact);
+        reference.capability = capability(reference_plan());
+        let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
+        // These descriptors advertise only General capabilities. The correct
+        // algorithm alone cannot admit the requested symmetric operator class.
+        let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false));
+        let rejected = plan_host_serial_solver_v2(
+            profile,
+            SolverPlanningObjective::Robust,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &reference,
+            &faer,
+        )
+        .unwrap_err();
+        assert!(
+            rejected
+                .message()
+                .contains("capability.exact-tuple-required")
+        );
+        assert_eq!(reference.solve_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(faer.solve_calls.load(Ordering::SeqCst), 0);
+        // Sparse LU accepts all three classes, but the provider must advertise
+        // the exact class. Change only that field before admitting the direct candidate.
+        faer.capability.operator_properties = properties;
+        let direct = plan_host_serial_solver_v2(
+            profile,
+            SolverPlanningObjective::Robust,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &reference,
+            &faer,
+        )
+        .unwrap();
+        assert_eq!(direct.solver_plan().algorithm(), LinearSolver::SparseLu);
+        assert_eq!(direct.solver_provider(), FAER_PROVIDER);
+        reference.capability = SolverCapability {
+            operator_properties: properties,
+            ..capability(exact)
+        };
+        let accepted = plan_host_serial_solver_v2(
+            profile,
+            SolverPlanningObjective::Robust,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &reference,
+            &faer,
+        )
+        .unwrap();
+        assert_eq!(accepted.selected_candidate_id(), id);
+        assert_eq!(accepted.solver_plan(), exact);
+        assert_eq!(reference.solve_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(faer.solve_calls.load(Ordering::SeqCst), 0);
     }
 }

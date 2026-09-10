@@ -35,6 +35,7 @@ use capability_view::{
     PyScalarPlanView, space_name,
 };
 mod policy;
+mod solver_request;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton, PyP1,
     PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective, PyTsitouras45,
@@ -246,25 +247,11 @@ fn solve_handles_from_native(
         return Ok((None, None));
     };
     let requested = match request {
-        CommonSolvePolicy::Linear(linear) => RequestedSolveHandle::Linear(Py::new(
-            py,
-            PyLinear::from_native_controls(
-                linear.relative_tolerance(),
-                linear.absolute_tolerance(),
-                linear.maximum_iterations(),
-                linear.objective(),
-            ),
-        )?),
+        CommonSolvePolicy::Linear(linear) => {
+            RequestedSolveHandle::Linear(Py::new(py, PyLinear::from_native(linear))?)
+        }
         CommonSolvePolicy::Newton { nonlinear, linear } => {
-            let linear = Py::new(
-                py,
-                PyLinear::from_native_controls(
-                    linear.relative_tolerance(),
-                    linear.absolute_tolerance(),
-                    linear.maximum_iterations(),
-                    linear.objective(),
-                ),
-            )?;
+            let linear = Py::new(py, PyLinear::from_native(linear))?;
             RequestedSolveHandle::Newton(Py::new(py, PyNewton::from_native(linear, nonlinear))?)
         }
     };
@@ -292,8 +279,9 @@ fn solve_handles_from_native(
             native
                 .operator_properties()
                 .expect("spatial common Plan owns operator properties"),
-            native.solver_backend(),
-            native.solver_backend_version(),
+            native
+                .linear_solver_provider()
+                .expect("spatial Plan owns its exact provider"),
             solver_planning_audit,
         ),
     )?;
@@ -829,39 +817,18 @@ fn resolve_plan(
     };
     let (solve_native, requested_solve_handle) = if let Ok(linear) = solve.extract::<Py<PyLinear>>()
     {
-        let (relative_tolerance, absolute_tolerance, maximum_iterations, objective) =
-            linear.borrow(py).controls();
-        if objective.is_some() {
-            return Err(PyTypeError::new_err(
-                "program-controlled solver planning currently requires a Newton solve over an admitted transient cell-centered model",
-            ));
-        }
+        let native = linear.borrow(py).native;
         (
-            CommonSolvePolicy::linear(relative_tolerance, absolute_tolerance, maximum_iterations)
-                .expect("validated Python linear controls remain valid"),
+            CommonSolvePolicy::Linear(native),
             RequestedSolveHandle::Linear(linear),
         )
     } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
         let newton_ref = newton.borrow(py);
-        let linear = newton_ref.linear.clone_ref(py);
-        let (relative_tolerance, absolute_tolerance, maximum_iterations, objective) =
-            linear.borrow(py).controls();
-        let native = match objective {
-            None => CommonSolvePolicy::newton(
-                relative_tolerance,
-                absolute_tolerance,
-                maximum_iterations,
-                newton_ref.native,
-            ),
-            Some(objective) => CommonSolvePolicy::newton_program_controlled(
-                relative_tolerance,
-                absolute_tolerance,
-                maximum_iterations,
-                newton_ref.native,
-                objective.into(),
-            ),
-        }
-        .expect("validated Python linear controls remain valid");
+        let linear = newton_ref.linear.borrow(py).native;
+        let native = CommonSolvePolicy::Newton {
+            nonlinear: newton_ref.native,
+            linear,
+        };
         drop(newton_ref);
         (native, RequestedSolveHandle::Newton(newton))
     } else {
@@ -930,8 +897,9 @@ fn resolve_plan(
             native
                 .operator_properties()
                 .expect("spatial common Plan owns operator properties"),
-            native.solver_backend(),
-            native.solver_backend_version(),
+            native
+                .linear_solver_provider()
+                .expect("spatial Plan owns its exact provider"),
             solver_planning_audit,
         ),
     )?;
@@ -961,6 +929,7 @@ fn resolve_plan(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    solver_request::register(module)?;
     module.add_class::<PyQ1>()?;
     module.add_class::<PyMiniP1>()?;
     module.add_class::<PyP1>()?;

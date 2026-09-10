@@ -50,6 +50,10 @@ def accepted() -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqi
         mesh=mesh,
         spatial=eqiora.fem.MiniP1(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.SparseLu,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Fast,
+            provider=eqiora.solve.SolverProvider.faer(),
             relative_tolerance=1.0e-6,
             absolute_tolerance=1.0e-13,
             maximum_iterations=10_000,
@@ -102,6 +106,10 @@ def test_fresh_and_replayed_models_use_the_same_root_resolver() -> None:
         mesh=plan.mesh,
         spatial=eqiora.fem.MiniP1(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.SparseLu,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Fast,
+            provider=eqiora.solve.SolverProvider.faer(),
             relative_tolerance=1.0e-6,
             absolute_tolerance=1.0e-13,
             maximum_iterations=10_000,

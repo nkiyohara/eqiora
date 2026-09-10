@@ -31,7 +31,7 @@ pub use operator::{
 pub use plan::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 pub use planning::{
     HostSerialSolverProfile, ResolvedHostSerialSolverPlan, SolverPlanningObjective,
-    plan_host_serial_solver_v1,
+    plan_host_serial_solver_v2,
 };
 pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};
 pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReferenceLinearSolver};

@@ -45,8 +45,15 @@ def module(*, doc="A caller-bound diffusion interval."):
 def execute(model, mesh, field_id):
     plan = eqiora.resolve(
         model, mesh=mesh, spatial=eqiora.fem.Q1(),
-        solve=eqiora.solve.Linear(relative_tolerance=1e-12,
-                                 absolute_tolerance=1e-14, maximum_iterations=100),
+        solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
+            relative_tolerance=1e-12,
+            absolute_tolerance=1e-14,
+            maximum_iterations=100,
+        ),
     )
     assert plan.geometry_digest == mesh.source_digest
     reopened_plan = eqiora.Plan.from_bytes(plan.to_bytes())

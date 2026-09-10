@@ -202,8 +202,21 @@ fn accepted() -> Accepted {
         production,
     )
     .unwrap();
-    let solver =
-        CommonSolvePolicy::linear(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+    let solver = CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            eqiora::solver::SolverPlan::new(
+                eqiora::solver::LinearSolver::ConjugateGradient,
+                1.0e-10,
+                1.0e-12,
+                NonZeroUsize::new(10_000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora::solver::ReductionPolicy::Reproducible),
+            eqiora::solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let plan = resolve_common_plan(
         &model,
@@ -219,7 +232,9 @@ fn accepted() -> Accepted {
     .as_elasticity()
     .cloned()
     .expect("fixture retains its admitted elasticity Plan");
-    let result = plan.run_result().unwrap();
+    let result = plan
+        .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
+        .unwrap();
     Accepted {
         document,
         geometry,

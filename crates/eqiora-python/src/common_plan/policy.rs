@@ -4,11 +4,12 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 
+use super::solver_request::{PyLinearSolver, PyPreconditioner, PyReduction, PySolverProvider};
 use eqiora::realization::NonlinearSolvePlan;
-use eqiora::solver::SolverPlanningObjective;
+use eqiora::solver::{SolverPlan, SolverPlanningObjective};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    CommonBackwardEuler, CommonPressureGauge2d, CommonSolvePolicy, CommonTsitouras45,
+    CommonBackwardEuler, CommonLinearRequest, CommonPressureGauge2d, CommonTsitouras45,
     CommonTsitourasTolerance,
 };
 use pyo3::exceptions::PyTypeError;
@@ -341,77 +342,88 @@ impl From<SolverPlanningObjective> for PySolverPlanningObjective {
 )]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PyLinear {
-    relative_tolerance: f64,
-    absolute_tolerance: f64,
-    maximum_iterations: NonZeroUsize,
-    objective: Option<PySolverPlanningObjective>,
+    pub(super) native: CommonLinearRequest,
 }
 
 impl PyLinear {
-    pub(super) fn from_native_controls(
-        relative_tolerance: f64,
-        absolute_tolerance: f64,
-        maximum_iterations: NonZeroUsize,
-        objective: Option<SolverPlanningObjective>,
-    ) -> Self {
-        Self {
-            relative_tolerance,
-            absolute_tolerance,
-            maximum_iterations,
-            objective: objective.map(Into::into),
-        }
-    }
-
-    pub(super) const fn controls(
-        &self,
-    ) -> (f64, f64, NonZeroUsize, Option<PySolverPlanningObjective>) {
-        (
-            self.relative_tolerance,
-            self.absolute_tolerance,
-            self.maximum_iterations,
-            self.objective,
-        )
+    pub(super) const fn from_native(native: CommonLinearRequest) -> Self {
+        Self { native }
     }
 }
 
 #[pymethods]
 impl PyLinear {
     #[new]
-    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations, objective=None))]
+    #[pyo3(signature = (*, relative_tolerance, absolute_tolerance, maximum_iterations, objective=None, algorithm=None, preconditioner=None, reduction=None, provider=None))]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one explicit exact tuple or ranked objective accompanies common controls"
+    )]
     fn new(
         py: Python<'_>,
         relative_tolerance: f64,
         absolute_tolerance: f64,
         maximum_iterations: usize,
         objective: Option<PySolverPlanningObjective>,
+        algorithm: Option<PyLinearSolver>,
+        preconditioner: Option<PyPreconditioner>,
+        reduction: Option<PyReduction>,
+        provider: Option<PySolverProvider>,
     ) -> PyResult<Self> {
         let maximum_iterations = NonZeroUsize::new(maximum_iterations)
             .ok_or_else(|| PyTypeError::new_err("maximum_iterations must be a positive integer"))?;
-        CommonSolvePolicy::linear(relative_tolerance, absolute_tolerance, maximum_iterations)
-            .map(|_| Self {
-                relative_tolerance,
-                absolute_tolerance,
-                maximum_iterations,
-                objective,
-            })
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        let native = match (objective, algorithm, preconditioner, reduction, provider) {
+            (Some(objective), None, None, None, None) => CommonLinearRequest::program_controlled(
+                relative_tolerance, absolute_tolerance, maximum_iterations, objective.into()),
+            (None, Some(algorithm), Some(preconditioner), Some(reduction), Some(provider)) => {
+                SolverPlan::new(algorithm.into(), relative_tolerance, absolute_tolerance, maximum_iterations)
+                    .and_then(|plan| CommonLinearRequest::exact(plan.with_preconditioner(preconditioner.into())
+                        .with_reduction(reduction.into()), provider.native))
+            }
+            _ => return Err(PyTypeError::new_err("Linear requires either objective or the complete exact algorithm, preconditioner, reduction, provider tuple; mixed and incomplete intent is invalid")),
+        }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Ok(Self { native })
     }
 
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.relative_tolerance
+        self.native.relative_tolerance()
     }
     #[getter]
     fn absolute_tolerance(&self) -> f64 {
-        self.absolute_tolerance
+        self.native.absolute_tolerance()
     }
     #[getter]
     fn maximum_iterations(&self) -> usize {
-        self.maximum_iterations.get()
+        self.native.maximum_iterations().get()
     }
     #[getter]
-    const fn objective(&self) -> Option<PySolverPlanningObjective> {
-        self.objective
+    fn objective(&self) -> Option<PySolverPlanningObjective> {
+        self.native.objective().map(Into::into)
+    }
+    #[getter]
+    fn algorithm(&self) -> Option<PyLinearSolver> {
+        self.native
+            .exact_request()
+            .map(|(p, _)| p.algorithm().into())
+    }
+    #[getter]
+    fn preconditioner(&self) -> Option<PyPreconditioner> {
+        self.native
+            .exact_request()
+            .map(|(p, _)| p.preconditioner().into())
+    }
+    #[getter]
+    fn reduction(&self) -> Option<PyReduction> {
+        self.native
+            .exact_request()
+            .map(|(p, _)| p.reduction().into())
+    }
+    #[getter]
+    fn provider(&self) -> Option<PySolverProvider> {
+        self.native
+            .exact_request()
+            .map(|(_, native)| PySolverProvider { native })
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
@@ -425,18 +437,20 @@ impl PyLinear {
         self.relative_tolerance().to_bits().hash(&mut hasher);
         self.absolute_tolerance().to_bits().hash(&mut hasher);
         self.maximum_iterations().hash(&mut hasher);
-        self.objective.hash(&mut hasher);
+        self.objective().hash(&mut hasher);
+        self.algorithm().hash(&mut hasher);
+        self.preconditioner().hash(&mut hasher);
+        self.reduction().hash(&mut hasher);
+        if let Some((_, provider)) = self.native.exact_request() {
+            provider.id().as_str().hash(&mut hasher);
+            provider.implementation_version().hash(&mut hasher);
+            provider.libraries().hash(&mut hasher);
+        }
         hasher.finish() as isize
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "Linear(relative_tolerance={}, absolute_tolerance={}, maximum_iterations={}, objective={:?})",
-            self.relative_tolerance(),
-            self.absolute_tolerance(),
-            self.maximum_iterations(),
-            self.objective,
-        )
+        format!("Linear({:?})", self.native)
     }
 }
 

@@ -4,138 +4,58 @@
 //! not recognize mathematics, choose a Formulation, admit spatial resources,
 //! construct a Realization, or execute numerical work.
 
-use super::spatial_planning::TransientSpatialDecision;
 use super::*;
 
-pub(super) fn resolve_reference_spd(
+/// Admit explicit caller intent against facts owned by mathematical admission.
+/// `Some` supplies a known diagonal fact; `None` makes no structural claim.
+pub(super) fn resolve_linear(
     request: CommonLinearRequest,
+    properties: LinearOperatorProperties,
+    complete_diagonal: Option<bool>,
+    supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
-    require_method_specific(request, "reference-SPD")?;
-    resolve_exact(
-        request,
-        LinearSolver::ConjugateGradient,
-        ReductionPolicy::Reproducible,
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-        &REFERENCE_LINEAR_SOLVER,
-    )
-}
-
-pub(super) fn resolve_stokes_mini(
-    request: CommonLinearRequest,
-    backend: &dyn LinearSolverBackend,
-) -> Result<NativeLinearPolicy, Diagnostic> {
-    require_method_specific(request, "steady-Stokes MINI/P1")?;
-    resolve_exact(
-        request,
-        LinearSolver::SparseLu,
-        ReductionPolicy::Fast,
-        LinearOperatorProperties::SymmetricIndefinite,
-        backend,
-    )
-}
-
-pub(super) fn resolve_transient_flow(
-    request: CommonLinearRequest,
-    spatial: TransientSpatialDecision,
-    mini_backend: &dyn LinearSolverBackend,
-) -> Result<NativeLinearPolicy, Diagnostic> {
-    match spatial {
-        TransientSpatialDecision::MiniP1 => {
-            if request.objective().is_some() {
-                return Err(invalid(
-                    "program-controlled host-serial planning currently admits only the cell-centered General canonical-CSR transient profile",
-                ));
-            }
-            resolve_exact(
-                request,
-                LinearSolver::SparseLu,
-                ReductionPolicy::Fast,
-                LinearOperatorProperties::General,
-                mini_backend,
-            )
+    if let Some((plan, provider)) = request.exact_request() {
+        let backend = exact_backend(provider, supplied_backend)?;
+        if plan.preconditioner() == PreconditionerPolicy::Jacobi && complete_diagonal != Some(true)
+        {
+            return Err(invalid(
+                "exact Jacobi request requires a complete structural diagonal",
+            ));
         }
-        TransientSpatialDecision::CellCentered => resolve_general(request, mini_backend),
+        backend
+            .capabilities()
+            .require_problem(plan, ScalarType::F64, properties)?;
+        return NativeLinearPolicy::exact(plan, backend);
     }
-}
-
-pub(super) fn resolve_general(
-    request: CommonLinearRequest,
-    backend: &dyn LinearSolverBackend,
-) -> Result<NativeLinearPolicy, Diagnostic> {
-    match request.objective() {
-        None => resolve_exact(
-            request,
-            LinearSolver::BiConjugateGradientStabilized,
-            ReductionPolicy::Reproducible,
-            LinearOperatorProperties::General,
-            &REFERENCE_LINEAR_SOLVER,
-        ),
-        Some(objective) => resolve_program_controlled(request, objective, backend),
-    }
-}
-
-fn resolve_program_controlled(
-    request: CommonLinearRequest,
-    objective: SolverPlanningObjective,
-    faer_backend: &dyn LinearSolverBackend,
-) -> Result<NativeLinearPolicy, Diagnostic> {
-    let decision = eqiora_solver::plan_host_serial_solver_v1(
-        eqiora_solver::HostSerialSolverProfile::general_canonical_csr(),
+    let objective = request
+        .objective()
+        .expect("linear intent is exact or program-controlled");
+    let decision = eqiora_solver::plan_host_serial_solver_v2(
+        eqiora_solver::HostSerialSolverProfile::canonical_csr(properties, complete_diagonal),
         objective,
         request.relative_tolerance(),
         request.absolute_tolerance(),
         request.maximum_iterations(),
         &REFERENCE_LINEAR_SOLVER,
-        faer_backend,
+        supplied_backend,
     )?;
-    let backend: &dyn LinearSolverBackend = if decision.solver_provider()
-        == REFERENCE_LINEAR_SOLVER.provider()
-    {
-        &REFERENCE_LINEAR_SOLVER
-    } else if decision.solver_provider() == faer_backend.provider() {
-        faer_backend
-    } else {
-        return Err(invalid(
-            "host-serial planning selected a provider outside the admitted common resolver catalog",
-        ));
-    };
+    let backend = exact_backend(decision.solver_provider(), supplied_backend)?;
     NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
 }
 
-pub(super) fn resolve_fixed_reference_fsi(
-    request: CommonLinearRequest,
-) -> Result<SolverPlan, Diagnostic> {
-    require_method_specific(request, "fixed-reference FSI")?;
-    let plan = request.resolve(LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)?;
-    REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
-        plan,
-        ScalarType::F64,
-        LinearOperatorProperties::SymmetricIndefinite,
-    )?;
-    Ok(plan)
-}
-
-fn require_method_specific(request: CommonLinearRequest, profile: &str) -> Result<(), Diagnostic> {
-    if request.objective().is_some() {
-        return Err(invalid(format!(
-            "program-controlled host-serial planning does not admit the {profile} profile"
-        )));
+fn exact_backend(
+    provider: SolverProvider,
+    supplied_backend: &dyn LinearSolverBackend,
+) -> Result<&dyn LinearSolverBackend, Diagnostic> {
+    if provider == REFERENCE_LINEAR_SOLVER.provider() {
+        Ok(&REFERENCE_LINEAR_SOLVER)
+    } else if provider == supplied_backend.provider() {
+        Ok(supplied_backend)
+    } else {
+        Err(invalid(
+            "exact solver provider identity, implementation version, and library inventory must match an admitted backend",
+        ))
     }
-    Ok(())
-}
-
-fn resolve_exact(
-    controls: CommonLinearRequest,
-    algorithm: LinearSolver,
-    reduction: ReductionPolicy,
-    properties: LinearOperatorProperties,
-    backend: &dyn LinearSolverBackend,
-) -> Result<NativeLinearPolicy, Diagnostic> {
-    let decision = NativeLinearPolicy::exact(controls.resolve(algorithm, reduction)?, backend)?;
-    decision
-        .capabilities
-        .require_problem(decision.solver, ScalarType::F64, properties)?;
-    Ok(decision)
 }
 
 #[cfg(test)]
@@ -183,46 +103,101 @@ mod tests {
         }
     }
 
-    fn controls() -> CommonLinearRequest {
-        CommonLinearRequest::new(1.0e-8, 1.0e-10, NonZeroUsize::new(100).unwrap()).unwrap()
+    fn exact(
+        algorithm: LinearSolver,
+        reduction: ReductionPolicy,
+        provider: SolverProvider,
+    ) -> CommonLinearRequest {
+        let plan = SolverPlan::new(algorithm, 1e-8, 1e-10, NonZeroUsize::new(100).unwrap())
+            .unwrap()
+            .with_preconditioner(PreconditionerPolicy::Identity)
+            .with_reduction(reduction);
+        CommonLinearRequest::exact(plan, provider).unwrap()
     }
 
     #[test]
-    fn decisions_are_exact_and_method_specific_before_realization() {
-        let scalar = resolve_reference_spd(controls()).unwrap();
-        assert_eq!(scalar.solver.algorithm(), LinearSolver::ConjugateGradient);
-        assert_eq!(scalar.solver.reduction(), ReductionPolicy::Reproducible);
+    fn exact_intent_preserves_plan_provider_and_absent_objective_without_execution() {
+        for (algorithm, reduction, properties, provider) in [
+            (
+                LinearSolver::ConjugateGradient,
+                ReductionPolicy::Reproducible,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+                REFERENCE_LINEAR_SOLVER.provider(),
+            ),
+            (
+                LinearSolver::MinimumResidual,
+                ReductionPolicy::Reproducible,
+                LinearOperatorProperties::SymmetricIndefinite,
+                REFERENCE_LINEAR_SOLVER.provider(),
+            ),
+            (
+                LinearSolver::SparseLu,
+                ReductionPolicy::Fast,
+                LinearOperatorProperties::SymmetricIndefinite,
+                ResolveOnlySparseBackend.provider(),
+            ),
+        ] {
+            let request = exact(algorithm, reduction, provider);
+            let decision =
+                resolve_linear(request, properties, Some(false), &ResolveOnlySparseBackend)
+                    .unwrap();
+            assert_eq!(decision.solver, request.exact_request().unwrap().0);
+            assert_eq!(decision.provider, provider);
+            assert_eq!(decision.planning_objective, None);
+            assert!(decision.planning_audit_is_coherent());
+        }
+    }
 
-        let stokes = resolve_stokes_mini(controls(), &ResolveOnlySparseBackend).unwrap();
-        assert_eq!(stokes.solver.algorithm(), LinearSolver::SparseLu);
-        assert_eq!(stokes.solver.reduction(), ReductionPolicy::Fast);
-
-        let mini = resolve_transient_flow(
-            controls(),
-            TransientSpatialDecision::MiniP1,
-            &ResolveOnlySparseBackend,
+    #[test]
+    fn exact_intent_rejects_provider_substitution_and_incompatible_mathematics() {
+        let reference = REFERENCE_LINEAR_SOLVER.provider();
+        let stale = SolverProvider::new(reference.id(), "stale-release", reference.libraries());
+        let request = exact(
+            LinearSolver::ConjugateGradient,
+            ReductionPolicy::Reproducible,
+            stale,
+        );
+        assert!(
+            resolve_linear(
+                request,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+                Some(true),
+                &ResolveOnlySparseBackend
+            )
+            .unwrap_err()
+            .message()
+            .contains("implementation version")
+        );
+        let request = exact(
+            LinearSolver::ConjugateGradient,
+            ReductionPolicy::Reproducible,
+            reference,
+        );
+        assert!(
+            resolve_linear(
+                request,
+                LinearOperatorProperties::SymmetricIndefinite,
+                Some(true),
+                &ResolveOnlySparseBackend
+            )
+            .is_err()
+        );
+        let (plan, provider) = request.exact_request().unwrap();
+        let jacobi = CommonLinearRequest::exact(
+            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            provider,
         )
         .unwrap();
-        assert_eq!(mini.solver.algorithm(), LinearSolver::SparseLu);
-        assert_eq!(mini.solver.reduction(), ReductionPolicy::Fast);
-
-        let cell_centered = resolve_transient_flow(
-            controls(),
-            TransientSpatialDecision::CellCentered,
-            &REFERENCE_LINEAR_SOLVER,
-        )
-        .unwrap();
-        assert_eq!(
-            cell_centered.solver.algorithm(),
-            LinearSolver::BiConjugateGradientStabilized
+        assert!(
+            resolve_linear(
+                jacobi,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+                Some(false),
+                &ResolveOnlySparseBackend
+            )
+            .unwrap_err()
+            .message()
+            .contains("structural diagonal")
         );
-        assert_eq!(
-            cell_centered.solver.reduction(),
-            ReductionPolicy::Reproducible
-        );
-
-        let fsi = resolve_fixed_reference_fsi(controls()).unwrap();
-        assert_eq!(fsi.algorithm(), LinearSolver::MinimumResidual);
-        assert_eq!(fsi.reduction(), ReductionPolicy::Reproducible);
     }
 }

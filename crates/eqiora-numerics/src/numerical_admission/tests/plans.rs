@@ -125,8 +125,16 @@ fn resolve_scalar_box(
     resources: AuthenticatedCommonMesh,
     spatial: CommonSpatialPolicy,
 ) -> CommonScalarPlan {
-    let linear =
-        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+    let linear = exact_reference_linear(
+        if spatial == CommonSpatialPolicy::CellCenteredTpfa {
+            LinearSolver::ConjugateGradient
+        } else {
+            LinearSolver::BiConjugateGradientStabilized
+        },
+        1.0e-10,
+        1.0e-12,
+        NonZeroUsize::new(10_000).unwrap(),
+    );
     resolve_common_plan(
         model,
         resources,
@@ -276,8 +284,12 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
 pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeated_inputs() {
     let geometry = rectangle();
     let model = model(&geometry);
-    let linear =
-        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+    let linear = exact_reference_linear(
+        LinearSolver::BiConjugateGradientStabilized,
+        1.0e-10,
+        1.0e-12,
+        NonZeroUsize::new(10_000).unwrap(),
+    );
     let resolve_scalar = |method, solve| {
         let resolved = resolve_common_plan(
             &model,
@@ -312,11 +324,21 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     );
     let tpfa = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
-        linear,
+        exact_reference_linear(
+            LinearSolver::ConjugateGradient,
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(10_000).unwrap(),
+        ),
     );
     let alternate_tolerance = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
-        CommonLinearRequest::new(1.0e-9, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap(),
+        exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1.0e-9,
+            1.0e-12,
+            NonZeroUsize::new(10_000).unwrap(),
+        ),
     );
 
     assert_eq!(q1.identity(), repeat.identity());
@@ -399,8 +421,12 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     let geometry = rectangle();
     let model = elasticity_model(&geometry, 3.0);
     let alternate_material = elasticity_model(&geometry, 4.0);
-    let solve =
-        CommonLinearRequest::new(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+    let solve = exact_reference_linear(
+        LinearSolver::ConjugateGradient,
+        1.0e-10,
+        1.0e-12,
+        NonZeroUsize::new(10_000).unwrap(),
+    );
     let resolve_elasticity = |model: &ModelEnvelope| {
         let resolved = resolve_common_plan(
             model,
@@ -435,7 +461,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     );
     assert_eq!(plan.model_digest(), model.digest().unwrap().to_string());
     assert_eq!(plan.cells(), [2, 3]);
-    let result = plan.run().unwrap();
+    let result = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
     assert_eq!(result.displacement().mesh().axis_cell_count(0), Some(2));
     assert_eq!(result.displacement().mesh().axis_cell_count(1), Some(3));
     assert_eq!(result.displacement().values().len(), 24);
@@ -834,4 +860,48 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
             .replace("eqiora.common-result/v3", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
+}
+
+#[test]
+fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
+    #[derive(Debug)]
+    struct Unexecuted;
+    impl eqiora_solver::LinearOperator for Unexecuted {
+        fn rows(&self) -> usize {
+            1
+        }
+        fn columns(&self) -> usize {
+            1
+        }
+        fn apply(&self, _: &[f64], _: &mut [f64]) -> Result<(), Diagnostic> {
+            unreachable!("profile rejection must precede numerical operator work")
+        }
+    }
+    let request = CommonLinearRequest::program_controlled(
+        1e-10,
+        1e-12,
+        NonZeroUsize::new(100).unwrap(),
+        SolverPlanningObjective::Robust,
+    )
+    .unwrap();
+    let policy = super::super::solver_planning::resolve_linear(
+        request,
+        LinearOperatorProperties::General,
+        None,
+        &PlanningFaerBackend,
+    )
+    .unwrap();
+    assert_eq!(policy.solver.algorithm(), LinearSolver::SparseLu);
+    let checked = policy.checked_backend(&PlanningFaerBackend).unwrap();
+    let problem =
+        LinearProblem::new(&Unexecuted, &[1.], LinearOperatorProperties::General).unwrap();
+    assert!(
+        checked
+            .solve(&problem, policy.solver)
+            .unwrap_err()
+            .message()
+            .contains("canonical-csr-mismatch")
+    );
+    // PlanningFaerBackend's solve also panics: the test cannot pass by reaching
+    // a provider and relabeling its failure as profile rejection.
 }

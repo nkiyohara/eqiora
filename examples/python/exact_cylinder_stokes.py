@@ -49,6 +49,10 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
         },
     )
     linear = eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast,
+        provider=eqiora.solve.SolverProvider.faer(),
         relative_tolerance=1e-6,
         absolute_tolerance=1e-13,
         maximum_iterations=10_000,

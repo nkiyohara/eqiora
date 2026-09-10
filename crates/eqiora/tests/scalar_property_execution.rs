@@ -671,8 +671,21 @@ fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> C
         production,
     )
     .unwrap();
-    let solver =
-        CommonSolvePolicy::linear(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+    let solver = CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            eqiora::solver::SolverPlan::new(
+                eqiora::solver::LinearSolver::BiConjugateGradientStabilized,
+                1.0e-10,
+                1.0e-12,
+                NonZeroUsize::new(10_000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora::solver::ReductionPolicy::Reproducible),
+            eqiora::solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     resolve_common_plan(
         &model,

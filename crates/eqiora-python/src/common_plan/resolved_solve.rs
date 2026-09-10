@@ -3,10 +3,12 @@
 use eqiora::realization::NonlinearSolvePlan;
 use eqiora::solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
+    SolverProvider,
 };
 use pyo3::prelude::*;
 
 use super::policy::PySolverPlanningObjective;
+use super::solver_request::PySolverProvider;
 
 #[derive(Debug, Clone)]
 pub(super) struct SolverPlanningAudit {
@@ -45,8 +47,7 @@ impl SolverPlanningAudit {
 pub(crate) struct PyResolvedLinear {
     plan: SolverPlan,
     operator: LinearOperatorProperties,
-    backend: &'static str,
-    backend_version: &'static str,
+    provider: SolverProvider,
     audit: Option<SolverPlanningAudit>,
 }
 
@@ -54,15 +55,13 @@ impl PyResolvedLinear {
     pub(super) fn new(
         plan: SolverPlan,
         operator: LinearOperatorProperties,
-        backend: &'static str,
-        backend_version: &'static str,
+        provider: SolverProvider,
         audit: Option<SolverPlanningAudit>,
     ) -> Self {
         Self {
             plan,
             operator,
-            backend,
-            backend_version,
+            provider,
             audit,
         }
     }
@@ -122,12 +121,19 @@ impl PyResolvedLinear {
 
     #[getter]
     const fn backend(&self) -> &'static str {
-        self.backend
+        self.provider.id().as_str()
     }
 
     #[getter]
     const fn backend_version(&self) -> &'static str {
-        self.backend_version
+        self.provider.implementation_version()
+    }
+
+    #[getter]
+    const fn provider(&self) -> PySolverProvider {
+        PySolverProvider {
+            native: self.provider,
+        }
     }
 
     #[getter]
@@ -175,7 +181,7 @@ impl PyResolvedLinear {
             self.algorithm(),
             self.preconditioner(),
             self.reduction(),
-            self.backend,
+            self.backend(),
         )
     }
 }

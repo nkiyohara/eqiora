@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent exact oracle for host-serial solver planning v1.
+"""Independent exact General-profile oracle for host-serial solver planning v2.
 
 This script deliberately contains a literal copy of the public policy table. It
 uses no Rust code and does not discover candidates from the implementation.
@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-POLICY_ID = "eqiora.host-serial-solver-planning/v1"
-EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v1.json"
+POLICY_ID = "eqiora.host-serial-solver-planning/v2"
+EXPECTED_PATH = Path(__file__).resolve().parents[1] / "expected" / "policy-v2.json"
 
 REFERENCE_ID = "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
 FAER_BICGSTAB_ID = "eqiora.faer.bicgstab-general-jacobi-fast-f64"
@@ -420,10 +420,6 @@ def build_expected() -> dict[str, Any]:
 
     return {
         "admitted_subsets": admitted_subset_oracles(sorted_candidates),
-        "authoring": {
-            "base_revision": "f36f6f029e7cdc59b81163355ff07ec1cdb9c78e",
-            "boundary": "fresh-context non-implementer; no planning implementation or Rust-derived oracle",
-        },
         "call_ledgers": {
             "direct_operator_self_control": {
                 "operator_identity": "exact-owned-canonical-view",
@@ -444,7 +440,7 @@ def build_expected() -> dict[str, Any]:
                     "profile-general",
                     "profile-normal-or-canonical-csr",
                     "profile-canonical-csr",
-                    "profile-complete-diagonal",
+                    "profile-jacobi-diagonal",
                     "capability-exact-tuple",
                 )
             },
@@ -683,9 +679,9 @@ def main() -> int:
         print(f"missing frozen oracle: {EXPECTED_PATH}", file=sys.stderr)
         return 1
     if committed != rendered:
-        print("policy-v1.json differs from the independent derivation", file=sys.stderr)
+        print("policy-v2.json differs from the independent derivation", file=sys.stderr)
         return 1
-    print("host-serial solver planning v1 oracle: exact derivation and mutants passed")
+    print("host-serial solver planning v2 oracle: exact derivation and mutants passed")
     return 0
 
 

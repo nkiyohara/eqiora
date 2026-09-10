@@ -212,19 +212,6 @@ pub fn lower_scalar_physical_affine(
     })
 }
 
-/// Solve one admitted affine physical problem and reaccept the result through
-/// the original semantic residual DAGs.
-///
-/// # Errors
-/// Returns the selected backend's capability/numerical diagnostic, or
-/// `EQ0802` when semantic-DAG residuals exceed the exact `SolverPlan` target.
-pub fn solve_scalar_physical_affine(
-    problem: &ScalarPhysicalAffineProblem,
-    solver: LinearSolveRequest<'_>,
-) -> Result<ScalarPhysicalAffineSolution, Diagnostic> {
-    solve_scalar_physical_affine_impl(problem, None, solver)
-}
-
 /// Solve from one explicit finite initial guess and reaccept the result through
 /// the original semantic residual DAGs.
 ///
@@ -236,23 +223,15 @@ pub fn solve_scalar_physical_affine(
 /// Returns `EQ0802` for an initial-guess shape/non-finite mismatch, the
 /// selected backend's capability/numerical diagnostic, or semantic-DAG
 /// residual rejection.
-pub fn solve_scalar_physical_affine_with_initial_guess(
+pub fn solve_scalar_physical_affine(
     problem: &ScalarPhysicalAffineProblem,
     initial_guess: &[f64],
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarPhysicalAffineSolution, Diagnostic> {
-    solve_scalar_physical_affine_impl(problem, Some(initial_guess), solver)
-}
-
-fn solve_scalar_physical_affine_impl(
-    problem: &ScalarPhysicalAffineProblem,
-    initial_guess: Option<&[f64]>,
-    solver: LinearSolveRequest<'_>,
-) -> Result<ScalarPhysicalAffineSolution, Diagnostic> {
-    let mut linear_problem = problem.canonical_system.linear_problem()?;
-    if let Some(initial_guess) = initial_guess {
-        linear_problem = linear_problem.with_initial_guess(initial_guess)?;
-    }
+    let linear_problem = problem
+        .canonical_system
+        .linear_problem()?
+        .with_initial_guess(initial_guess)?;
     let accepted = solver.solve(&linear_problem)?;
     let reference_residuals = problem.reference_residuals(accepted.values())?;
     let reference_residual_norm = SERIAL_LINEAR_EXECUTION

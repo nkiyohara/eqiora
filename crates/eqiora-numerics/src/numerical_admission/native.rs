@@ -27,6 +27,7 @@ pub(super) struct NativeLinearPolicy {
     pub(super) execution: ExecutionProvider,
     pub(super) workers: NonZeroUsize,
     pub(super) planning_objective: Option<SolverPlanningObjective>,
+    pub(super) planning_profile: Option<eqiora_solver::HostSerialSolverProfile>,
     pub(super) planning_policy_id: Option<&'static str>,
     pub(super) selected_candidate_id: Option<&'static str>,
     pub(super) selected_evidence_case: Option<&'static str>,
@@ -55,6 +56,7 @@ impl NativeLinearPolicy {
             execution: SERIAL_EXECUTION_PROVIDER,
             workers: NonZeroUsize::MIN,
             planning_objective: None,
+            planning_profile: None,
             planning_policy_id: None,
             selected_candidate_id: None,
             selected_evidence_case: None,
@@ -75,6 +77,7 @@ impl NativeLinearPolicy {
             ));
         }
         self.planning_objective = Some(decision.objective());
+        self.planning_profile = Some(decision.profile());
         self.planning_policy_id = Some(decision.policy_id());
         self.selected_candidate_id = Some(decision.selected_candidate_id());
         self.selected_evidence_case = Some(decision.selected_evidence_case());
@@ -82,21 +85,71 @@ impl NativeLinearPolicy {
         Ok(self)
     }
 
+    pub(super) fn checked_backend<'a>(
+        &self,
+        backend: &'a dyn LinearSolverBackend,
+    ) -> Result<ProfileCheckedBackend<'a>, Diagnostic> {
+        if backend.provider() != self.provider || backend.capabilities() != self.capabilities {
+            return Err(invalid(
+                "execution backend differs from admitted exact provider or capabilities",
+            ));
+        }
+        Ok(ProfileCheckedBackend {
+            backend,
+            plan: self.solver,
+            profile: self.planning_profile,
+        })
+    }
+
     pub(super) fn planning_audit_is_coherent(&self) -> bool {
         match self.planning_objective {
             None => {
-                self.planning_policy_id.is_none()
+                self.planning_profile.is_none()
+                    && self.planning_policy_id.is_none()
                     && self.selected_candidate_id.is_none()
                     && self.selected_evidence_case.is_none()
                     && self.planning_reasons.is_empty()
             }
             Some(_) => {
-                self.planning_policy_id.is_some()
+                self.planning_profile.is_some()
+                    && self.planning_policy_id.is_some()
                     && self.selected_candidate_id.is_some()
                     && self.selected_evidence_case.is_some()
                     && !self.planning_reasons.is_empty()
             }
         }
+    }
+}
+
+/// The existing execution boundary rechecks admitted facts before forwarding
+/// exactly one numerical attempt to the already selected backend.
+#[derive(Debug)]
+pub(super) struct ProfileCheckedBackend<'a> {
+    backend: &'a dyn LinearSolverBackend,
+    plan: SolverPlan,
+    profile: Option<eqiora_solver::HostSerialSolverProfile>,
+}
+
+impl LinearSolverBackend for ProfileCheckedBackend<'_> {
+    fn provider(&self) -> SolverProvider {
+        self.backend.provider()
+    }
+    fn capabilities(&self) -> SolverCapabilities {
+        self.backend.capabilities()
+    }
+    fn solve_with_execution(
+        &self,
+        problem: &eqiora_solver::LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn eqiora_solver::ReplicatedLinearExecution,
+    ) -> Result<eqiora_solver::LinearSolution, Diagnostic> {
+        if plan != self.plan {
+            return Err(invalid("execution changed the admitted exact solver plan"));
+        }
+        if let Some(profile) = self.profile {
+            profile.require_problem(problem)?;
+        }
+        self.backend.solve_with_execution(problem, plan, execution)
     }
 }
 
@@ -444,6 +497,8 @@ impl NativeNumericalAdmission {
                 "scalar execution backend differs from admitted provider or capabilities",
             ));
         }
+        let checked_backend = self.linear.checked_backend(backend)?;
+        let backend: &dyn LinearSolverBackend = &checked_backend;
         let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid(
                 "scalar elliptic execution requires Cartesian resources",
@@ -588,6 +643,8 @@ impl NativeNumericalAdmission {
                 "elasticity execution backend differs from admitted provider or capabilities",
             ));
         }
+        let checked_backend = self.linear.checked_backend(backend)?;
+        let backend: &dyn LinearSolverBackend = &checked_backend;
         let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid("elasticity execution requires Cartesian resources"));
         };

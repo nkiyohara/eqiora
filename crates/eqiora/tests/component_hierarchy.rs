@@ -123,9 +123,12 @@ fn solve(
     .unwrap()
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    let solution =
-        solve_scalar_physical_affine(&problem, LinearSolveRequest::new(&FaerLinearSolver, plan))
-            .expect("hierarchical physical solve");
+    let solution = solve_scalar_physical_affine(
+        &problem,
+        &vec![0.0; problem.canonical_system().rows()],
+        LinearSolveRequest::new(&FaerLinearSolver, plan),
+    )
+    .expect("hierarchical physical solve");
     assert!(solution.reference_residual_norm() <= RESIDUAL_TOLERANCE);
     solution
 }

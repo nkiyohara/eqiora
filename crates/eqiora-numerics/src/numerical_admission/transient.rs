@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) struct PreparedCommonTransientExecution<'a> {
     plan: &'a CommonTransientFlowPlan,
-    backend: &'a dyn LinearSolverBackend,
+    backend: super::native::ProfileCheckedBackend<'a>,
     method: PreparedCommonTransientMethod<'a>,
 }
 
@@ -23,7 +23,7 @@ impl PreparedCommonTransientExecution<'_> {
                         "prepared MINI Run received a non-MINI common State",
                     ));
                 };
-                let trajectory = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
+                let trajectory = prepared.advance(initial.as_ref().clone(), run, &self.backend)?;
                 let accepted = trajectory
                     .states()
                     .last()
@@ -41,7 +41,7 @@ impl PreparedCommonTransientExecution<'_> {
                         "prepared MINI Run received a non-MINI common State",
                     ));
                 };
-                let states = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
+                let states = prepared.advance(initial.as_ref().clone(), run, &self.backend)?;
                 let accepted = states.last().ok_or_else(|| {
                     invalid("Geometry MINI transient step returned no accepted State")
                 })?;
@@ -58,7 +58,7 @@ impl PreparedCommonTransientExecution<'_> {
                         "prepared cell-centered Run received incompatible method history",
                     ));
                 };
-                let trajectory = prepared.advance(initial.as_ref().clone(), run, self.backend)?;
+                let trajectory = prepared.advance(initial.as_ref().clone(), run, &self.backend)?;
                 let accepted = trajectory.states().last().ok_or_else(|| {
                     invalid("cell-centered transient step returned no accepted State")
                 })?;
@@ -912,7 +912,7 @@ impl CommonTransientFlowPlan {
         };
         Ok(PreparedCommonTransientExecution {
             plan: self,
-            backend,
+            backend: self.admission.linear.checked_backend(backend)?,
             method,
         })
     }

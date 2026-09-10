@@ -903,6 +903,21 @@ Set a finite positive value to choose it yourself; this target does not guarante
 the length of every edge. This operation supports a rectangle with one circular
 hole and affine 2D triangles.
 
+## Explicit linear solver intent
+
+`eqiora.solve.Linear` requires either `objective=eqiora.solve.Robust` (or `Fast`
+or `LowMemory`) or a complete `algorithm`, `preconditioner`, `reduction`, and
+`provider` tuple. The examples below use exact manual requests. Their algorithms
+and complete provider release identities survive Plan replay without substitution.
+`SolverProvider.reference()` and `SolverProvider.faer()` describe the corresponding
+compiled backend, including its implementation version and library inventory.
+
+An objective ranks only admissible candidates. A diagonal that has not been
+established excludes Jacobi; an identity-preconditioned candidate can still be
+selected. An objective does not guarantee performance, memory usage, or that a
+reproducible-reduction candidate is available. `Plan.solve` exposes the actual
+selected tuple and its reasons; manual requests have no ranking objective.
+
 ## Exact-cylinder steady Stokes result
 
 The first fluid application keeps the component's equations, fields,
@@ -932,6 +947,10 @@ model = eqiora.compile(
     },
 )
 linear = eqiora.solve.Linear(
+    algorithm=eqiora.solve.LinearSolver.SparseLu,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Fast,
+    provider=eqiora.solve.SolverProvider.faer(),
     relative_tolerance=1e-6,
     absolute_tolerance=1e-13,
     maximum_iterations=10_000,
@@ -1042,6 +1061,10 @@ plan = eqiora.resolve(
     mesh=mesh,
     spatial=eqiora.fem.Q1(),
     solve=eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        provider=eqiora.solve.SolverProvider.reference(),
         relative_tolerance=1.0e-10,
         absolute_tolerance=1.0e-12,
         maximum_iterations=10_000,
@@ -1108,6 +1131,10 @@ plan = eqiora.resolve(
     ),
     temporal=eqiora.time.BackwardEuler(step_s=0.05),
     solve=eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        provider=eqiora.solve.SolverProvider.reference(),
         relative_tolerance=1.0e-11,
         absolute_tolerance=1.0e-13,
         maximum_iterations=20_000,

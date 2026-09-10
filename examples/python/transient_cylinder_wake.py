@@ -60,6 +60,10 @@ def solve() -> tuple[
         bindings={**support_bindings, **parameters},
     )
     linear = eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast,
+        provider=eqiora.solve.SolverProvider.faer(),
         relative_tolerance=1.0e-6,
         absolute_tolerance=1.0e-9,
         maximum_iterations=20_000,

@@ -319,6 +319,10 @@ mesher = package.CartesianMesher(cells=(4, 4))
 mesh_plan = package.resolve(geometry, mesher)
 mesh = package.generate(mesh_plan)
 linear = package.Linear(
+    algorithm=package.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=package.Preconditioner.Identity,
+    reduction=package.Reduction.Reproducible,
+    provider=package.SolverProvider.reference(),
     relative_tolerance=1e-10,
     absolute_tolerance=1e-12,
     maximum_iterations=10000,
