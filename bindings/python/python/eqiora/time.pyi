@@ -2,7 +2,7 @@
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler``.
 """
-from typing import Mapping, Self, final
+from typing import ClassVar, Mapping, Self, final
 from . import FieldRef
 
 @final
@@ -52,3 +52,13 @@ class Tsitouras45:
     def __repr__(self) -> str: ...
 
 __all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45"]
+
+@final
+class TimeFunctionalQuadrature:
+    """Explicit quadrature over native accepted-step integration history.
+
+    Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTimeFunctionalQuadrature``.
+    """
+    AcceptedStepSimpson: ClassVar[TimeFunctionalQuadrature]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...

@@ -811,7 +811,8 @@ model decay() {
         assert_eq!(request.plan().identity(), plan.identity());
         let output = CommonOdeState::new(&plan, 0.1, vec![0.9], "result").unwrap();
         let trajectory =
-            crate::CommonTrajectory::accept_ode_states(request.clone(), vec![output]).unwrap();
+            crate::CommonTrajectory::accept_ode_states(request.clone(), vec![output], None)
+                .unwrap();
         let trajectory_bytes = trajectory.to_bytes().unwrap();
         assert_eq!(
             crate::CommonTrajectory::from_bytes(&trajectory_bytes, &resolved).unwrap(),

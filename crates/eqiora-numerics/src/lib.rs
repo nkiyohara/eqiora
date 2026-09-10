@@ -49,7 +49,9 @@ pub use common_ode::{
     CommonOdePlan, CommonOdeRunRequest, CommonOdeState, CommonTsitouras45, CommonTsitourasTolerance,
 };
 pub use common_result::{CommonObservableStateTangent, CommonObservation, CommonResult};
-pub use common_trajectory::CommonTrajectory;
+pub use common_trajectory::{
+    CommonTrajectory, CommonTrajectoryObservation, TimeFunctionalQuadrature,
+};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
     CommonElasticityPlan, CommonFormulationDescription, CommonFsiPlan, CommonFsiRunRequest,
