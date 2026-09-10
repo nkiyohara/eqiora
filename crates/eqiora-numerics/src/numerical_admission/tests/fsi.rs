@@ -150,6 +150,88 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         .advance(&initial, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert!(accepted.fsi_accepted_solution().is_some());
+    // All preferences rank only candidates satisfying the existing host reduction
+    // requirement. The backend descriptor would admit direct LU without it.
+    for objective in [
+        SolverPlanningObjective::Robust,
+        SolverPlanningObjective::Fast,
+        SolverPlanningObjective::LowMemory,
+    ] {
+        let ranked = resolve_common_plan(
+            &model,
+            resources.clone(),
+            scoped.clone(),
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::program_controlled(
+                    1e-11,
+                    1e-13,
+                    NonZeroUsize::new(20_000).unwrap(),
+                    objective,
+                )
+                .unwrap(),
+            ),
+            None,
+            Some(temporal),
+            &FsiPlanningBackend,
+            None,
+        )
+        .unwrap();
+        assert_eq!(ranked.solver_planning_objective(), Some(objective));
+        assert!(ranked.solver_planning_reasons().contains(&(
+            "eqiora.faer.sparse-lu-indefinite-identity-fast-f64",
+            "profile.required-reduction-mismatch"
+        )));
+        let ranked = replay_plan(ranked, &FsiPlanningBackend);
+        let ranked = ranked.as_fsi().unwrap();
+        assert_eq!(ranked.linear(), automatic.linear());
+        let replayed = ranked.advance(&initial, &REFERENCE_LINEAR_SOLVER).unwrap();
+        assert_eq!(
+            replayed.velocity_vertex_values(),
+            accepted.velocity_vertex_values()
+        );
+        assert_eq!(
+            replayed.velocity_cell_values(),
+            accepted.velocity_cell_values()
+        );
+        assert_eq!(
+            replayed.pressure_vertex_values(),
+            accepted.pressure_vertex_values()
+        );
+        assert_eq!(
+            replayed.fsi_solid_displacement_values(),
+            accepted.fsi_solid_displacement_values()
+        );
+    }
+    let unsupported = CommonLinearRequest::exact(
+        SolverPlan::new(
+            LinearSolver::SparseLu,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(20_000).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(PreconditionerPolicy::Identity)
+        .with_reduction(ReductionPolicy::Fast),
+        FsiPlanningBackend.provider(),
+    )
+    .unwrap();
+    let error = resolve_common_plan(
+        &model,
+        resources.clone(),
+        scoped.clone(),
+        CommonSolvePolicy::Linear(unsupported),
+        None,
+        Some(temporal),
+        &FsiPlanningBackend,
+        None,
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("profile.required-reduction-mismatch")
+    );
+
     let ten_step =
         CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 10, vec![10]).unwrap();
     let std::ops::ControlFlow::Continue(prepared_outputs) = ten_step
@@ -262,4 +344,25 @@ pub(super) fn exercise_model_driven_common_mesh_admission_evidence() {
     scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh();
     admission_rejects_policy_and_resource_cross_wires();
     transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources();
+}
+
+/// Catalog-authentic provider with an admitted indefinite direct tuple. Execution
+/// panics so resolution/rejection cannot accidentally perform numerical work.
+#[derive(Debug)]
+struct FsiPlanningBackend;
+impl LinearSolverBackend for FsiPlanningBackend {
+    fn provider(&self) -> SolverProvider {
+        PlanningFaerBackend.provider()
+    }
+    fn capabilities(&self) -> SolverCapabilities {
+        ResolveOnlyBackend.capabilities()
+    }
+    fn solve_with_execution(
+        &self,
+        _: &LinearProblem<'_>,
+        _: SolverPlan,
+        _: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        unreachable!("the selected FSI provider must remain reference")
+    }
 }

@@ -888,6 +888,7 @@ fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
         request,
         LinearOperatorProperties::General,
         None,
+        None,
         &PlanningFaerBackend,
     )
     .unwrap();

@@ -55,6 +55,7 @@ pub enum SolverPlanningObjective {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HostSerialSolverProfile {
     facts: PlanningProfileFacts,
+    required_reduction: Option<ReductionPolicy>,
 }
 
 impl HostSerialSolverProfile {
@@ -64,6 +65,7 @@ impl HostSerialSolverProfile {
     pub const fn general_canonical_csr() -> Self {
         Self {
             facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
+            required_reduction: None,
         }
     }
 
@@ -76,12 +78,15 @@ impl HostSerialSolverProfile {
     /// Properties are assertions supplied by the mathematical admission owner.
     /// This profile does not establish positive definiteness, remove a nullspace,
     /// authenticate a pressure gauge, or preserve a typed block decomposition.
+    /// A required reduction is an execution constraint, independent of ranking
+    /// objective; `None` permits either policy.
     /// Constraint/gauge elimination must already be complete. No matrix values
     /// are inspected while planning; execution rechecks these structural facts.
     #[must_use]
     pub const fn canonical_csr(
         properties: LinearOperatorProperties,
         complete_diagonal: Option<bool>,
+        required_reduction: Option<ReductionPolicy>,
     ) -> Self {
         Self {
             facts: PlanningProfileFacts {
@@ -90,6 +95,38 @@ impl HostSerialSolverProfile {
                 canonical_csr: true,
                 complete_diagonal,
             },
+            required_reduction,
+        }
+    }
+
+    /// Admit an exact solver tuple against the same structural and execution
+    /// requirements used before catalog ranking.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` when Jacobi lacks a complete structural diagonal or the
+    /// requested reduction differs from the execution requirement.
+    pub fn require_plan(self, plan: SolverPlan) -> Result<(), Diagnostic> {
+        if let Some(reason) = self.plan_rejection(plan) {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                format!("{POLICY_ID} rejected solver plan: {reason}"),
+            ));
+        }
+        Ok(())
+    }
+
+    fn plan_rejection(self, plan: SolverPlan) -> Option<&'static str> {
+        if self
+            .required_reduction
+            .is_some_and(|required| plan.reduction() != required)
+        {
+            Some("profile.required-reduction-mismatch")
+        } else if plan.preconditioner() == PreconditionerPolicy::Jacobi
+            && self.facts.complete_diagonal != Some(true)
+        {
+            Some("profile.complete-diagonal-required")
+        } else {
+            None
         }
     }
 
@@ -292,6 +329,7 @@ impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     /// Returns a profile diagnostic before backend work, or the selected
     /// backend's capability/numerical diagnostic. No retry or fallback occurs.
     pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
+        self.profile.require_plan(self.solver_plan())?;
         self.profile.require_problem(problem)?;
         self.selected.request().solve(problem)
     }
@@ -381,7 +419,7 @@ pub fn plan_host_serial_solver_v2<'backend>(
             ))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let resolved = resolve_candidates(profile.facts, objective, &candidates)?;
+    let resolved = resolve_candidates(profile, objective, &candidates)?;
     Ok(ResolvedHostSerialSolverPlan {
         profile,
         objective,
@@ -424,7 +462,10 @@ fn resolve_host_serial_solver_v2<'problem, 'backend>(
     candidates: &[HostSerialSolverCandidate<'backend>],
 ) -> Result<HostSerialSolverDecision<'problem, 'backend>, Diagnostic> {
     let resolved = resolve_candidates(
-        PlanningProfileFacts::from_problem(problem),
+        HostSerialSolverProfile {
+            facts: PlanningProfileFacts::from_problem(problem),
+            required_reduction: None,
+        },
         objective,
         candidates,
     )?;
@@ -438,7 +479,7 @@ fn resolve_host_serial_solver_v2<'problem, 'backend>(
 }
 
 fn resolve_candidates<'backend>(
-    profile: PlanningProfileFacts,
+    profile: HostSerialSolverProfile,
     objective: SolverPlanningObjective,
     candidates: &[HostSerialSolverCandidate<'backend>],
 ) -> Result<ResolvedCandidateSet<'backend>, Diagnostic> {
@@ -582,7 +623,7 @@ fn validate_common_controls(
 }
 
 fn rejection_reason(
-    profile: PlanningProfileFacts,
+    profile: HostSerialSolverProfile,
     candidate: HostSerialSolverCandidate<'_>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());
@@ -595,7 +636,7 @@ fn rejection_reason(
     if !plan_tuple_matches(candidate.request().plan(), expected) {
         return Some("catalog.plan-mismatch");
     }
-    if profile.properties != expected.properties {
+    if profile.facts.properties != expected.properties {
         return Some(match expected.properties {
             LinearOperatorProperties::General => "profile.general-required",
             LinearOperatorProperties::SymmetricPositiveDefinite => "profile.spd-required",
@@ -604,16 +645,14 @@ fn rejection_reason(
             }
         });
     }
-    if profile.orientation != LinearOperatorOrientation::Normal {
+    if profile.facts.orientation != LinearOperatorOrientation::Normal {
         return Some("profile.normal-required");
     }
-    if !profile.canonical_csr {
+    if !profile.facts.canonical_csr {
         return Some("profile.canonical-csr-required");
     }
-    if expected.preconditioner == PreconditionerPolicy::Jacobi
-        && profile.complete_diagonal != Some(true)
-    {
-        return Some("profile.complete-diagonal-required");
+    if let Some(reason) = profile.plan_rejection(candidate.request().plan()) {
+        return Some(reason);
     }
     let required = SolverCapability {
         algorithm: expected.algorithm,

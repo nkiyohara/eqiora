@@ -12,16 +12,17 @@ pub(super) fn resolve_linear(
     request: CommonLinearRequest,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
+    required_reduction: Option<ReductionPolicy>,
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
+    let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+        properties,
+        complete_diagonal,
+        required_reduction,
+    );
     if let Some((plan, provider)) = request.exact_request() {
         let backend = exact_backend(provider, supplied_backend)?;
-        if plan.preconditioner() == PreconditionerPolicy::Jacobi && complete_diagonal != Some(true)
-        {
-            return Err(invalid(
-                "exact Jacobi request requires a complete structural diagonal",
-            ));
-        }
+        profile.require_plan(plan)?;
         backend
             .capabilities()
             .require_problem(plan, ScalarType::F64, properties)?;
@@ -31,7 +32,7 @@ pub(super) fn resolve_linear(
         .objective()
         .expect("linear intent is exact or program-controlled");
     let decision = eqiora_solver::plan_host_serial_solver_v2(
-        eqiora_solver::HostSerialSolverProfile::canonical_csr(properties, complete_diagonal),
+        profile,
         objective,
         request.relative_tolerance(),
         request.absolute_tolerance(),
@@ -138,9 +139,14 @@ mod tests {
             ),
         ] {
             let request = exact(algorithm, reduction, provider);
-            let decision =
-                resolve_linear(request, properties, Some(false), &ResolveOnlySparseBackend)
-                    .unwrap();
+            let decision = resolve_linear(
+                request,
+                properties,
+                Some(false),
+                None,
+                &ResolveOnlySparseBackend,
+            )
+            .unwrap();
             assert_eq!(decision.solver, request.exact_request().unwrap().0);
             assert_eq!(decision.provider, provider);
             assert_eq!(decision.planning_objective, None);
@@ -162,6 +168,7 @@ mod tests {
                 request,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(true),
+                None,
                 &ResolveOnlySparseBackend
             )
             .unwrap_err()
@@ -178,6 +185,7 @@ mod tests {
                 request,
                 LinearOperatorProperties::SymmetricIndefinite,
                 Some(true),
+                None,
                 &ResolveOnlySparseBackend
             )
             .is_err()
@@ -193,11 +201,12 @@ mod tests {
                 jacobi,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(false),
+                None,
                 &ResolveOnlySparseBackend
             )
             .unwrap_err()
             .message()
-            .contains("structural diagonal")
+            .contains("profile.complete-diagonal-required")
         );
     }
 }

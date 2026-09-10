@@ -135,6 +135,7 @@ impl CommonAlgebraicPlan {
             request,
             LinearOperatorProperties::General,
             None,
+            None,
             backend,
         )?;
         if linear.solver.algorithm() != LinearSolver::SparseLu
