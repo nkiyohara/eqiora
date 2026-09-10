@@ -51,7 +51,7 @@ class Tsitouras45:
     def absolute_tolerances(self) -> dict[FieldRef, float]: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45"]
+__all__ = ["BackwardEuler", "OdePlanView", "TimeFunctionalQuadrature", "Tsitouras45"]
 
 @final
 class TimeFunctionalQuadrature:

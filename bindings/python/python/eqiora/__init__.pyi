@@ -1623,6 +1623,7 @@ class TrajectoryObservation:
 
     Values use coherent SI units. Time integration multiplies the declared
     Observable dimension by seconds; it does not integrate output samples.
+
     Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTrajectoryObservation``.
     """
     @property
