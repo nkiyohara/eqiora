@@ -616,7 +616,8 @@ def _validate_html_references(root: Path) -> None:
     for document in sorted(root.rglob("*.html")):
         parser = _References()
         try:
-            parser.feed(document.read_text(encoding="utf-8"))
+            body = document.read_text(encoding="utf-8")
+            parser.feed(body)
         except (OSError, UnicodeError) as error:
             raise RustReferenceError(f"cannot parse {document}: {error}") from error
         for raw_url in parser.urls:
@@ -650,6 +651,16 @@ def _validate_html_references(root: Path) -> None:
                     len(relative.parts) >= 2
                     and relative.parts[0] in {"trait.impl", "type.impl"}
                     and relative.suffix == ".js"
+                ):
+                    continue
+                # `tracing::instrument::WithSubscriber` is a blanket impl on
+                # every documented type. Its upstream method prose contains
+                # this crate-relative link, even when rustdoc renders the impl
+                # into another crate under `--no-deps`. The tracing dispatcher
+                # page is intentionally outside this facade-only artifact.
+                if (
+                    raw_url == "dispatcher#setting-the-default-subscriber"
+                    and 'id="impl-WithSubscriber-for-T"' in body
                 ):
                     continue
                 # Standalone rustdoc emits help/settings navigation to a

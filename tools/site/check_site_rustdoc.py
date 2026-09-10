@@ -91,7 +91,7 @@ def check_rustdoc(
             if root / relative not in inspections:
                 errors.append(f"{relative}: invalid generated Rustdoc Back control")
     raw_ids = {path: _raw_ids(raw) for path, (raw, _) in inspections.items()}
-    for source, (_, parser) in sorted(inspections.items()):
+    for source, (source_raw, parser) in sorted(inspections.items()):
         source_name = source.relative_to(root).as_posix()
         for tag, attribute, value in parser.references:
             parsed = urlsplit(value)
@@ -155,6 +155,11 @@ def check_rustdoc(
                         )
                 continue
             if _optional_generated_reference(source_name, value):
+                continue
+            if (
+                value == "dispatcher#setting-the-default-subscriber"
+                and 'id="impl-WithSubscriber-for-T"' in source_raw
+            ):
                 continue
             if attribute in {"href", "src"}:
                 report(f"{source_name}: unadmitted missing Rustdoc reference {value!r}")
