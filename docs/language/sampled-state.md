@@ -98,7 +98,7 @@ sampling adds no implicit delay to break an algebraic loop.
 
 ## Use packaged definitions
 
-The bundled [`Eqiora.Controls.Sampled@0.1.0`](../../packages/Eqiora.Controls.Sampled/README.md)
+The bundled [`Eqiora.Controls.Sampled@0.1.0`](../../crates/eqiora-api/packages/Eqiora.Controls.Sampled/README.md)
 exports the maintained delay and integrator definitions:
 
 ```eqiora

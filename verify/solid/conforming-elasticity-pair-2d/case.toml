@@ -37,7 +37,7 @@ package_dispatch = false
 [package]
 name = "Eqiora.Solid.LinearElasticity"
 version = "0.6.0"
-authority = "packages/Eqiora.Solid.LinearElasticity"
+authority = "crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity"
 
 [realization]
 method = "continuous-galerkin"

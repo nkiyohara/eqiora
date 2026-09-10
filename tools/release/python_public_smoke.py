@@ -99,6 +99,10 @@ def differentiable_program(eqiora):
         mesh=mesh,
         spatial=eqiora.fem.Q1(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,

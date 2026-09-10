@@ -36,12 +36,12 @@ Each program selects one output field and computes first derivatives.
 
 ## Native ordered batches
 
-The batch API is in the current source tree, not the published `0.1.0a7`
-wheel. From a checkout with the declared Rust toolchain available:
+The batch API is included in `0.1.0a8`. Install the release in a clean
+environment:
 
 ```console
 uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python .
+uv pip install --python .venv/bin/python eqiora==0.1.0a8
 uv run --no-project --python .venv/bin/python your_batch.py
 ```
 

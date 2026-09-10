@@ -5,25 +5,25 @@ simulations from Rust.
 
 ## Install the alpha
 
-[`eqiora 0.1.0-alpha.7`](https://crates.io/crates/eqiora/0.1.0-alpha.7) is available
+[`eqiora 0.1.0-alpha.8`](https://crates.io/crates/eqiora/0.1.0-alpha.8) is available
 on crates.io.
 
 In a new Cargo project:
 
 ```console
-cargo add eqiora@=0.1.0-alpha.7
+cargo add eqiora@=0.1.0-alpha.8
 ```
 
 Or add this dependency to `Cargo.toml`:
 
 ```toml
 [dependencies]
-eqiora = "=0.1.0-alpha.7"
+eqiora = "=0.1.0-alpha.8"
 ```
 
 Building from source requires a Rust toolchain and linker. The minimum supported
-Rust version is 1.89. The alpha's default-feature installation was tested on
-Linux x86-64 with Rust 1.98.0.
+Rust version is 1.89. The preceding 0.1.0-alpha.7 release's default-feature
+installation was tested on Linux x86-64 with Rust 1.98.0.
 
 ## Build command-line tools from this checkout
 
@@ -82,7 +82,7 @@ mesh needs no external Gmsh executable; automatic mesh generation requires it.
 | `mpi`, `cuda`, `mpi-cuda` | Environment-specific distributed/GPU adapters requiring the corresponding native libraries and hardware. |
 
 Enable only the features needed by the chosen supported path, for example
-`eqiora = { version = "=0.1.0-alpha.7", features = ["faer"] }`.
+`eqiora = { version = "=0.1.0-alpha.8", features = ["faer"] }`.
 
 ## Compatibility
 

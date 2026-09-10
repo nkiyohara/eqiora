@@ -1078,7 +1078,7 @@ invalid candidate
             PYTHON_TEST_RESOURCES,
         )
         self.assertIn(
-            Path("packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+            Path("crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
             PYTHON_TEST_RESOURCES,
         )
         # The installed Reference test executes displayed Python and its sources.
@@ -1087,7 +1087,7 @@ invalid candidate
             reference / "standard-packages/continuum.mdx",
             reference / "standard-packages/controls.mdx",
             reference / "language/_examples/clocked.eqi",
-            Path("packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
+            Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
         ):
             self.assertIn(relative, PYTHON_TEST_RESOURCES)
         with tempfile.TemporaryDirectory() as temporary:
@@ -1111,7 +1111,7 @@ invalid candidate
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(relative, encoding="utf-8")
 
-            controls_manifest = Path("packages/Eqiora.Controls.Sampled/package.json")
+            controls_manifest = Path("crates/eqiora-api/packages/Eqiora.Controls.Sampled/package.json")
             (extracted / controls_manifest).write_text("{}", encoding="utf-8")
 
             tests, typecheck = prepare_base_consumer_tree(extracted, run_root)

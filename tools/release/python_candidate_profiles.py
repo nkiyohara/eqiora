@@ -39,7 +39,7 @@ MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
-    Path("packages/org.example.poisson"),
+    Path("crates/eqiora-api/packages/org.example.poisson"),
     Path("verify/packages/offline-model-package"),
     Path("verify/interfaces/python-package-conformance"),
     Path(
@@ -68,10 +68,10 @@ PYTHON_TEST_RESOURCES = (
     Path("examples/standard-sampled-components/src/main.eqi"),
     Path("examples/python/coupled_scalar.py"),
     Path("examples/python/textbook_decay.py"),
-    Path("packages/Eqiora.Electrical.Basic/src/basic.eqi"),
-    Path("packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
-    Path("packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"),
-    Path("packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
 )
 
 COMPLETE_PROFILE_NAMES = (

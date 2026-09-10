@@ -173,7 +173,7 @@ Immutable nominal scalar across/through declaration owned by one Module.
 
 ```python
 class Connector:
-    ...
+    def __init__(self, token: Never, owner: object, name: str, across: tuple[str, object], through: tuple[str, object], doc: tuple[str, ...]) -> None: ...
 ```
 
 <a id="api-eqiora-lang-BoundarySet"></a>
@@ -185,6 +185,7 @@ An exact complete exterior requirement with a declared parent volume.
 ```python
 @final
 class BoundarySet(Support):
+    def __init__(self, token: Never, component: Component, name: str, parent: Support) -> None: ...
     def member(self, name: str) -> BoundaryMember: ...
 ```
 
@@ -197,7 +198,7 @@ A lexical member of one exact complete exterior.
 ```python
 @final
 class BoundaryMember(Support):
-    ...
+    def __init__(self, token: Never, boundary_set: BoundarySet, name: str) -> None: ...
 ```
 
 <a id="api-eqiora-lang-BoundarySelectionSet"></a>
@@ -209,7 +210,7 @@ An explicit finite set of exact boundary handles sharing one parent.
 ```python
 @final
 class BoundarySelectionSet:
-    ...
+    def __init__(self, token: Never, component: Component, parent: Support, members: Sequence[Support]) -> None: ...
 ```
 
 <a id="api-eqiora-lang-FieldConnector"></a>
@@ -219,9 +220,8 @@ class BoundarySelectionSet:
 A nominal field trace/flux pair with exact shape and frame.
 
 ```python
-@final
 class FieldConnector(Connector):
-    ...
+    def __init__(self, token: Never, owner: object, name: str, trace: tuple[str, object], flux: tuple[str, object], spatial_vector: bool, doc: tuple[str, ...]) -> None: ...
 ```
 
 <a id="api-eqiora-lang-FieldPort"></a>
@@ -233,6 +233,7 @@ An exact field boundary endpoint or finite port family.
 ```python
 @final
 class FieldPort(Port):
+    def __init__(self, token: Never, component: Component, name: str, connector: FieldConnector, support: Support, family: tuple[str, BoundarySet | BoundarySelectionSet] | None=None, selector: Support | None=None) -> None: ...
     def __getitem__(self, boundary: Support) -> FieldPort: ...
 ```
 
@@ -246,6 +247,7 @@ Use member(name) when a declared name overlaps a Python attribute.
 
 ```python
 class Port:
+    def __init__(self, token: Never, owner: object, name: str, connector: Connector) -> None: ...
     def __getattr__(self, name: str) -> Expression: ...
     def member(self, name: str) -> Expression: ...
 ```
@@ -259,6 +261,7 @@ Immutable reference to one public Component in an explicit import.
 ```python
 @final
 class ComponentRef:
+    def __init__(self, token: Never, imported: ModuleRef, name: str, signature: Sequence[object], ports: Sequence[object], supports: Sequence[object]) -> None: ...
     @property
     def name(self) -> str: ...
 ```
@@ -272,6 +275,7 @@ Immutable ordered mathematical equality, never a Python truth value.
 ```python
 @final
 class Equation:
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
     @property
     def lhs(self) -> Expression: ...
     @property
@@ -344,6 +348,7 @@ An exact ordered heterogeneous declaration owned by one Module.
 ```python
 @final
 class Record:
+    def __init__(self, token: Never=..., *, source: Module | None=None, name: str='', members: Sequence[tuple[str, ValueType]]=(), syntax: Sequence[object]=(), doc: tuple[str, ...]=()) -> None: ...
     @property
     def name(self) -> str: ...
     @property
@@ -360,6 +365,7 @@ A record Field handle; members retain the common role and clock.
 ```python
 @final
 class RecordField(Expression):
+    def __init__(self, component: Component, name: str, record: Record) -> None: ...
     def member(self, name: str) -> Expression: ...
 ```
 
@@ -372,6 +378,7 @@ A record Parameter handle with ordinary typed member expressions.
 ```python
 @final
 class RecordParameter(Expression):
+    def __init__(self, component: Component, name: str, record: Record) -> None: ...
     def member(self, name: str) -> Expression: ...
 ```
 
@@ -408,7 +415,7 @@ Validated, immutable declaration notation; accepts one complete `@{...}` island.
 ```python
 @final
 class Notation:
-    def __init__(self, island: str) -> None: ...
+    def __new__(cls, island: str) -> Notation: ...
     @property
     def canonical(self) -> str: ...
     def __str__(self) -> str: ...
@@ -421,7 +428,6 @@ class Notation:
 An immutable typed operator declared by one Module; call with named arguments.
 
 ```python
-@final
 class Operator:
     def __call__(self, /, **arguments: object) -> Expression: ...
 ```
@@ -433,7 +439,6 @@ class Operator:
 Identify one typed property contract in its exact Module.
 
 ```python
-@final
 class PropertyContract:
     def input(self, name: str) -> Expression: ...
 ```
@@ -447,6 +452,7 @@ A nominal property requirement with ordered named input application.
 ```python
 @final
 class PropertyRequirement(Expression):
+    def __init__(self, _token: Never, component: object, name: str, contract: PropertyContract) -> None: ...
     def __call__(self, /, **arguments: object) -> Expression: ...
 ```
 
@@ -457,7 +463,6 @@ class PropertyRequirement(Expression):
 Identify one exact constant scalar release in its exact Module.
 
 ```python
-@final
 class PropertyRelease:
     ...
 ```
@@ -526,6 +531,7 @@ An explicit module import with immutable Component references.
 ```python
 @final
 class ModuleRef:
+    def __init__(self, token: Never, owner: object, alias: str, target: Module) -> None: ...
     def property_contract(self, name: str) -> PropertyContract: ...
     def property_release(self, name: str) -> PropertyRelease: ...
     def dimension(self, name: str) -> Dimension: ...

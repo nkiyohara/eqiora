@@ -41,7 +41,7 @@ CASE_SOURCE_PATHS = (
     "examples/python/exact_cylinder_mesh.py",
     "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi",
     "verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi",
-    "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
+    "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
 )
 CASE_EVIDENCE_PATHS = (
     "verify/fluid/packaged-steady-stokes-2d/README.md",

@@ -347,15 +347,12 @@ def validate_module_bindings(module: ModuleData) -> None:
 
 
 def discover_modules() -> tuple[ModuleData, ...]:
-    discovered = set(STUB_ROOT.rglob("*.pyi"))
+    # Private adapter stubs type implementation boundaries, not public modules.
+    discovered = {
+        path for path in STUB_ROOT.rglob("*.pyi")
+        if path.name == "__init__.pyi" or not path.stem.startswith("_")
+    }
     expected = {ROOT / spec.source for spec in MODULES}
-    private = sorted(
-        path.relative_to(ROOT).as_posix()
-        for path in discovered
-        if path.name != "__init__.pyi" and path.stem.startswith("_")
-    )
-    if private:
-        raise fail(f"private stub modules are in the discovered set: {private}")
     missing = sorted(
         path.relative_to(ROOT).as_posix() for path in expected - discovered
     )

@@ -16,7 +16,7 @@ their composition; mesh and solver selection belong to the execution workflow.
 
 ## Elastic balance and boundaries
 
-Canonical owner: <ExactSourceLink kind="blob" path="packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity / linear_elasticity.eqi</ExactSourceLink>.
+Canonical owner: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity / linear_elasticity.eqi</ExactSourceLink>.
 The self-contained quasistatic declarations precede the dynamic additions in that file.
 
 ### `IsotropicBalanceWithPotential2d`
@@ -65,7 +65,7 @@ declarations have an additional package dependency and are not needed here.
 from pathlib import Path
 import eqiora
 
-path = Path("eqiora-source/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi")
+path = Path("eqiora-source/crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi")
 declarations = path.read_text()
 end = declarations.index("public component IsotropicElastodynamicsWithPotential2d")
 source = declarations[:end] + "\n" + Path("elastic-body.eqi").read_text()
@@ -80,7 +80,7 @@ its stated source and environment.
 
 ## Inertial flow law
 
-Canonical owner: <ExactSourceLink kind="blob" path="packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes / inertial_stokes.eqi</ExactSourceLink>.
+Canonical owner: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes / inertial_stokes.eqi</ExactSourceLink>.
 
 `InertialStokesWithPotential2d` requires a two-dimensional `body`, vector
 `velocity` in m/s, scalar `pressure` and `force_potential` in Pa, `density` in
@@ -97,7 +97,7 @@ Append that example after the unchanged `inertial_stokes.eqi` source:
 from pathlib import Path
 import eqiora
 
-path = Path("eqiora-source/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi")
+path = Path("eqiora-source/crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi")
 source = path.read_text() + "\n" + Path("inertial-stokes.eqi").read_text()
 model = eqiora.compile(source=source, filename="inertial-stokes.eqi")
 ```

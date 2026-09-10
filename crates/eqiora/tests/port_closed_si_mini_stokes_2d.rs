@@ -34,10 +34,12 @@ const DIRECT: &str =
     include_str!("../../../verify/fluid/port-closed-si-mini-stokes-2d/models/direct.eqi");
 const PACKAGED: &str =
     include_str!("../../../verify/fluid/port-closed-si-mini-stokes-2d/models/packaged.eqi");
-const MECHANICS_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi");
-const FLUID_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi");
+const MECHANICS_SOURCE: &str = include_str!(
+    "../../../crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"
+);
+const FLUID_SOURCE: &str = include_str!(
+    "../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
+);
 
 const ROOT_PACKAGE: &str = "org.eqiora.verify.port_closed_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";

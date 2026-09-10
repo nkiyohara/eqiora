@@ -10,7 +10,7 @@ from fractions import Fraction
 from decimal import Decimal
 from ..units import Unit
 from os import PathLike
-from typing import Final, Literal, final, overload
+from typing import Final, Literal, Never, final, overload
 from .. import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 class Connector:
@@ -18,6 +18,7 @@ class Connector:
 
     Authority: ``bindings/python/python/eqiora/lang/_connections.py::Connector``.
     """
+    def __init__(self, token: Never, owner: object, name: str, across: tuple[str, object], through: tuple[str, object], doc: tuple[str, ...]) -> None: ...
 
 class Port:
     """Immutable physical endpoint exposing its declared named quantities.
@@ -26,6 +27,7 @@ class Port:
 
     Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port``.
     """
+    def __init__(self, token: Never, owner: object, name: str, connector: Connector) -> None: ...
     def __getattr__(self, name: str) -> Expression: ...
     def member(self, name: str) -> Expression:
         """Select an exact declared quantity, including Python attribute names.
@@ -40,7 +42,7 @@ class Notation:
 
     Authority: ``crates/eqiora-python/src/notation.rs::PyNotation``.
     """
-    def __init__(self, island: str) -> None: ...
+    def __new__(cls, island: str) -> Notation: ...
     @property
     def canonical(self) -> str: ...
     def __str__(self) -> str: ...
@@ -59,7 +61,6 @@ class Enum:
     def value_type(self) -> ValueType: ...
     def member(self, name: str) -> Expression: ...
 
-@final
 class Operator:
     """An immutable typed operator declared by one Module; call with named arguments.
 
@@ -107,6 +108,7 @@ class Record:
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::Record``.
     """
+    def __init__(self, token: Never = ..., *, source: Module | None = None, name: str = "", members: Sequence[tuple[str, ValueType]] = (), syntax: Sequence[object] = (), doc: tuple[str, ...] = ()) -> None: ...
     @property
     def name(self) -> str: ...
     @property
@@ -119,6 +121,7 @@ class RecordField(Expression):
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::RecordField``.
     """
+    def __init__(self, component: Component, name: str, record: Record) -> None: ...
     def member(self, name: str) -> Expression: ...
 
 @final
@@ -127,6 +130,7 @@ class RecordParameter(Expression):
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::RecordParameter``.
     """
+    def __init__(self, component: Component, name: str, record: Record) -> None: ...
     def member(self, name: str) -> Expression: ...
 
 @final
@@ -135,6 +139,7 @@ class Equation:
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Equation``.
     """
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
 
     @property
     def lhs(self) -> Expression: ...
@@ -180,6 +185,7 @@ class PropertyRequirement(Expression):
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyRequirement``.
     """
+    def __init__(self, _token: Never, component: object, name: str, contract: PropertyContract) -> None: ...
     def __call__(self, /, **arguments: object) -> Expression: ...
 
 @final
@@ -188,6 +194,7 @@ class BoundarySet(Support):
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundarySet``.
     """
+    def __init__(self, token: Never, component: Component, name: str, parent: Support) -> None: ...
     def member(self, name: str) -> BoundaryMember: ...
 
 @final
@@ -196,6 +203,7 @@ class BoundaryMember(Support):
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundaryMember``.
     """
+    def __init__(self, token: Never, boundary_set: BoundarySet, name: str) -> None: ...
 
 @final
 class BoundarySelectionSet:
@@ -203,13 +211,14 @@ class BoundarySelectionSet:
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundarySelectionSet``.
     """
+    def __init__(self, token: Never, component: Component, parent: Support, members: Sequence[Support]) -> None: ...
 
-@final
 class FieldConnector(Connector):
     """A nominal field trace/flux pair with exact shape and frame.
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::FieldConnector``.
     """
+    def __init__(self, token: Never, owner: object, name: str, trace: tuple[str, object], flux: tuple[str, object], spatial_vector: bool, doc: tuple[str, ...]) -> None: ...
 
 @final
 class FieldPort(Port):
@@ -217,9 +226,9 @@ class FieldPort(Port):
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::FieldPort``.
     """
+    def __init__(self, token: Never, component: Component, name: str, connector: FieldConnector, support: Support, family: tuple[str, BoundarySet | BoundarySelectionSet] | None = None, selector: Support | None = None) -> None: ...
     def __getitem__(self, boundary: Support) -> FieldPort: ...
 
-@final
 class PropertyContract:
     """Identify one typed property contract in its exact Module.
 
@@ -228,7 +237,6 @@ class PropertyContract:
 
     def input(self, name: str) -> Expression: ...
 
-@final
 class PropertyRelease:
     """Identify one exact constant scalar release in its exact Module.
 
@@ -453,6 +461,7 @@ class ComponentRef:
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ComponentRef``.
     """
+    def __init__(self, token: Never, imported: ModuleRef, name: str, signature: Sequence[object], ports: Sequence[object], supports: Sequence[object]) -> None: ...
 
     @property
     def name(self) -> str: ...
@@ -463,6 +472,7 @@ class ModuleRef:
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef``.
     """
+    def __init__(self, token: Never, owner: object, alias: str, target: Module) -> None: ...
 
     def property_contract(self, name: str) -> PropertyContract: ...
     def property_release(self, name: str) -> PropertyRelease: ...

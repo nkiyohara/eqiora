@@ -8,7 +8,8 @@ use eqiora_sem::KernelProgram;
 
 use super::*;
 
-const SOURCE: &str = include_str!("../../../../../packages/org.example.poisson/src/main.eqi");
+const SOURCE: &str =
+    include_str!("../../../../../crates/eqiora-api/packages/org.example.poisson/src/main.eqi");
 const SOURCE_1D: &str =
     include_str!("../../../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
 const SOURCE_3D: &str =

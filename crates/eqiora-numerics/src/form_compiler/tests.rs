@@ -11,7 +11,8 @@ use super::vocabulary::{
     BoundaryTreatment, FormulationKind, FormulationRule, PrimalGalerkinCorrespondence,
 };
 
-const POISSON: &str = include_str!("../../../../packages/org.example.poisson/src/main.eqi");
+const POISSON: &str =
+    include_str!("../../../../crates/eqiora-api/packages/org.example.poisson/src/main.eqi");
 const ELASTICITY: &str =
     include_str!("../../../../verify/solid/isotropic-elasticity-2d/models/linear-load.eqi");
 

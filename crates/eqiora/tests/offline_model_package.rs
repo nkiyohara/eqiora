@@ -25,13 +25,17 @@ use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine};
 
 const LIBRARY_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Electrical.Basic/src/basic.eqi");
-const LIBRARY_README: &[u8] = include_bytes!("../../../packages/Eqiora.Electrical.Basic/README.md");
+    include_str!("../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi");
+const LIBRARY_README: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/README.md");
 const LIBRARY_MANIFEST: &[u8] =
-    include_bytes!("../../../packages/Eqiora.Electrical.Basic/package.json");
-const ROOT_SOURCE: &str = include_str!("../../../packages/org.example.parallel/src/main.eqi");
-const ROOT_README: &[u8] = include_bytes!("../../../packages/org.example.parallel/README.md");
-const ROOT_MANIFEST: &[u8] = include_bytes!("../../../packages/org.example.parallel/package.json");
+    include_bytes!("../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/package.json");
+const ROOT_SOURCE: &str =
+    include_str!("../../../crates/eqiora-api/packages/org.example.parallel/src/main.eqi");
+const ROOT_README: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/org.example.parallel/README.md");
+const ROOT_MANIFEST: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/org.example.parallel/package.json");
 const SOURCE_PATH: &str = "src/basic.eqi";
 const ROOT_SOURCE_PATH: &str = "src/main.eqi";
 const VALUE_TOLERANCE: f64 = 2.0e-11;
@@ -42,7 +46,7 @@ fn library_sources() -> PackageSourcesV1 {
 
 fn package_root(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages")
+        .join("../eqiora-api/packages")
         .join(name)
 }
 

@@ -10,7 +10,7 @@ import eqiora
 
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE = (ROOT / "examples/standard-sampled-components/src/main.eqi").read_text(encoding="utf-8")
-CONTROLS = (ROOT / "packages/Eqiora.Controls.Sampled/src/sampled.eqi").read_text(encoding="utf-8")
+CONTROLS = (ROOT / "crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi").read_text(encoding="utf-8")
 
 
 def replace_exact(source: str, needle: str, replacement: str, count: int) -> str:

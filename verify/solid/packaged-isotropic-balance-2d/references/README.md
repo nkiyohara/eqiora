@@ -17,7 +17,7 @@ package-specific lowerer, or frozen floating-point solution supplies the
 oracle.
 
 The ordinary author input is the current checked-in
-`packages/Eqiora.Solid.LinearElasticity` package, prepared as an exact release
+`crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity` package, prepared as an exact release
 by the executable case. The `package-v0.1.0` snapshot preserves historical
 bytes. Current local component fixtures falsify provider-name and input-order
 coupling without requiring historical source syntax to compile.

@@ -14,7 +14,8 @@ use eqiora::{Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::scalar::{lower_scalar_physical_affine, solve_scalar_physical_affine};
 
-const COMPONENTS: &str = include_str!("../../../packages/Eqiora.Electrical.Basic/src/basic.eqi");
+const COMPONENTS: &str =
+    include_str!("../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi");
 const DIVIDER: &str = include_str!("../../../examples/voltage_divider.eqi");
 
 fn fixture(model: &str) -> (KernelProgram, ModelSymbols, Id<kinds::Connection>) {

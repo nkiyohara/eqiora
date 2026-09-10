@@ -161,8 +161,9 @@ candidate have been authenticated. Its filename remains unchanged for the existi
 trusted-publisher identity. [The Rust driver](../../tools/release/rust_publish.py) derives the
 facade's complete local dependency closure from Cargo metadata and uses the exact Linux Rust
 toolchain in `mise.lock`. A job without a publication credential packages and builds the
-default-feature archives; a fresh publication runner reconstructs them without running build
-scripts and checks their source identity and hashes against that run's retained artifacts.
+default-feature archives. Both PyPI and crates.io publication wait for that archive build
+to succeed, so a Rust packaging failure cannot start a partial public release. A fresh Rust
+publication runner reconstructs the archives without running build scripts and checks their source identity and hashes against that run's retained artifacts.
 Only its final publish step receives `CARGO_REGISTRY_TOKEN` from the protected `crates-io`
 environment. This environment admits protected branches, matching the production dispatch
 from `main`.

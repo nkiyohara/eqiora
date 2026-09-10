@@ -28,7 +28,7 @@ def test_current_reference_examples_and_displayed_python(tmp_path, monkeypatch):
         ("Eqiora.Solid.LinearElasticity", "linear_elasticity.eqi"),
         ("Eqiora.Fluid.InertialStokes", "inertial_stokes.eqi"),
     ):
-        relative = Path("packages") / name / "src" / filename
+        relative = Path("crates/eqiora-api/packages") / name / "src" / filename
         destination = tmp_path / "eqiora-source" / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / relative, destination)

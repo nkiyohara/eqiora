@@ -9,7 +9,7 @@
 - [RFC 0035](../../../../rfcs/0035-field-valued-boundary-interfaces.md)
   defines field-valued trace/flux meaning and parent-outward orientation.
 - Current execution uses the checked-in
-  [`Eqiora.Solid.LinearElasticity`](../../../../packages/Eqiora.Solid.LinearElasticity/README.md)
+  [`Eqiora.Solid.LinearElasticity`](../../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/README.md)
   package. The adjacent `package-v0.3.0` snapshot remains a historical record.
 
 ## Independent heterogeneous oracle

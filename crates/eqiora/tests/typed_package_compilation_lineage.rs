@@ -5,9 +5,12 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 
-const MANIFEST: &[u8] = include_bytes!("../../../packages/org.example.poisson/package.json");
-const SOURCE: &str = include_str!("../../../packages/org.example.poisson/src/main.eqi");
-const README: &[u8] = include_bytes!("../../../packages/org.example.poisson/README.md");
+const MANIFEST: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/org.example.poisson/package.json");
+const SOURCE: &str =
+    include_str!("../../../crates/eqiora-api/packages/org.example.poisson/src/main.eqi");
+const README: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/org.example.poisson/README.md");
 const SOURCE_PATH: &str = "src/main.eqi";
 
 fn package_release(source: &str, readme: &[u8], reverse_files: bool) -> PackageReleaseV1 {

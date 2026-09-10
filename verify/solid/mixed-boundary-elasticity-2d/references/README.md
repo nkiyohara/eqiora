@@ -8,7 +8,7 @@
 - [RFC 0035](../../../../rfcs/0035-field-valued-boundary-interfaces.md)
   defines field-valued physical Connector meaning.
 
-The checked-in `packages/Eqiora.Solid.LinearElasticity` package is the
+The checked-in `crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity` package is the
 source consumed by this case.
 
 ## Independent manufactured oracle
