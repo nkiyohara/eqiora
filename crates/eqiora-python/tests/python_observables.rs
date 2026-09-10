@@ -2,8 +2,12 @@ use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
+// The fixture replaces sys.modules; imports can release the GIL mid-initialization.
+static MODULE_FIXTURE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn python_result_observations_retain_types_rules_and_exact_state_lineage() -> PyResult<()> {
+    let _fixture = MODULE_FIXTURE.lock().expect("Python package fixture lock");
     Python::initialize();
     Python::attach(|py| {
         let locals = PyDict::new(py);
@@ -103,6 +107,7 @@ else:
 
 #[test]
 fn python_time_functionals_use_accepted_history_and_exact_model_lineage() -> PyResult<()> {
+    let _fixture = MODULE_FIXTURE.lock().expect("Python package fixture lock");
     Python::initialize();
     Python::attach(|py| {
         let locals = PyDict::new(py);
