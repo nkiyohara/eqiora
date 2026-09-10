@@ -3,18 +3,11 @@
 use crate::kernel::{ConservationTerms, ExprDag, ExprId};
 use eqiora_core::{Diagnostic, Id, diagnostic::codes, entity::kinds};
 
-/// Mathematical meaning of one ordered pair of expression roots.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RelationConditionKind {
-    /// Both operands are equal and have the same type.
-    Equality,
-}
-
 /// Exclusive mathematical owner of a Relation's retained expression roots.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RelationMeaning {
     /// Ordered equality conditions.
-    Conditions(Vec<RelationConditionKind>),
+    Equations,
     /// One physical conservation balance with its exact authored terms.
     Conservation(ConservationTerms),
 }
@@ -35,32 +28,16 @@ impl RelationDef {
     /// # Errors
     /// Rejects an odd number of roots.
     pub fn new(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
-        let conditions = vec![RelationConditionKind::Equality; expression.roots().len() / 2];
-        Self::with_conditions(id, expression, conditions)
-    }
-
-    /// Define typed mathematical conditions with one descriptor per root pair.
-    /// Operand types and support are checked by semantic admission.
-    ///
-    /// # Errors
-    /// Rejects unpaired roots or a mismatched descriptor count.
-    pub fn with_conditions(
-        id: Id<kinds::Relation>,
-        expression: ExprDag,
-        conditions: Vec<RelationConditionKind>,
-    ) -> Result<Self, Diagnostic> {
-        if !expression.roots().len().is_multiple_of(2)
-            || conditions.len() != expression.roots().len() / 2
-        {
+        if !expression.roots().len().is_multiple_of(2) {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
-                "Relation conditions require one descriptor per consecutive left/right root pair",
+                "Relation equations require consecutive left/right root pairs",
             ));
         }
         Ok(Self {
             id,
             expression,
-            meaning: RelationMeaning::Conditions(conditions),
+            meaning: RelationMeaning::Equations,
             initial: false,
         })
     }
@@ -91,15 +68,6 @@ impl RelationDef {
     #[must_use]
     pub const fn expression(&self) -> &ExprDag {
         &self.expression
-    }
-
-    /// Mathematical descriptors in authored order.
-    #[must_use]
-    pub fn conditions(&self) -> &[RelationConditionKind] {
-        match &self.meaning {
-            RelationMeaning::Conditions(conditions) => conditions,
-            RelationMeaning::Conservation(_) => &[RelationConditionKind::Equality],
-        }
     }
 
     /// Exclusive mathematical meaning, including retained physical Law terms.

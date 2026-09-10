@@ -25,13 +25,13 @@ pub use ast::{
     CaseArm, ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, ConservationSyntax, DocComment, Document, DomainDecl,
-    DomainSyntax, EnumDecl, EventDecl, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax,
-    FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath,
-    NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl, PortDecl, PortSyntax,
-    PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl, RecordMemberDecl,
-    ReductionOp, RelationBody, RelationCondition, RelationConditionKind, RelationDecl,
-    RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax,
-    TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    DomainSyntax, EnumDecl, Equation, EventDecl, ExactIntegerSyntax, Expr, ExprKind,
+    FamilyBinderSyntax, FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item,
+    ModelDecl, NamePath, NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl,
+    PortDecl, PortSyntax, PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl,
+    RecordMemberDecl, ReductionOp, RelationBody, RelationDecl, RelationFamilyDecl,
+    SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
+    ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

@@ -62,7 +62,6 @@ fn independent_heat_and_mass_consumers_retain_one_physical_vocabulary() {
                 .collect::<Vec<_>>();
             assert_eq!(laws.len(), 1);
             let (relation, terms) = laws[0];
-            assert!(terms.storage().is_none());
             terms.validate_balance(relation.expression()).unwrap();
         }
     }
@@ -95,12 +94,10 @@ fn wrong_physical_source_units_and_foreign_support_fail_source_admission() {
 fn storage_is_rejected_until_independent_accumulation_admission_is_available() {
     let source = steady("K", "kg * m / s ^ 3 / K", "kg / m / s ^ 3")
         .replace("flux -coefficient", "storage value; flux -coefficient");
-    let errors = compile("storage.eqi", &source).unwrap_err();
     assert!(
-        errors
-            .iter()
-            .any(|error| error.message().contains("independently admitted storage")),
-        "{errors:?}"
+        eqiora_lang::parse("storage.eqi", &source)
+            .into_document()
+            .is_err()
     );
 }
 

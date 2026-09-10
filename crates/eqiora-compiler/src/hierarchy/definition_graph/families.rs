@@ -1,7 +1,7 @@
 //! Actual indexed family extents and aggregate expression work, before expansion.
 use super::super::{parameters, reductions};
 use super::*;
-use eqiora_lang::{Expr, ExprKind, NamedDefinitionDecl, RelationCondition};
+use eqiora_lang::{Equation, Expr, ExprKind, NamedDefinitionDecl};
 use parameters::SymbolicParameterMap;
 
 pub(super) struct Families<'a> {
@@ -124,7 +124,7 @@ impl<'a> Families<'a> {
 
     pub(super) fn equations(
         &self,
-        equations: &[RelationCondition],
+        equations: &[Equation],
         multiplicity: usize,
         total: &mut usize,
         diagnostics: &mut Vec<Diagnostic>,
@@ -158,7 +158,7 @@ mod tests {
         let equations = items
             .iter()
             .find_map(|item| match item {
-                Item::Relation(relation) => relation.conditions(),
+                Item::Relation(relation) => relation.equations(),
                 _ => None,
             })
             .unwrap();

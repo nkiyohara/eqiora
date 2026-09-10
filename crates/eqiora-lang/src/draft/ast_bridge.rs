@@ -7,8 +7,8 @@ use eqiora_core::GraphPath;
 
 use super::{DraftDeclaration, connection_path, value_type};
 use crate::ast::{
-    ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Expr, ExprKind,
-    FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax, RelationCondition,
+    ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Equation, Expr,
+    ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
     RelationDecl, TextRange, VisibilitySyntax,
 };
 
@@ -207,7 +207,7 @@ impl super::ModelDeclarations {
                         .domain
                         .as_ref()
                         .map(|domain| domain.name().to_owned()),
-                    body: crate::ast::RelationBody::Conditions(
+                    body: crate::ast::RelationBody::Equations(
                         relation
                             .equations
                             .iter()
@@ -231,12 +231,7 @@ impl super::ModelDeclarations {
                                     )
                                     .expect("validated native expression scope");
                                 let range = left.range();
-                                RelationCondition {
-                                    kind: crate::ast::RelationConditionKind::Equality,
-                                    left,
-                                    right,
-                                    range,
-                                }
+                                Equation { left, right, range }
                             })
                             .collect(),
                     ),
@@ -266,12 +261,7 @@ impl super::ModelDeclarations {
                                 )
                                 .expect("validated native expression scope");
                             let range = left.range();
-                            RelationCondition {
-                                kind: crate::ast::RelationConditionKind::Equality,
-                                left,
-                                right,
-                                range,
-                            }
+                            Equation { left, right, range }
                         })
                         .collect(),
                     range,

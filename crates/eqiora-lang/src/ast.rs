@@ -22,8 +22,7 @@ pub use conservation::ConservationSyntax;
 mod relation;
 pub use event::EventDecl;
 pub use relation::{
-    ActivationSyntax, InitialDecl, RelationBody, RelationCondition, RelationConditionKind,
-    RelationDecl, RelationFamilyDecl,
+    ActivationSyntax, Equation, InitialDecl, RelationBody, RelationDecl, RelationFamilyDecl,
 };
 mod value_type;
 

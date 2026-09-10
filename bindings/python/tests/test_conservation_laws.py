@@ -1,5 +1,7 @@
 """Fixed-domain physical Laws share source/native authoring and Relation identity."""
 
+import re
+
 import pytest
 
 import eqiora
@@ -44,6 +46,16 @@ def test_heat_and_mass_laws_compile_from_native_python_and_emitted_source(dimens
     path.write_text(text)
     replay = eqiora.compile(path=path, geometry=geometry, entry="Balance", bindings=bindings)
     assert direct.structurally_equivalent(replay)
+    # The equation has identical ordered operands but does not own physical
+    # flux/source meaning. Structural identity must retain that distinction.
+    equations = re.sub(
+        r"law balance on body \{\s*flux ([^;]+);\s*source ([^;]+);\s*\}",
+        r"relation balance on body { div(\1) = \2; }", text,
+    )
+    assert equations != text
+    ordinary = eqiora.compile(source=equations, geometry=geometry,
+                               entry="Balance", bindings=bindings)
+    assert not direct.structurally_equivalent(ordinary)
 
 
 def test_law_rejects_foreign_terms_and_boundary_support_before_mutating_draft():

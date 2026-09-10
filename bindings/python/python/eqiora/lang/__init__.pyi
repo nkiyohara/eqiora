@@ -400,7 +400,6 @@ class Component:
         on: Support,
         flux: Expression,
         source: Expression,
-        storage: Expression | None = None,
         doc: str | None = None,
     ) -> Relation:
         ...

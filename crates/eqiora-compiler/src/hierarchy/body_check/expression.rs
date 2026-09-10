@@ -121,7 +121,7 @@ pub(super) fn validate_relation_expression(
             "Activation syntax is newer than definition-body validation",
         )),
     }
-    let conditions = declaration.conditions();
+    let conditions = declaration.equations();
     if conditions.is_some_and(|conditions| conditions.is_empty()) {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
@@ -206,7 +206,7 @@ pub(super) fn validate_relation_family_expression(
             "boundary Relation family support must name its binder member",
         ));
     }
-    let conditions = relation.conditions().ok_or_else(|| {
+    let conditions = relation.equations().ok_or_else(|| {
         vec![source_error(
             codes::LANGUAGE_TYPE_ERROR,
             scope.file,
@@ -274,7 +274,7 @@ struct ExpressionChecker<'a, 'e, 'd> {
 impl ExpressionChecker<'_, '_, '_> {
     fn check_equation(
         &mut self,
-        equation: &eqiora_lang::RelationCondition,
+        equation: &eqiora_lang::Equation,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         for value in [equation.left(), equation.right()] {
             crate::hierarchy::reductions::preflight(

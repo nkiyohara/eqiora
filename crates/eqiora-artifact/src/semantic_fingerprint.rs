@@ -18,8 +18,7 @@ use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
     ConnectionSemantics, DomainKind, EventDirection, ExprDag, ExprNode, KernelNode, PortPayload,
-    RelationConditionKind, RelationMeaning, RepresentationKind, SignalDirection, SymbolRef,
-    UnaryMathFunction,
+    RelationMeaning, RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction,
 };
 use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};
@@ -258,7 +257,6 @@ fn encode_node(
             encode_expression(
                 &mut encoder,
                 instance.expression(),
-                &[],
                 4,
                 ids,
                 references,
@@ -293,7 +291,6 @@ fn encode_node(
             encode_expression(
                 &mut encoder,
                 definition.expression(),
-                &[],
                 4,
                 ids,
                 references,
@@ -401,38 +398,19 @@ fn encode_node(
         KernelNode::Relation(relation) => {
             encoder.u8(6)?;
             encoder.u8(u8::from(relation.is_initial()))?;
-            let extra_roots = match relation.meaning() {
-                RelationMeaning::Conditions(_) => Vec::new(),
-                RelationMeaning::Conservation(terms) => terms
-                    .storage()
-                    .into_iter()
-                    .flat_map(|stored| [stored.value(), stored.accumulation()])
-                    .chain([terms.flux(), terms.source()])
-                    .collect(),
-            };
             let canonical_index = encode_expression(
                 &mut encoder,
                 relation.expression(),
-                &extra_roots,
                 1,
                 ids,
                 references,
                 budget,
             )?;
             match relation.meaning() {
-                RelationMeaning::Conditions(conditions) => {
-                    encoder.u8(0)?;
-                    encoder.len(conditions.len())?;
-                    for condition in conditions {
-                        encoder.u8(match condition {
-                            RelationConditionKind::Equality => 0,
-                        })?;
-                    }
-                }
+                RelationMeaning::Equations => encoder.u8(0)?,
                 RelationMeaning::Conservation(terms) => {
                     encoder.u8(1)?;
-                    encoder.u8(u8::from(terms.storage().is_some()))?;
-                    for term in extra_roots {
+                    for term in [terms.flux(), terms.source()] {
                         encoder.u32(canonical_expr_id(term, &canonical_index)?)?;
                     }
                 }
@@ -446,11 +424,11 @@ fn encode_node(
                 ActivationKind::Event { guard, direction } => {
                     encoder.u8(3)?;
                     encode_event_direction(&mut encoder, *direction)?;
-                    encode_expression(&mut encoder, guard, &[], 2, ids, references, budget)?;
+                    encode_expression(&mut encoder, guard, 2, ids, references, budget)?;
                 }
                 ActivationKind::Guard { guard } => {
                     encoder.u8(4)?;
-                    encode_expression(&mut encoder, guard, &[], 3, ids, references, budget)?;
+                    encode_expression(&mut encoder, guard, 3, ids, references, budget)?;
                 }
                 _ => return Err(newer_vocabulary("Activation kind")),
             }
@@ -585,14 +563,13 @@ fn encode_domain_kind(
 fn encode_expression(
     encoder: &mut Encoder,
     expression: &ExprDag,
-    extra_roots: &[eqiora_schema::kernel::ExprId],
     scope: u8,
     ids: &BTreeMap<RawId, usize>,
     references: &mut Vec<Reference>,
     budget: &mut ConstructionBudget,
 ) -> Result<Vec<u32>, Diagnostic> {
     budget.account_expression_nodes(expression.nodes().len())?;
-    let (order, canonical_index) = canonical_expression_order(expression, extra_roots)?;
+    let (order, canonical_index) = canonical_expression_order(expression)?;
     encoder.len(order.len())?;
     for original_index in order {
         let node = expression.nodes().get(original_index).ok_or_else(|| {
@@ -803,17 +780,14 @@ fn binary_expr(
     encoder.u32(canonical_expr_id(right, canonical_index)?)
 }
 
-fn canonical_expression_order(
-    expression: &ExprDag,
-    extra_roots: &[eqiora_schema::kernel::ExprId],
-) -> Result<(Vec<usize>, Vec<u32>), Diagnostic> {
+fn canonical_expression_order(expression: &ExprDag) -> Result<(Vec<usize>, Vec<u32>), Diagnostic> {
     let nodes = expression.nodes();
     let mut state = vec![0_u8; nodes.len()];
     let mut order = Vec::new();
     order
         .try_reserve_exact(nodes.len())
         .map_err(|_| fingerprint_error("cannot reserve canonical expression order"))?;
-    for root in expression.roots().iter().chain(extra_roots) {
+    for root in expression.roots() {
         let root = expression_index(*root, nodes.len())?;
         let mut stack = vec![(root, false)];
         while let Some((index, exiting)) = stack.pop() {

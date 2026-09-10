@@ -20,7 +20,7 @@ model HeatedInterval() {
 }
 ```
 
-Omitting storage specifies the steady balance `div(flux) = source`. Flux is the
+A Law specifies the steady balance `div(flux) = source`. Flux is the
 physical outward flux; diffusion therefore uses `-conductivity * grad(temperature)`.
 The compiler requires exactly one flux and one source, with compatible dimensions
 and the Law's exact volume support. Write `source 0;` for no production.
@@ -34,7 +34,7 @@ could otherwise be rewritten to an equivalent residual.
 
 The admitted boundary is real scalar steady conservation on a fixed volume. Existing
 scalar diffusion realizations impose their own coefficient, Geometry, boundary and
-method restrictions. Storage syntax is retained by the parser, but source and native
-semantic admission reject it until accumulation correspondence is independently
-checked. This does not implement transient thermal execution, moving-domain transport,
+method restrictions. The parser rejects storage terms; no stored quantity is admitted
+until accumulation correspondence has a checked implementation. This does not implement
+transient thermal execution, moving-domain transport,
 arbitrary vector Laws, or general authored Law-to-form correspondence.

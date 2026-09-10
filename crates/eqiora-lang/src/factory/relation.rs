@@ -8,7 +8,7 @@ impl SourceAstFactory {
     /// # Errors
     /// Rejects empty conditions, malformed expressions, and invalid byte ranges.
     pub fn initial(
-        equations: Vec<RelationCondition>,
+        equations: Vec<Equation>,
         range: TextRange,
     ) -> Result<crate::ast::InitialDecl, AstConstructionError> {
         if equations.is_empty() {
@@ -36,11 +36,10 @@ impl SourceAstFactory {
         left: Expr,
         right: Expr,
         range: TextRange,
-    ) -> Result<RelationCondition, AstConstructionError> {
+    ) -> Result<Equation, AstConstructionError> {
         validate_expression(&left)?;
         validate_expression(&right)?;
-        Ok(RelationCondition {
-            kind: crate::ast::RelationConditionKind::Equality,
+        Ok(Equation {
             left,
             right,
             range: checked_range(range)?,
@@ -55,7 +54,7 @@ impl SourceAstFactory {
         name: impl Into<String>,
         activation: ActivationSyntax,
         domain: Option<String>,
-        equations: Vec<RelationCondition>,
+        equations: Vec<Equation>,
         range: TextRange,
     ) -> Result<RelationDecl, AstConstructionError> {
         if equations.is_empty() {
@@ -79,7 +78,7 @@ impl SourceAstFactory {
             name: checked_identifier(name, "Relation")?,
             activation,
             domain,
-            body: crate::ast::RelationBody::Conditions(equations),
+            body: crate::ast::RelationBody::Equations(equations),
             range: checked_range(range)?,
         })
     }
@@ -95,7 +94,7 @@ impl SourceAstFactory {
     ) -> Result<RelationFamilyDecl, AstConstructionError> {
         validate_boundary_family_binder(&binder)?;
         checked_range(relation.range())?;
-        for equation in relation.conditions().ok_or_else(|| {
+        for equation in relation.equations().ok_or_else(|| {
             AstConstructionError::new("Law families require explicit supported elaboration")
         })? {
             validate_expression(equation.left())?;

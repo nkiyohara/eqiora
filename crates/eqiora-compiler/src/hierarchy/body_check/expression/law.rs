@@ -44,14 +44,6 @@ impl ExpressionChecker<'_, '_, '_> {
         }
         typing::residual(&balance, self.relation_support.as_ref())
             .map_err(|error| type_error(self.scope.file, terms.flux(), error))?;
-        if let Some(storage) = terms.storage() {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                storage.range(),
-                "transient conservation Law requires independently admitted storage accumulation",
-            ));
-        }
         Ok(())
     }
 }

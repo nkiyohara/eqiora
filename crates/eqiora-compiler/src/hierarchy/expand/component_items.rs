@@ -288,7 +288,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         ));
                         let equations = rewrite_equations(
                             component.file,
-                            declaration.conditions().ok_or_else(|| {
+                            declaration.equations().ok_or_else(|| {
                                 hierarchy_error(
                                     "Law families require explicit retained term lowering",
                                 )

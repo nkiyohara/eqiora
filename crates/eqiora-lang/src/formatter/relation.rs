@@ -2,7 +2,7 @@
 
 use core::fmt::Write;
 
-use crate::ast::{ActivationSyntax, RelationCondition, RelationDecl, RelationFamilyDecl};
+use crate::ast::{ActivationSyntax, Equation, RelationDecl, RelationFamilyDecl};
 
 use super::{format_boundary_family_binder, format_expression, write_indent};
 
@@ -56,7 +56,7 @@ fn format_body(
         write!(output, " at {clock}").expect("String write");
     }
     output.push_str(" {\n");
-    for equation in declaration.conditions().expect("ordinary Relation body") {
+    for equation in declaration.equations().expect("ordinary Relation body") {
         format_equation(equation, indent, output);
     }
     write_indent(output, indent);
@@ -64,7 +64,7 @@ fn format_body(
 }
 
 fn format_equation(
-    equation: &RelationCondition,
+    equation: &Equation,
     indent: usize,
     output: &mut crate::formatter::comments::Output,
 ) {

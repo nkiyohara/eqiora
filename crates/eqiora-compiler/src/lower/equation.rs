@@ -14,7 +14,7 @@ pub(crate) struct LoweringEquation {
 
 impl LoweringEquation {
     pub(crate) fn rewritten(
-        equation: &eqiora_lang::RelationCondition,
+        equation: &eqiora_lang::Equation,
         left: LoweringExpression,
         right: LoweringExpression,
     ) -> Self {

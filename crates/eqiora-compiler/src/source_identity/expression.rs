@@ -333,7 +333,7 @@ pub(super) fn encode_relation(
     declaration: &RelationDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    let count = declaration.conditions().map_or(1, |values| values.len());
+    let count = declaration.equations().map_or(1, |values| values.len());
     if count > budget.limits.max_residuals_per_relation {
         return Err(source_identity_error("Relation exceeds residual limit"));
     }
@@ -357,21 +357,14 @@ pub(super) fn encode_relation(
         let conditions = match declaration.body() {
             eqiora_lang::RelationBody::Conservation(terms) => {
                 encoder.u16(2)?;
-                encoder.field(1, |encoder| match terms.storage() {
-                    Some(value) => {
-                        encoder.u16(1)?;
-                        encode_expression(encoder, value, budget, 1)
-                    }
-                    None => encoder.u16(0),
-                })?;
-                encoder.field(2, |encoder| {
+                encoder.field(1, |encoder| {
                     encode_expression(encoder, terms.flux(), budget, 1)
                 })?;
-                return encoder.field(3, |encoder| {
+                return encoder.field(2, |encoder| {
                     encode_expression(encoder, terms.source(), budget, 1)
                 });
             }
-            eqiora_lang::RelationBody::Conditions(conditions) => {
+            eqiora_lang::RelationBody::Equations(conditions) => {
                 encoder.u16(1)?;
                 conditions
             }

@@ -267,10 +267,9 @@ impl PyAstDeclaration {
         support: String,
         flux: &PyAstExpression,
         source: &PyAstExpression,
-        storage: Option<&PyAstExpression>,
         ordinal: u32,
     ) -> PyResult<Self> {
-        super::law::declaration(name, support, flux, source, storage, ordinal)
+        super::law::declaration(name, support, flux, source, ordinal)
     }
 
     #[staticmethod]

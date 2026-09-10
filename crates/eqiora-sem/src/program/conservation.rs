@@ -18,15 +18,7 @@ pub(super) fn validate_conservation_types(
         ));
         return;
     };
-    for (role, value) in [("flux", terms.flux()), ("source", terms.source())]
-        .into_iter()
-        .chain(terms.storage().into_iter().flat_map(|stored| {
-            [
-                ("storage", stored.value()),
-                ("accumulation", stored.accumulation()),
-            ]
-        }))
-    {
+    for (role, value) in [("flux", terms.flux()), ("source", terms.source())].into_iter() {
         let Some(value_type) = typed.node_type(value) else {
             diagnostics.push(kernel_error(
                 owner,
@@ -58,20 +50,6 @@ pub(super) fn validate_conservation_types(
             diagnostics.push(kernel_error(
                 owner,
                 format!("Law {role} uses a foreign support"),
-            ));
-        }
-    }
-    if let Some(stored) = terms.storage()
-        && let (Some(value), Some(accumulation)) = (
-            typed.node_type(stored.value()),
-            typed.node_type(stored.accumulation()),
-        )
-    {
-        let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("time dimension");
-        if accumulation.dimension().mul(time) != Some(value.dimension()) {
-            diagnostics.push(relation_dimension_error(
-                owner,
-                "Law storage dimension must equal accumulation dimension times time",
             ));
         }
     }

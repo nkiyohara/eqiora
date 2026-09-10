@@ -11,13 +11,11 @@ pub(super) fn declaration(
     support: String,
     flux: &PyAstExpression,
     source: &PyAstExpression,
-    storage: Option<&PyAstExpression>,
     ordinal: u32,
 ) -> PyResult<PyAstDeclaration> {
     let value = Ast::law(
         name,
         support,
-        storage.map(|value| value.value.clone()),
         flux.value.clone(),
         source.value.clone(),
         TextRange::new(ordinal, ordinal.saturating_add(1)),

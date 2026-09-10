@@ -1,6 +1,6 @@
 //! Numerical admission of exact retained physical Law terms.
 //!
-//! The physical source and accumulation are selected by their owned identities;
+//! The physical flux and source are selected by their owned identities;
 //! only the requested affine diffusion realization is recognized here.
 
 use super::*;
@@ -38,12 +38,6 @@ pub(super) fn retained_balance(
         ));
     }
     validate_positive_affine_coefficient(&coefficient, bounds, relation)?;
-    if terms.storage().is_some() {
-        return Err(lowering_error(
-            relation,
-            "transient conservation storage is not admitted",
-        ));
-    }
     if contains_state_symbol(expression, terms.source()) {
         return Err(lowering_error(
             relation,
@@ -145,8 +139,8 @@ mod tests {
         native_law_with_boundary(reversed_flux, "trace(u) = 0;")
     }
 
-    fn native_law_with_boundary(reversed_flux: bool, boundary: &str) -> KernelProgram {
-        let source = r#"
+    fn law_source(reversed_flux: bool, boundary: &str) -> String {
+        r#"
 model Balance() {
   domain body = box(0, 1);
   domain lower_face = boundary(body, axis = 0, side = lower);
@@ -169,7 +163,11 @@ model Balance() {
             } else {
                 "-k * grad(u)"
             },
-        );
+        )
+    }
+
+    fn native_law_with_boundary(reversed_flux: bool, boundary: &str) -> KernelProgram {
+        let source = law_source(reversed_flux, boundary);
         let compiled = eqiora_compiler::compile("native-law.eqi", &source)
             .unwrap()
             .remove(0);
@@ -194,55 +192,6 @@ model Balance() {
         // positive diffusion realization at its own numerical admission gate.
         assert!(recognize_scalar_conservation(&native_law(true)).is_err());
     }
-    #[test]
-    fn native_storage_cannot_bypass_source_admission() {
-        use eqiora_graph::{Op, Transaction};
-        use eqiora_schema::kernel::{
-            ConservationStorage, ExprDagBuilder, RelationDef, RelationMeaning,
-        };
-        let compiled = eqiora_compiler::compile("steady.eqi", &law_source(false, "trace(u) = 0;"))
-            .unwrap()
-            .remove(0);
-        let (transaction, model, _) = compiled.into_parts();
-        let mut ops = transaction.ops().to_vec();
-        for op in &mut ops {
-            let Op::DefineKernelNode {
-                node: KernelNode::Relation(relation),
-            } = op
-            else {
-                continue;
-            };
-            let RelationMeaning::Conservation(terms) = relation.meaning() else {
-                continue;
-            };
-            let mut builder = ExprDagBuilder::new();
-            for node in relation.expression().nodes() {
-                builder.push(node.clone()).unwrap();
-            }
-            let accumulation = terms.source();
-            let left = builder
-                .add(accumulation, relation.expression().roots()[0])
-                .unwrap();
-            let stored = ConservationStorage::new(terms.source(), accumulation);
-            let expression = builder.finish([left, terms.source()]).unwrap();
-            *relation = RelationDef::conservation(
-                relation.id(),
-                expression,
-                ConservationTerms::new(Some(stored), terms.flux(), terms.source()),
-            )
-            .unwrap();
-        }
-        let mut store = InMemoryGraphStore::new();
-        store.commit(Transaction::new(ops)).unwrap();
-        let errors = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message().contains("independently admitted storage")),
-            "{errors:?}"
-        );
-    }
-
     #[test]
     fn physical_outward_boundary_values_convert_to_diffusion_conormal_once() {
         let program = native_law_with_boundary(false, "normal(-k * grad(u)) = outward;");

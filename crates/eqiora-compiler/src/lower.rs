@@ -790,7 +790,7 @@ pub(crate) fn lower_typed_model(
                 initial,
                 range,
             } => match body {
-                LoweringRelationBody::Conditions(equations) => lower_relation(
+                LoweringRelationBody::Equations(equations) => lower_relation(
                     file,
                     *range,
                     activation,
@@ -800,11 +800,7 @@ pub(crate) fn lower_typed_model(
                     &bindings,
                 )
                 .map(|lowered| (lowered, None)),
-                LoweringRelationBody::Conservation {
-                    storage,
-                    flux,
-                    source,
-                } => {
+                LoweringRelationBody::Conservation { flux, source } => {
                     let domain = domain.as_deref().ok_or_else(|| {
                         source_error(
                             codes::LANGUAGE_TYPE_ERROR,
@@ -815,15 +811,7 @@ pub(crate) fn lower_typed_model(
                     });
                     domain
                         .and_then(|domain| {
-                            expression::lower_law(
-                                file,
-                                *range,
-                                domain,
-                                storage.as_ref(),
-                                flux,
-                                source,
-                                &bindings,
-                            )
+                            expression::lower_law(file, *range, domain, flux, source, &bindings)
                         })
                         .map(|(lowered, terms)| (lowered, Some(terms)))
                 }

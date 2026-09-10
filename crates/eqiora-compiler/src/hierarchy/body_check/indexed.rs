@@ -44,7 +44,7 @@ pub(super) fn relation(
 ) -> Result<RelationDecl, Diagnostic> {
     let declaration = family.relation();
     let equations = declaration
-        .conditions()
+        .equations()
         .ok_or_else(|| {
             super::super::hierarchy_error("indexed Laws require retained term lowering")
         })?

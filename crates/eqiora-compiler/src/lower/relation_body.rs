@@ -4,9 +4,8 @@ use super::{LoweringEquation, LoweringExpression};
 
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringRelationBody {
-    Conditions(Vec<LoweringEquation>),
+    Equations(Vec<LoweringEquation>),
     Conservation {
-        storage: Option<LoweringExpression>,
         flux: LoweringExpression,
         source: LoweringExpression,
     },
@@ -14,24 +13,19 @@ pub(crate) enum LoweringRelationBody {
 
 impl From<Vec<LoweringEquation>> for LoweringRelationBody {
     fn from(value: Vec<LoweringEquation>) -> Self {
-        Self::Conditions(value)
+        Self::Equations(value)
     }
 }
 
 impl LoweringRelationBody {
     pub(crate) fn expressions(&self) -> impl Iterator<Item = &LoweringExpression> {
-        let (conditions, storage, flux, source) = match self {
-            Self::Conditions(values) => (values.as_slice(), None, None, None),
-            Self::Conservation {
-                storage,
-                flux,
-                source,
-            } => (&[][..], storage.as_ref(), Some(flux), Some(source)),
+        let (conditions, flux, source) = match self {
+            Self::Equations(values) => (values.as_slice(), None, None),
+            Self::Conservation { flux, source } => (&[][..], Some(flux), Some(source)),
         };
         conditions
             .iter()
             .flat_map(|condition| [&condition.left, &condition.right])
-            .chain(storage)
             .chain(flux)
             .chain(source)
     }

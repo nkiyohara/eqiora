@@ -582,7 +582,7 @@ model assigned() {
         // This unit exercises staged Kernel IDs, below lexical source lookup.
         // The frontend already resolves the two declared members to these roles.
         body: vec![LoweringEquation::rewritten(
-            &relation.conditions().unwrap()[0],
+            &relation.equations().unwrap()[0],
             LoweringExpression::binary(
                 eqiora_lang::BinaryOp::Sub,
                 LoweringExpression::call(

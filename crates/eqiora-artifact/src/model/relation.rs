@@ -1,54 +1,21 @@
 //! Exact mathematical meaning of Relation operands on the Model wire.
 use crate::invalid_artifact;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
-use eqiora_schema::kernel::{
-    ConservationStorage, ConservationTerms, ExprDag, ExprId, RelationConditionKind, RelationDef,
-    RelationMeaning,
-};
+use eqiora_schema::kernel::{ConservationTerms, ExprDag, ExprId, RelationDef, RelationMeaning};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WireRelationMeaning {
-    Conditions {
-        conditions: Vec<WireCondition>,
-    },
-    Conservation {
-        storage: Option<WireStorage>,
-        flux: u32,
-        source: u32,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum WireCondition {
-    Equality,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WireStorage {
-    value: u32,
-    accumulation: u32,
+    Equations,
+    Conservation { flux: u32, source: u32 },
 }
 
 impl WireRelationMeaning {
     pub(crate) fn encode(meaning: &RelationMeaning) -> Self {
         match meaning {
-            RelationMeaning::Conditions(conditions) => Self::Conditions {
-                conditions: conditions
-                    .iter()
-                    .map(|kind| match kind {
-                        RelationConditionKind::Equality => WireCondition::Equality,
-                    })
-                    .collect(),
-            },
+            RelationMeaning::Equations => Self::Equations,
             RelationMeaning::Conservation(terms) => Self::Conservation {
-                storage: terms.storage().map(|value| WireStorage {
-                    value: value.value().index(),
-                    accumulation: value.accumulation().index(),
-                }),
                 flux: terms.flux().index(),
                 source: terms.source().index(),
             },
@@ -62,29 +29,9 @@ impl WireRelationMeaning {
         initial: bool,
     ) -> Result<RelationDef, Diagnostic> {
         let result = match self {
-            Self::Conditions { conditions } => {
-                let conditions: Vec<_> = conditions
-                    .iter()
-                    .map(|kind| match kind {
-                        WireCondition::Equality => RelationConditionKind::Equality,
-                    })
-                    .collect();
-                if initial {
-                    if conditions.len() != expression.roots().len() / 2 {
-                        return Err(invalid_artifact(
-                            "initial Relation requires only paired equality conditions",
-                        ));
-                    }
-                    RelationDef::initial(id, expression)
-                } else {
-                    RelationDef::with_conditions(id, expression, conditions)
-                }
-            }
-            Self::Conservation {
-                storage,
-                flux,
-                source,
-            } => {
+            Self::Equations if initial => RelationDef::initial(id, expression),
+            Self::Equations => RelationDef::new(id, expression),
+            Self::Conservation { flux, source } => {
                 if initial {
                     return Err(invalid_artifact(
                         "conservation Law cannot be an initialization-only Relation",
@@ -95,15 +42,7 @@ impl WireRelationMeaning {
                         invalid_artifact("Law term index is outside its owning Relation DAG")
                     })
                 };
-                let storage = storage
-                    .map(|stored| {
-                        Ok::<_, Diagnostic>(ConservationStorage::new(
-                            lookup(stored.value)?,
-                            lookup(stored.accumulation)?,
-                        ))
-                    })
-                    .transpose()?;
-                let terms = ConservationTerms::new(storage, lookup(*flux)?, lookup(*source)?);
+                let terms = ConservationTerms::new(lookup(*flux)?, lookup(*source)?);
                 RelationDef::conservation(id, expression, terms)
             }
         };
@@ -140,11 +79,6 @@ mod tests {
                 .unwrap(),
             relation
         );
-        assert!(
-            WireRelationMeaning::Conditions { conditions: vec![] }
-                .decode(Id::new(), expression, false)
-                .is_err()
-        );
     }
 
     #[test]
@@ -161,7 +95,7 @@ mod tests {
         let relation = RelationDef::conservation(
             Id::new(),
             expression.clone(),
-            ConservationTerms::new(None, flux, source),
+            ConservationTerms::new(flux, source),
         )
         .unwrap();
         let wire = WireRelationMeaning::encode(relation.meaning());
@@ -171,7 +105,6 @@ mod tests {
             relation
         );
         let bad = WireRelationMeaning::Conservation {
-            storage: None,
             flux: u32::MAX,
             source: source.index(),
         };

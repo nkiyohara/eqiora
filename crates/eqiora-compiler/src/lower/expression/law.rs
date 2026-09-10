@@ -1,25 +1,16 @@
 //! Lower exact Law terms and derive their single fixed-domain balance.
 
 use super::*;
-use eqiora_schema::kernel::{ConservationStorage, ConservationTerms};
+use eqiora_schema::kernel::ConservationTerms;
 
 pub(in crate::lower) fn lower_law(
     file: &str,
     range: TextRange,
     domain: &str,
-    storage: Option<&LoweringExpression>,
     flux: &LoweringExpression,
     source: &LoweringExpression,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<(LoweredRelation, ConservationTerms), Diagnostic> {
-    if storage.is_some() {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            "transient conservation Law requires independently admitted storage accumulation",
-        ));
-    }
     let support = relation_support(file, range, domain, bindings)?;
     if !matches!(support, SpatialSupport::Volume { .. }) {
         return Err(source_error(
@@ -29,20 +20,9 @@ pub(in crate::lower) fn lower_law(
             "fixed-domain Law requires a volume support",
         ));
     }
-    let storage = storage
-        .map(|value| contextual::value(file, value, bindings))
-        .transpose()?;
     let flux = contextual::value(file, flux, bindings)?;
     let source = contextual::value(file, source, bindings)?;
-    let divergence = LoweringExpression::call("div".to_owned(), flux.clone(), range);
-    let accumulation = storage
-        .as_ref()
-        .map(|value| LoweringExpression::call("derivative".to_owned(), value.clone(), range));
-    let left = if let Some(accumulation) = &accumulation {
-        LoweringExpression::binary(BinaryOp::Add, accumulation.clone(), divergence, range)
-    } else {
-        divergence
-    };
+    let left = LoweringExpression::call("div".to_owned(), flux.clone(), range);
     let left_type = expression_type(file, &left, bindings, Some(&support))?;
     let source_type = expression_type(file, &source, bindings, Some(&support))?;
     // An explicit source zero is a mathematical zero, with the balance's units.
@@ -81,21 +61,11 @@ pub(in crate::lower) fn lower_law(
         initial: false,
     };
     // Keep all source expression owners live while using the pointer-keyed cache.
-    let storage = storage
-        .as_ref()
-        .zip(accumulation.as_ref())
-        .map(|(stored, accumulation)| {
-            Ok::<_, Diagnostic>(ConservationStorage::new(
-                lowerer.lower(stored)?.id,
-                lowerer.lower(accumulation)?.id,
-            ))
-        })
-        .transpose()?;
     let flux = lowerer.lower(&flux)?.id;
     let source = lowerer.lower(&source)?.id;
     let left = lowerer.lower(&left)?.id;
     let expression = lowerer.builder.finish([left, source])?;
-    let terms = ConservationTerms::new(storage, flux, source);
+    let terms = ConservationTerms::new(flux, source);
     terms.validate_balance(&expression)?;
     Ok((
         LoweredRelation {

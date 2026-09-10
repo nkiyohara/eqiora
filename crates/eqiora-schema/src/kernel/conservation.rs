@@ -1,6 +1,6 @@
 //! Physical conservation terms retained by their owning Relation.
 //!
-//! Fixed-domain outward-flux convention: d(storage)/dt + div(flux) = source.
+//! Fixed-domain outward-flux convention: div(flux) = source.
 //! These identities name mathematical expressions, never numerical face fluxes.
 
 use eqiora_core::Diagnostic;
@@ -8,45 +8,12 @@ use eqiora_core::diagnostic::codes;
 
 use super::{ExprDag, ExprId, ExprNode};
 
-/// Stored quantity and its admitted continuous accumulation on a fixed domain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ConservationStorage {
-    value: ExprId,
-    accumulation: ExprId,
-}
-
-impl ConservationStorage {
-    /// Retain the stored expression and its time derivative.
-    ///
-    /// Relation admission checks the derivative and the exact supported types.
-    #[must_use]
-    pub const fn new(value: ExprId, accumulation: ExprId) -> Self {
-        Self {
-            value,
-            accumulation,
-        }
-    }
-
-    /// Physical quantity stored per unit volume.
-    #[must_use]
-    pub const fn value(self) -> ExprId {
-        self.value
-    }
-
-    /// Admitted continuous derivative of the stored expression.
-    #[must_use]
-    pub const fn accumulation(self) -> ExprId {
-        self.accumulation
-    }
-}
-
 /// Exact physical terms of one fixed-domain conservation Law.
 ///
-/// No storage means a steady balance. Source is explicit, including a typed zero.
+/// This is a steady balance. Source is explicit, including a typed zero.
 /// Support, parameter dependencies, and source identity belong to the Relation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConservationTerms {
-    storage: Option<ConservationStorage>,
     flux: ExprId,
     source: ExprId,
 }
@@ -55,20 +22,10 @@ impl ConservationTerms {
     /// Name terms in the owning Relation's expression arena.
     ///
     /// Construction of the Relation checks the corresponding balance roots;
-    /// semantic admission checks physical dimensions, support and accumulation.
+    /// semantic admission checks physical dimensions and support.
     #[must_use]
-    pub const fn new(storage: Option<ConservationStorage>, flux: ExprId, source: ExprId) -> Self {
-        Self {
-            storage,
-            flux,
-            source,
-        }
-    }
-
-    /// Stored quantity and accumulation, absent for an explicitly steady Law.
-    #[must_use]
-    pub const fn storage(self) -> Option<ConservationStorage> {
-        self.storage
+    pub const fn new(flux: ExprId, source: ExprId) -> Self {
+        Self { flux, source }
     }
 
     /// Physical outward flux, before divergence or numerical realization.
@@ -89,12 +46,12 @@ impl ConservationTerms {
     ///
     /// # Errors
     /// Rejects missing term nodes, extra equations, changed source, reversed flux,
-    /// or missing/doubled accumulation in the corresponding balance.
+    /// or a changed divergence in the corresponding balance.
     pub fn validate_balance(self, expression: &ExprDag) -> Result<(), Diagnostic> {
         let invalid = || {
             Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
-                "conservation Law requires exact d(storage)/dt + div(outward flux) = source roots",
+                "conservation Law requires exact div(outward flux) = source roots",
             )
         };
         let [left, right] = expression.roots() else {
@@ -106,23 +63,7 @@ impl ConservationTerms {
         {
             return Err(invalid());
         }
-        let divergence = if let Some(storage) = self.storage {
-            if expression.node(storage.value).is_none()
-                || expression.node(storage.accumulation).is_none()
-            {
-                return Err(invalid());
-            }
-            match expression.node(*left) {
-                Some(ExprNode::Add(accumulation, divergence))
-                    if *accumulation == storage.accumulation =>
-                {
-                    *divergence
-                }
-                _ => return Err(invalid()),
-            }
-        } else {
-            *left
-        };
+        let divergence = *left;
         match expression.node(divergence) {
             Some(ExprNode::Divergence(flux)) if *flux == self.flux => Ok(()),
             _ => Err(invalid()),
@@ -153,56 +94,19 @@ mod tests {
             .unwrap();
         let expression = builder.finish([divergence, source]).unwrap();
         assert!(
-            ConservationTerms::new(None, flux, source)
+            ConservationTerms::new(flux, source)
                 .validate_balance(&expression)
                 .is_ok()
         );
         assert!(
-            ConservationTerms::new(None, gradient, source)
+            ConservationTerms::new(gradient, source)
                 .validate_balance(&expression)
                 .is_err()
         );
         assert!(
-            ConservationTerms::new(None, flux, other_source)
+            ConservationTerms::new(flux, other_source)
                 .validate_balance(&expression)
                 .is_err()
-        );
-    }
-
-    #[test]
-    fn transient_balance_rejects_missing_or_doubled_accumulation() {
-        let mut builder = ExprDagBuilder::new();
-        let field_id = Id::<kinds::Field>::new();
-        let stored = builder.symbol(SymbolRef::Field(field_id)).unwrap();
-        let accumulation = builder.symbol(SymbolRef::Derivative(field_id)).unwrap();
-        let gradient = builder.gradient(stored).unwrap();
-        let flux = builder.neg(gradient).unwrap();
-        let divergence = builder.divergence(flux).unwrap();
-        let left = builder.add(accumulation, divergence).unwrap();
-        let doubled = builder.add(accumulation, accumulation).unwrap();
-        let source = builder
-            .symbol(SymbolRef::Parameter(Id::<kinds::Parameter>::new()))
-            .unwrap();
-        let expression = builder.finish([left, source]).unwrap();
-        let terms = ConservationTerms::new(
-            Some(ConservationStorage::new(stored, accumulation)),
-            flux,
-            source,
-        );
-        assert!(terms.validate_balance(&expression).is_ok());
-        assert!(
-            ConservationTerms::new(None, flux, source)
-                .validate_balance(&expression)
-                .is_err()
-        );
-        assert!(
-            ConservationTerms::new(
-                Some(ConservationStorage::new(stored, doubled)),
-                flux,
-                source
-            )
-            .validate_balance(&expression)
-            .is_err()
         );
     }
 }

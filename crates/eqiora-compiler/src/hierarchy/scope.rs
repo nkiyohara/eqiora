@@ -561,7 +561,7 @@ pub(super) fn rewrite_relation_body(
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<crate::lower::LoweringRelationBody, Diagnostic> {
     Ok(match declaration.body() {
-        eqiora_lang::RelationBody::Conditions(conditions) => {
+        eqiora_lang::RelationBody::Equations(conditions) => {
             rewrite_equations(file, conditions, scope, active)?.into()
         }
         eqiora_lang::RelationBody::Conservation(terms) => {
@@ -578,7 +578,6 @@ pub(super) fn rewrite_relation_body(
                 rewrite_expression_with_boundary_member(file, value, scope, active)
             };
             crate::lower::LoweringRelationBody::Conservation {
-                storage: terms.storage().map(rewrite).transpose()?,
                 flux: rewrite(terms.flux())?,
                 source: rewrite(terms.source())?,
             }
@@ -588,7 +587,7 @@ pub(super) fn rewrite_relation_body(
 
 pub(super) fn rewrite_equations(
     file: &str,
-    equations: &[eqiora_lang::RelationCondition],
+    equations: &[eqiora_lang::Equation],
     scope: &Scope,
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<Vec<LoweringEquation>, Diagnostic> {
