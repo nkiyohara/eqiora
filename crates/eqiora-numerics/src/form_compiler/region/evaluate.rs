@@ -110,9 +110,20 @@ impl BoundRegionForm {
             &integrals,
             geometry,
             quadrature,
-            |point, coefficients, forcing| {
+            |point, coefficients, forcing, isotropic_flux| {
+                let mut components = forcing.iter_mut();
                 for (index, row) in self.form.rows.iter().enumerate() {
-                    forcing[index] = self.row_multipliers[index] * row.forcing.evaluate(point)?;
+                    isotropic_flux[index] = 0.0;
+                    for flux in &row.flux {
+                        if let super::flux::FluxTerm::Isotropic(value) = flux {
+                            isotropic_flux[index] +=
+                                self.row_multipliers[index] * value.evaluate(point)?;
+                        }
+                    }
+                    for component in &row.forcing {
+                        *components.next().expect("exact row component inventory") =
+                            self.row_multipliers[index] * component.evaluate(point)?;
+                    }
                 }
                 for (coefficient, (row, term)) in coefficients.iter_mut().zip(&data) {
                     let value = term.coefficient.evaluate(point)?;

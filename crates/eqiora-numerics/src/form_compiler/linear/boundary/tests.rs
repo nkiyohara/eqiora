@@ -1,4 +1,5 @@
 use super::*;
+use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
@@ -45,19 +46,20 @@ fn mixed_laws_preserve_data_and_complete_dependencies() {
         .collect::<Vec<_>>();
     let mut traces = laws
         .iter()
-        .filter_map(|law| match law {
-            ScalarExteriorLaw::PrescribedTrace { value, .. } => {
-                Some(value.evaluate(&[0.0]).unwrap())
-            }
-            _ => None,
-        })
+        .filter(|law| law.quantity == PhysicalBoundaryQuantity::Trace)
+        .map(|law| law.evaluate(&[0.0], &[]).unwrap()[0])
         .collect::<Vec<_>>();
     traces.sort_by(f64::total_cmp);
     assert_eq!(traces, vec![2.0, 4.0]);
-    assert!(laws.iter().any(|law| matches!(law, ScalarExteriorLaw::PrescribedOutwardFlux { value, .. } if value.evaluate(&[1.0]).unwrap() == 3.0)));
     assert!(
         laws.iter()
-            .any(|law| matches!(law, ScalarExteriorLaw::ZeroOutwardFlux { .. }))
+            .any(|law| law.quantity == PhysicalBoundaryQuantity::Flux
+                && law.evaluate(&[1.0], &[]).unwrap() == vec![3.0])
+    );
+    assert!(
+        laws.iter()
+            .any(|law| law.quantity == PhysicalBoundaryQuantity::Flux
+                && law.evaluate(&[1.0], &[]).unwrap() == vec![0.0])
     );
     assert_eq!(form.dependencies.len(), 6);
 }
@@ -79,8 +81,8 @@ fn volume_and_boundary_reversal_keep_outward_flux_orientation() {
                     .values()
                     .flat_map(|laws| laws.values())
                     .any(|law| {
-                        matches!(law, ScalarExteriorLaw::PrescribedOutwardFlux { value, .. }
-                    if value.evaluate(&[1.0]).unwrap() == 3.0)
+                        law.quantity == PhysicalBoundaryQuantity::Flux
+                            && law.evaluate(&[1.0], &[]).unwrap() == vec![3.0]
                     })
             );
         }

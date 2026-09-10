@@ -11,11 +11,15 @@ use super::linear::data::{Context, Data};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
+mod boundary;
+pub(crate) use boundary::RegionBoundaryLaw;
+mod boundary_integral;
 mod evaluate;
 mod integration;
 mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;
+mod flux;
 mod lowering;
 #[cfg(test)]
 mod tests;
@@ -36,7 +40,8 @@ struct Row {
     tested: RawId,
     value_type: ValueType,
     terms: Vec<Term>,
-    forcing: Data,
+    flux: Vec<flux::FluxTerm>,
+    forcing: Vec<Data>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,9 +104,10 @@ impl CompiledRegionForm {
             let mut row = Row {
                 relation: *relation,
                 tested,
-                value_type,
+                value_type: value_type.clone(),
                 terms: Vec::new(),
-                forcing: Data::constant(dimension, 0.0),
+                flux: Vec::new(),
+                forcing: vec![Data::constant(dimension, 0.0); components(&value_type, dimension)?],
             };
             lowering::lower(&context, root, Data::constant(dimension, 1.0), &mut row, 0)?;
             for term in &row.terms {

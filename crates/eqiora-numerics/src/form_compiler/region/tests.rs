@@ -11,6 +11,8 @@ use eqiora_schema::kernel::KernelNode;
 
 use super::*;
 
+mod boundary;
+mod flux;
 mod scalar;
 mod tetrahedron;
 mod validation;

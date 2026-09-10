@@ -16,11 +16,11 @@ use eqiora_solver::{
 };
 
 use super::{CartesianBoundaryValue, CartesianQ1Field};
+use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
-use crate::scalar_conservation::ScalarExteriorLaw;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CartesianLinearAssembly {
@@ -161,33 +161,81 @@ impl CartesianLinearAssembly {
         let mut natural = Vec::new();
         let mut natural_integrals = vec![0.0; form.fields().len()];
         for (index, (field, _)) in form.fields().iter().enumerate() {
-            let boundary = |axis, side, coordinates: &[f64]| match &form.boundary_laws()[field]
-                [&boundaries[&(axis, side)]]
-            {
-                ScalarExteriorLaw::PrescribedTrace { value, .. } => {
-                    CartesianBoundaryValue::Essential(
-                        value.evaluate(coordinates).unwrap_or(f64::NAN),
-                    )
-                }
-                ScalarExteriorLaw::PrescribedOutwardFlux { value, .. } => {
-                    CartesianBoundaryValue::Natural(value.evaluate(coordinates).unwrap_or(f64::NAN))
-                }
-                ScalarExteriorLaw::ZeroOutwardFlux { .. } => CartesianBoundaryValue::Natural(0.0),
-                ScalarExteriorLaw::Robin { .. } => {
-                    unreachable!("linear compiler rejects Robin laws")
+            let boundary = |axis, side, coordinates: &[f64]| {
+                let law = &form.boundary_laws()[field][&boundaries[&(axis, side)]];
+                let value = law
+                    .evaluate(coordinates, &[])
+                    .map(|value| value[0])
+                    .unwrap_or(f64::NAN);
+                match law.quantity {
+                    PhysicalBoundaryQuantity::Trace => CartesianBoundaryValue::Essential(value),
+                    PhysicalBoundaryQuantity::Flux => CartesianBoundaryValue::Natural(value),
                 }
             };
             fixed.extend(super::essential_fem_values(mesh, &boundary)?);
-            natural.extend(super::natural_fem_facets(mesh, &boundary)?.into_iter().map(
-                |(local, facet_vertices)| {
-                    natural_integrals[index] += local.rhs().iter().sum::<f64>();
-                    let globals = facet_vertices
-                        .into_iter()
-                        .map(|vertex| index * vertices + vertex.index())
-                        .collect::<Vec<_>>();
-                    (local, globals)
-                },
-            ));
+            let facet_rule = super::scalar_facet_quadrature(dimension)?;
+            for facet_index in 0..mesh.entity_count(dimension - 1).expect("Cartesian facets") {
+                let facet = MeshEntity::new(dimension - 1, facet_index);
+                let Some((axis, side)) = super::cartesian_boundary_facet_side(mesh, facet)? else {
+                    continue;
+                };
+                let facet_geometry = mesh.geometry_map(facet).expect("Cartesian facet geometry");
+                if !matches!(
+                    boundary(axis, side, facet_geometry.origin()),
+                    CartesianBoundaryValue::Natural(_)
+                ) {
+                    continue;
+                }
+                let incident = mesh
+                    .incidence(facet, dimension)
+                    .expect("Cartesian facet incidence");
+                let [cell] = incident.as_slice() else {
+                    return Err(super::invalid(
+                        "natural exterior facet requires one exact parent cell",
+                    ));
+                };
+                let cell_geometry = mesh
+                    .geometry_map(cell.entity)
+                    .expect("Cartesian cell geometry");
+                let cell_vertices = mesh
+                    .entity_vertices(cell.entity)
+                    .expect("Cartesian cell vertices");
+                let facet_vertices = mesh
+                    .entity_vertices(facet)
+                    .expect("Cartesian facet vertices");
+                let parent_vertices = facet_vertices
+                    .iter()
+                    .map(|vertex| {
+                        cell_vertices
+                            .iter()
+                            .position(|parent| parent == vertex)
+                            .ok_or_else(|| {
+                                super::invalid("natural facet vertex is absent from its parent")
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let local = form.volume().evaluate_natural_facet(
+                    *field,
+                    &cell_geometry,
+                    (&facet_geometry, *cell, &parent_vertices),
+                    &facet_rule,
+                    |point, _normal| match boundary(axis, side, point) {
+                        CartesianBoundaryValue::Natural(value) => Ok(vec![value]),
+                        CartesianBoundaryValue::Essential(_) => {
+                            Err(super::invalid("natural facet changed boundary disposition"))
+                        }
+                    },
+                )?;
+                natural_integrals[index] += local.rhs().iter().sum::<f64>();
+                let globals = (0..form.fields().len())
+                    .flat_map(|field| {
+                        cell_vertices
+                            .iter()
+                            .map(move |vertex| field * vertices + vertex.index())
+                    })
+                    .collect::<Vec<_>>();
+                natural.push((local, globals));
+            }
         }
         let constraints = ConstrainedDofLayout::new(fixed)?;
         if constraints.free_count() == 0 {
