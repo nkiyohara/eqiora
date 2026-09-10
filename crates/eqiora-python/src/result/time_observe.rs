@@ -5,6 +5,7 @@ use crate::modeling::PyValueType;
 use eqiora::ValueLiteral;
 use eqiora_numerics::TimeFunctionalQuadrature;
 
+/// Numerical quadrature over retained native steps, independent of requested outputs.
 #[pyclass(
     name = "TimeFunctionalQuadrature",
     module = "eqiora._eqiora",
@@ -26,6 +27,7 @@ impl From<PyTimeFunctionalQuadrature> for TimeFunctionalQuadrature {
     }
 }
 
+/// Typed terminal or time-integrated value with exact trajectory lineage.
 #[pyclass(name = "TrajectoryObservation", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PyTrajectoryObservation {
     value: ValueLiteral,
@@ -47,6 +49,13 @@ pub(crate) struct PyTrajectoryObservation {
 
 #[pymethods]
 impl PyTrajectoryObservation {
+    fn __repr__(&self) -> String {
+        format!(
+            "TrajectoryObservation(observable_id={:?}, evaluation_kind={:?}, interval_s={:?}, trajectory_identity={:?})",
+            self.observable_id, self.evaluation_kind, self.interval_s, self.trajectory_identity
+        )
+    }
+
     #[getter]
     fn value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::modeling::value_literal::to_python(py, &self.value)
