@@ -1,5 +1,6 @@
 //! Explicit implementation verification for monolithic ALE FSI.
 
+use crate::simplicial_fsi::layout::FsiLayout;
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::Diagnostic;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
@@ -26,7 +27,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
     /// when assembly fails, or when an analytic column differs from the
     /// centered residual reconstruction.
     #[allow(clippy::too_many_arguments)]
-    pub fn verify_accepted_jacobian(
+    pub(crate) fn verify_accepted_jacobian(
         self,
         reference: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
@@ -35,9 +36,18 @@ impl<const D: usize> AleFsiStepPlan<D> {
         previous: &AleFsiState<D>,
         accepted: &AleFsiState<D>,
         quadrature: &QuadratureRule,
+        base_layout: &FsiLayout<D>,
     ) -> Result<(usize, usize, usize, usize, f64), Diagnostic> {
         verify_simplicial_ale_fsi_jacobian(
-            reference, partition, boundary, motion, previous, accepted, self, quadrature,
+            reference,
+            partition,
+            boundary,
+            motion,
+            previous,
+            accepted,
+            self,
+            quadrature,
+            base_layout,
         )
         .map(|verification| {
             (
@@ -61,6 +71,7 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
     accepted: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    base_layout: &FsiLayout<D>,
 ) -> Result<CenteredJacobianVerification, Diagnostic> {
     let prepared = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -74,7 +85,7 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
     };
     prepared.validate_inputs(reference, partition, motion, previous, plan, quadrature)?;
     accepted.validate_against(reference, partition, motion)?;
-    let layout = prepared.layout(reference, partition)?;
+    let layout = prepared.layout(base_layout)?;
     let point = prepared.reduce_current_point(accepted, plan, &layout)?;
     let assembled = assemble_step_linearization_prepared(
         reference,
@@ -86,13 +97,14 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
         plan,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
+        base_layout,
     )?;
     if assembled.current_state() != accepted {
         return Err(invalid(
             "explicit ALE FSI verification did not reconstruct the supplied accepted state",
         ));
     }
-    let pattern = build_step_jacobian_pattern(reference, partition, boundary, motion)?;
+    let pattern = build_step_jacobian_pattern(reference, partition, boundary, motion, base_layout)?;
     audit_centered_jacobian(
         &point,
         &pattern,
@@ -100,7 +112,15 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
         "ALE FSI",
         |candidate| {
             assemble_step_residual_prepared::<D>(
-                reference, partition, &prepared, motion, previous, candidate, plan, quadrature,
+                reference,
+                partition,
+                &prepared,
+                motion,
+                previous,
+                candidate,
+                plan,
+                quadrature,
+                base_layout,
             )
         },
         |column, analytic| {

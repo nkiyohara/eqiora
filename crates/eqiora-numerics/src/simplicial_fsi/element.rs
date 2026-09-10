@@ -128,14 +128,23 @@ mod tests {
             &fixture.previous,
         )
         .unwrap();
-        let layout = crate::simplicial_fsi::layout::FsiLayout::<3>::new(
+        let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
+            &crate::simplicial_fsi::test_model::polyhedra::z_tetrahedral_geometry(),
             &fixture.mesh,
             &fixture.partition,
             &fixture.boundary,
-        )
-        .unwrap();
+            fixture.config,
+            eqiora_solver::SolverPlan::new(
+                eqiora_solver::LinearSolver::MinimumResidual,
+                1e-10,
+                1e-12,
+                std::num::NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            false,
+        );
         let fluid_map = layout.fluid_map(0, &fluid.1, false).unwrap();
-        let solid_map = layout.solid_map(&solid.1, false).unwrap();
+        let solid_map = layout.solid_map(1, &solid.1, false).unwrap();
 
         // tetrahedral MINI velocity: (P1 four vertices + one bubble) * 3,
         // followed by four P1 pressure coefficients.

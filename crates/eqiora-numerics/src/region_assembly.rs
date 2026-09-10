@@ -11,6 +11,7 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::form_compiler::region::BoundRegionForm;
 
+pub(crate) mod mapping;
 mod reactions;
 pub(crate) use reactions::{ReactionRows, prepare_reaction_rows};
 

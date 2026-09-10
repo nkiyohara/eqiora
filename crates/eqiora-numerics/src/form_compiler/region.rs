@@ -24,7 +24,9 @@ mod lowering;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use binding::{BoundRegionForm, RegionFieldBinding, RegionTimeBinding};
+pub(crate) use binding::{
+    BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding, basis,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompiledRegionForm {
@@ -167,7 +169,7 @@ impl CompiledRegionForm {
     }
 }
 
-fn components(value_type: &ValueType, dimension: usize) -> Result<usize, Diagnostic> {
+pub(crate) fn components(value_type: &ValueType, dimension: usize) -> Result<usize, Diagnostic> {
     if value_type.scalar_domain() == ScalarDomain::Real && value_type.array_rank() == 0 {
         if value_type.shape().is_scalar() && value_type.frame() == ValueFrame::Invariant {
             return Ok(1);

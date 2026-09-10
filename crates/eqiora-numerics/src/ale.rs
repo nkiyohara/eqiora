@@ -13,9 +13,7 @@ pub use crate::canonical_fsi::{
 };
 pub use crate::simplicial_ale_fsi::{
     AleFsiBoundary, AleFsiInterfaceAction, AleFsiState, AleFsiStepEvidence, AleFsiStepPlan,
-    AleFsiTrajectory, P1HarmonicMeshMotionAction, advance_simplicial_ale_fsi_2d,
-    advance_simplicial_ale_fsi_2d_with_assembly, advance_simplicial_ale_fsi_3d,
-    advance_simplicial_ale_fsi_3d_with_assembly,
+    AleFsiTrajectory, P1HarmonicMeshMotionAction,
 };
 pub use crate::simplicial_ale_remesh::{
     AcceptedAleFsiRemeshProjection2d, AleFsiRemeshProjectionEvidence2d,

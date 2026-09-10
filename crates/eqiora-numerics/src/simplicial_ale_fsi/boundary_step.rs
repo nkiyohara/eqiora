@@ -327,12 +327,8 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         self.boundary.clone()
     }
 
-    pub(super) fn layout(
-        &self,
-        mesh: &SimplicialMesh,
-        partition: &FixedReferenceFsiPartition<D>,
-    ) -> Result<FsiLayout<D>, Diagnostic> {
-        FsiLayout::new(mesh, partition, &self.boundary)
+    pub(super) fn layout(&self, base_layout: &FsiLayout<D>) -> Result<FsiLayout<D>, Diagnostic> {
+        base_layout.with_boundary(&self.boundary)
     }
 
     pub(super) fn validate_inputs(
@@ -696,6 +692,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<D>,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
     if prepared.previous_endpoint() != expected_previous
         || prepared.current_endpoint() != expected_current
@@ -713,7 +710,16 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     prepared.validate_inputs(reference, partition, motion, previous, plan, quadrature)?;
     let boundary = prepared.as_boundary();
     solve_one_step::<D>(
-        reference, partition, &boundary, motion, previous, plan, quadrature, assembly, solver,
+        reference,
+        partition,
+        &boundary,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        assembly,
+        solver,
+        base_layout,
     )
 }
 

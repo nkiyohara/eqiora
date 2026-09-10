@@ -32,6 +32,7 @@ use eqiora_numerics::{
 
 #[path = "embedded_package.rs"]
 mod embedded_package;
+mod operator;
 
 pub(crate) const DIRECT: &str =
     include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
@@ -97,6 +98,7 @@ pub(crate) struct ExecutionContext {
 }
 
 pub(crate) struct ExecutionWitness {
+    pub(crate) physical_operator: operator::PhysicalOperator,
     pub(crate) operator: CanonicalCsrAgreementFingerprintV1,
     pub(crate) replayed_operator: CanonicalCsrAgreementFingerprintV1,
     pub(crate) solution: ResolvedFixedReferenceFsiSolution2d,
@@ -338,6 +340,7 @@ pub(crate) fn solve_step(
     )
     .expect("exact content-bound FSI inputs finalize");
     let operator = finalized.linear_system().agreement_fingerprint();
+    let physical_operator = operator::PhysicalOperator::capture(&finalized, spatial);
     let replayed = finalize_resolved_fixed_reference_fsi_step_2d(
         canonical,
         &execution.resolved,
@@ -379,6 +382,7 @@ pub(crate) fn solve_step(
             .unwrap()
     );
     ExecutionWitness {
+        physical_operator,
         operator,
         replayed_operator,
         solution,

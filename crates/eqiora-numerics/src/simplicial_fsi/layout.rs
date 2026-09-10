@@ -1,109 +1,226 @@
-//! Deterministic quotient layout and reduced/full assembly maps.
+//! FSI result projection over the common exact Field/entity map.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use eqiora_assembly::{AssemblyMap, DofId};
-use eqiora_core::Diagnostic;
-use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh, VertexId};
+use eqiora_core::{Diagnostic, RawId};
+use eqiora_meshing::{MeshEntity, SimplicialMesh, VertexId};
 
 use super::contract::FixedReferenceFsiBoundary;
 use super::invalid;
 use super::partition::FixedReferenceFsiPartition;
-use super::{fluid_local_size, solid_local_size};
-use crate::constrained_dofs::ConstrainedDofLayout;
+use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
+
+mod binding;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FsiLayout<const D: usize = 2> {
-    constraints: ConstrainedDofLayout,
-    vertex_count: usize,
-    reduced_pressure_offset: usize,
-    full_bubble_offset: usize,
-    full_pressure_offset: usize,
-    full_size: usize,
+    reference: Arc<SimplicialMesh>,
+    partition: Arc<FixedReferenceFsiPartition<D>>,
+    boundary: Arc<FixedReferenceFsiBoundary<D>>,
+    mapping: RegionDofMap,
+    fields: [RawId; 3],
+    vertex_keys: Vec<[FieldDof; D]>,
+    bubble_keys: Vec<[FieldDof; D]>,
+    pressure_keys: Vec<FieldDof>,
     pressure_vertices: Vec<VertexId>,
-    pressure_position: Vec<Option<usize>>,
 }
 
 type ReconstructedFsiFields<const D: usize> = (Vec<[f64; D]>, Vec<[f64; D]>, Vec<f64>);
 
+fn key(field: RawId, entity: MeshEntity, component: usize) -> FieldDof {
+    FieldDof {
+        field,
+        entity,
+        slot: 0,
+        component,
+    }
+}
+
 impl<const D: usize> FsiLayout<D> {
+    pub(crate) fn free_field_dof(&self, key: FieldDof) -> Option<eqiora_assembly::DofId> {
+        self.mapping.free_dof(key)
+    }
+    pub(crate) fn partition(&self) -> &FixedReferenceFsiPartition<D> {
+        &self.partition
+    }
+    pub(crate) fn boundary(&self) -> &FixedReferenceFsiBoundary<D> {
+        &self.boundary
+    }
+
+    pub(crate) fn require_reference(
+        &self,
+        mesh: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+    ) -> Result<(), Diagnostic> {
+        if self.reference.as_ref() != mesh || self.partition.as_ref() != partition {
+            return Err(invalid(
+                "FSI Field map differs from the exact reference mesh or Region partition",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn require_boundary(
+        &self,
+        boundary: &FixedReferenceFsiBoundary<D>,
+    ) -> Result<(), Diagnostic> {
+        if self.with_boundary(boundary)? != *self {
+            return Err(invalid(
+                "FSI Field map constraints differ from the action boundary",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn require_scale(
+        &self,
+        scale: super::FixedReferenceFsiScale<D>,
+    ) -> Result<(), Diagnostic> {
+        for (field, expected) in
+            self.fields
+                .into_iter()
+                .zip([scale.velocity(), scale.pressure(), scale.velocity()])
+        {
+            if self.mapping.field_scale(field)? != expected {
+                return Err(invalid(
+                    "FSI action scale differs from the exact Model/Plan Field map",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// The canonical Model adapter supplies exact velocity/pressure/velocity roles;
+    /// topology and algebraic numbering belong exclusively to the common map.
     pub(crate) fn new(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
+        mapping: &RegionDofMap,
+        fields: [RawId; 3],
     ) -> Result<Self, Diagnostic> {
-        if let Some(prescribed) = boundary.prepared_current_quotient() {
-            return Self::with_prescribed_velocity(mesh, partition, prescribed);
+        let [fluid_velocity, pressure, solid_velocity] = fields;
+        let mut expected = BTreeSet::new();
+        for (field, vertices) in [
+            (fluid_velocity, partition.fluid_vertices()),
+            (solid_velocity, partition.solid_vertices()),
+        ] {
+            expected.extend(vertices.iter().flat_map(|vertex| {
+                (0..D)
+                    .map(move |component| key(field, MeshEntity::new(0, vertex.index()), component))
+            }));
         }
-        let mut prescribed = vec![[None; D]; mesh.vertices().len()];
-        for vertex in boundary.fixed_zero_velocity_vertices() {
-            let values = prescribed.get_mut(vertex.index()).ok_or_else(|| {
-                invalid("fixed-reference FSI boundary vertex is outside the mesh revision")
-            })?;
-            if values.iter().any(Option::is_some) {
-                return Err(invalid(
-                    "fixed-reference FSI boundary inventory contains a duplicate vertex",
-                ));
-            }
-            *values = [Some(0.0); D];
-        }
-        Self::with_prescribed_velocity(mesh, partition, &prescribed)
-    }
-
-    fn with_prescribed_velocity(
-        mesh: &SimplicialMesh,
-        partition: &FixedReferenceFsiPartition<D>,
-        prescribed: &[[Option<f64>; D]],
-    ) -> Result<Self, Diagnostic> {
-        if !matches!(D, 2 | 3) || mesh.topological_dimension() != D {
+        let bubble_keys = partition
+            .fluid_cells()
+            .iter()
+            .map(|cell| {
+                std::array::from_fn(|component| {
+                    key(fluid_velocity, MeshEntity::new(D, cell.index()), component)
+                })
+            })
+            .collect::<Vec<_>>();
+        expected.extend(bubble_keys.iter().flatten().copied());
+        let pressure_vertices = partition.fluid_vertices().to_vec();
+        let pressure_keys = pressure_vertices
+            .iter()
+            .map(|vertex| key(pressure, MeshEntity::new(0, vertex.index()), 0))
+            .collect::<Vec<_>>();
+        expected.extend(pressure_keys.iter().copied());
+        if mapping.keys().collect::<BTreeSet<_>>() != expected {
             return Err(invalid(
-                "fixed-reference FSI layout requires dimension two or three matching its mesh",
+                "FSI projection differs from the exact Model Field/space/entity inventory",
             ));
         }
-        let vertex_count = mesh.vertices().len();
-        if prescribed.len() != vertex_count
-            || prescribed
-                .iter()
-                .flatten()
-                .flatten()
-                .any(|value| !value.is_finite())
+        for vertex in partition.interface_vertices() {
+            for component in 0..D {
+                let entity = MeshEntity::new(0, vertex.index());
+                if mapping.global_dof(key(fluid_velocity, entity, component))
+                    != mapping.global_dof(key(solid_velocity, entity, component))
+                {
+                    return Err(invalid(
+                        "FSI interface does not share its admitted trace quotient",
+                    ));
+                }
+            }
+        }
+        let fluid_vertices = partition
+            .fluid_vertices()
+            .iter()
+            .map(|vertex| vertex.index())
+            .collect::<BTreeSet<_>>();
+        let vertex_keys = (0..mesh.vertices().len())
+            .map(|vertex| {
+                let field = if fluid_vertices.contains(&vertex) {
+                    fluid_velocity
+                } else {
+                    solid_velocity
+                };
+                std::array::from_fn(|component| key(field, MeshEntity::new(0, vertex), component))
+            })
+            .collect::<Vec<_>>();
+        if vertex_keys
+            .iter()
+            .flatten()
+            .any(|key| mapping.global_dof(*key).is_none())
         {
             return Err(invalid(
-                "fixed-reference FSI prescribed velocity must be finite and match the mesh vertex inventory",
+                "FSI projection contains an unsupported mesh vertex",
             ));
         }
-        let pressure_vertices = partition.fluid_vertices().to_vec();
-        let mut pressure_position = vec![None; vertex_count];
-        for (position, vertex) in pressure_vertices.iter().enumerate() {
-            pressure_position[vertex.index()] = Some(position);
-        }
-        let full_bubble_offset = checked_mul(vertex_count, D, "full velocity width")?;
-        let full_pressure_offset = checked_add(
-            full_bubble_offset,
-            checked_mul(partition.fluid_cells().len(), D, "full bubble width")?,
-            "full pressure offset",
-        )?;
-        let full_size = checked_add(
-            full_pressure_offset,
-            pressure_vertices.len(),
-            "full FSI width",
-        )?;
-        let mut fixed = prescribed.iter().flatten().copied().collect::<Vec<_>>();
-        fixed.resize(full_size, None);
-        let constraints = ConstrainedDofLayout::new(fixed)?;
-        let free = constraints.free_globals();
-        let reduced_pressure_offset = free.partition_point(|&global| global < full_pressure_offset);
-        if constraints.free_count() == 0 || full_size == 0 {
-            return Err(invalid("fixed-reference FSI layout may not be empty"));
-        }
-        Ok(Self {
-            constraints,
-            vertex_count,
-            reduced_pressure_offset,
-            full_bubble_offset,
-            full_pressure_offset,
-            full_size,
+        Self {
+            reference: Arc::new(mesh.clone()),
+            partition: Arc::new(partition.clone()),
+            boundary: Arc::new(boundary.clone()),
+            mapping: mapping.clone(),
+            fields,
+            vertex_keys,
+            bubble_keys,
+            pressure_keys,
             pressure_vertices,
-            pressure_position,
-        })
+        }
+        .with_boundary(boundary)
+    }
+
+    pub(crate) fn with_boundary(
+        &self,
+        boundary: &FixedReferenceFsiBoundary<D>,
+    ) -> Result<Self, Diagnostic> {
+        let mapping = &self.mapping;
+        let vertex_keys = &self.vertex_keys;
+        let mut prescribed = BTreeMap::new();
+        if let Some(values) = boundary.prepared_current_quotient() {
+            if values.len() != vertex_keys.len() {
+                return Err(invalid("prescribed FSI vertices differ from mapped mesh"));
+            }
+            for (keys, values) in vertex_keys.iter().zip(values) {
+                for (key, value) in keys.iter().zip(values) {
+                    if let Some(value) = value {
+                        prescribed.insert(*key, *value * mapping.field_scale(key.field)?);
+                    }
+                }
+            }
+        } else {
+            for vertex in boundary.fixed_zero_velocity_vertices() {
+                let keys = vertex_keys
+                    .get(vertex.index())
+                    .ok_or_else(|| invalid("fixed FSI vertex is absent from mapped mesh"))?;
+                for key in keys {
+                    if prescribed.insert(*key, 0.0).is_some() {
+                        return Err(invalid("duplicate fixed FSI vertex"));
+                    }
+                }
+            }
+        }
+        let mut result = self.clone();
+        result.mapping = mapping.with_prescribed(&prescribed)?;
+        result.boundary = Arc::new(boundary.clone());
+        Ok(result)
+    }
+
+    pub(crate) fn cell_map(&self, cell: usize, reduced: bool) -> Result<AssemblyMap, Diagnostic> {
+        self.mapping.cell_map(cell, reduced)
     }
 
     pub(crate) fn fluid_map(
@@ -112,197 +229,215 @@ impl<const D: usize> FsiLayout<D> {
         vertices: &[MeshEntity],
         reduced: bool,
     ) -> Result<AssemblyMap, Diagnostic> {
-        if fluid_position >= (self.full_pressure_offset - self.full_bubble_offset) / D {
-            return Err(invalid("cell bubble is outside the resolved layout"));
+        let cell = self
+            .partition
+            .fluid_cells()
+            .get(fluid_position)
+            .ok_or_else(|| invalid("fluid position has no exact Region cell"))?;
+        if self
+            .reference
+            .entity_vertices(MeshEntity::new(D, cell.index()))
+            .as_deref()
+            != Some(vertices)
+        {
+            return Err(invalid(
+                "fluid local vertices differ from the bubble-owning cell closure",
+            ));
         }
-        let mut globals = Vec::with_capacity(fluid_local_size::<D>());
-        self.append_vertex_velocity(vertices, &mut globals)?;
-        globals.extend(
-            (0..D).map(|component| self.full_bubble_offset + fluid_position * D + component),
+        let bubbles = self
+            .bubble_keys
+            .get(fluid_position)
+            .ok_or_else(|| invalid("fluid cell has no exact bubble ownership"))?;
+        let mut keys = vertices
+            .iter()
+            .flat_map(|vertex| (0..D).map(move |component| key(self.fields[0], *vertex, component)))
+            .collect::<Vec<_>>();
+        keys.extend_from_slice(bubbles);
+        keys.extend(
+            vertices
+                .iter()
+                .map(|vertex| key(self.fields[1], *vertex, 0)),
         );
-        for vertex in vertices {
-            let position = self
-                .pressure_position
-                .get(vertex.index())
-                .copied()
-                .flatten()
-                .ok_or_else(|| invalid("cell vertex has no pressure DOF in the resolved layout"))?;
-            globals.push(self.full_pressure_offset + position);
-        }
-        self.map(&globals, reduced)
+        self.mapping.map_dofs(&keys, reduced)
     }
 
     pub(crate) fn solid_map(
         &self,
+        cell: usize,
         vertices: &[MeshEntity],
         reduced: bool,
     ) -> Result<AssemblyMap, Diagnostic> {
-        let mut globals = Vec::with_capacity(solid_local_size::<D>());
-        self.append_vertex_velocity(vertices, &mut globals)?;
-        self.map(&globals, reduced)
-    }
-
-    fn map(&self, globals: &[usize], reduced: bool) -> Result<AssemblyMap, Diagnostic> {
-        if reduced {
-            self.constraints.reduced_map(globals)
-        } else {
-            self.constraints.full_map(globals)
-        }
-    }
-
-    fn append_vertex_velocity(
-        &self,
-        vertices: &[MeshEntity],
-        globals: &mut Vec<usize>,
-    ) -> Result<(), Diagnostic> {
-        if vertices
-            .iter()
-            .any(|vertex| vertex.index() >= self.vertex_count)
+        if cell >= self.partition.cell_count()
+            || self.partition.material(cell) != super::partition::CellMaterial::Solid
+            || self
+                .reference
+                .entity_vertices(MeshEntity::new(D, cell))
+                .as_deref()
+                != Some(vertices)
         {
             return Err(invalid(
-                "cell vertex is outside the resolved velocity layout",
+                "solid local vertices differ from the exact Region cell closure",
             ));
         }
-        globals.extend(vertices.iter().flat_map(|vertex| {
-            (0..D).map(move |component| self.full_vertex_velocity(vertex.index(), component))
-        }));
-        Ok(())
+        let keys = vertices
+            .iter()
+            .flat_map(|vertex| (0..D).map(move |component| key(self.fields[2], *vertex, component)))
+            .collect::<Vec<_>>();
+        self.mapping.map_dofs(&keys, reduced)
     }
 
-    pub(crate) const fn full_vertex_velocity(&self, vertex: usize, component: usize) -> usize {
-        vertex * D + component
+    pub(crate) fn full_vertex_velocity(&self, vertex: usize, component: usize) -> usize {
+        self.mapping
+            .global_dof(self.vertex_keys[vertex][component])
+            .expect("validated Field ownership")
     }
-
-    pub(crate) const fn reduced_size(&self) -> usize {
-        self.constraints.free_count()
-    }
-
     pub(crate) fn reduced_vertex_velocity(&self, vertex: usize, component: usize) -> Option<DofId> {
-        if vertex >= self.vertex_count || component >= D {
-            return None;
-        }
-        self.constraints
-            .free_index(self.full_vertex_velocity(vertex, component))
+        self.vertex_keys
+            .get(vertex)
+            .and_then(|keys| keys.get(component))
+            .and_then(|key| self.mapping.free_dof(*key))
     }
-
-    pub(crate) const fn full_size(&self) -> usize {
-        self.full_size
+    pub(crate) fn reduced_size(&self) -> usize {
+        self.mapping.free_count()
     }
-
+    pub(crate) fn full_size(&self) -> usize {
+        self.mapping.full_count()
+    }
     pub(crate) fn pressure_vertices(&self) -> &[VertexId] {
         &self.pressure_vertices
     }
-
-    pub(crate) fn reduced_pressure_range(&self) -> std::ops::Range<usize> {
-        self.reduced_pressure_offset..self.reduced_pressure_offset + self.pressure_vertices.len()
+    pub(crate) fn reduced_pressure_dofs(&self) -> Vec<usize> {
+        self.mapping
+            .field_free_dofs(self.fields[1])
+            .expect("validated pressure Field")
+            .into_iter()
+            .map(DofId::index)
+            .collect()
     }
-
-    pub(crate) fn full_pressure_range(&self) -> std::ops::Range<usize> {
-        self.full_pressure_offset..self.full_pressure_offset + self.pressure_vertices.len()
+    pub(crate) fn full_pressure_dofs(&self) -> Vec<usize> {
+        self.pressure_keys
+            .iter()
+            .map(|key| {
+                self.mapping
+                    .global_dof(*key)
+                    .expect("validated pressure Field")
+            })
+            .collect()
     }
-
     pub(crate) fn fixed_velocity(&self, vertex: usize) -> bool {
-        (0..D).any(|component| {
-            !self
-                .constraints
-                .is_free(self.full_vertex_velocity(vertex, component))
-                .expect("accepted vertex belongs to the full layout")
-        })
+        self.vertex_keys[vertex]
+            .iter()
+            .any(|key| self.mapping.free_dof(*key).is_none())
     }
-
     pub(crate) fn reconstruct_primal(
         &self,
         values: &[f64],
         fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        self.split_fields(&self.constraints.lift(values)?, fluid_cell_count)
+        self.split_fields(&self.mapping.lift(values, false)?, fluid_cell_count)
     }
-
+    pub(crate) fn reconstruct_physical(
+        &self,
+        reduced: &[f64],
+    ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
+        let recovered = self.mapping.recover(reduced)?;
+        let value = |key| recovered[&key];
+        Ok((
+            self.vertex_keys
+                .iter()
+                .map(|keys| keys.map(value))
+                .collect(),
+            self.bubble_keys
+                .iter()
+                .map(|keys| keys.map(value))
+                .collect(),
+            self.pressure_keys.iter().copied().map(value).collect(),
+        ))
+    }
     pub(crate) fn reconstruct_direction(
         &self,
         values: &[f64],
         fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        self.split_fields(&self.constraints.lift_direction(values)?, fluid_cell_count)
+        self.split_fields(&self.mapping.lift(values, true)?, fluid_cell_count)
     }
-
     fn split_fields(
         &self,
         values: &[f64],
         fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        if fluid_cell_count.checked_mul(D)
-            != Some(self.full_pressure_offset - self.full_bubble_offset)
-        {
+        if fluid_cell_count != self.bubble_keys.len() {
             return Err(invalid(
-                "cell count differs from the resolved bubble layout",
+                "FSI history differs from exact fluid cell inventory",
             ));
         }
-        let vectors = |values: &[f64]| values.as_chunks::<D>().0.to_vec();
+        let value = |key| {
+            values[self
+                .mapping
+                .global_dof(key)
+                .expect("validated exact Field DOF")]
+        };
         Ok((
-            vectors(&values[..self.full_bubble_offset]),
-            vectors(&values[self.full_bubble_offset..self.full_pressure_offset]),
-            values[self.full_pressure_offset..].to_vec(),
+            self.vertex_keys
+                .iter()
+                .map(|keys| keys.map(value))
+                .collect(),
+            self.bubble_keys
+                .iter()
+                .map(|keys| keys.map(value))
+                .collect(),
+            self.pressure_keys.iter().copied().map(value).collect(),
         ))
     }
-
     pub(crate) fn reduce(
         &self,
-        vertex_velocity: &[[f64; D]],
+        velocity: &[[f64; D]],
         bubbles: &[[f64; D]],
         pressure: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
-        if vertex_velocity.len() != self.vertex_count
-            || bubbles.len().checked_mul(D)
-                != Some(self.full_pressure_offset - self.full_bubble_offset)
-            || pressure.len() != self.pressure_vertices.len()
+        if velocity.len() != self.vertex_keys.len()
+            || bubbles.len() != self.bubble_keys.len()
+            || pressure.len() != self.pressure_keys.len()
         {
             return Err(invalid(
-                "FSI Field values must match the exact resolved layout",
+                "FSI values differ from exact Field/entity recovery inventory",
             ));
         }
-        self.constraints
-            .restrict(&self.fill_full(vertex_velocity, bubbles, pressure))
+        self.mapping
+            .restrict(&self.fill_full(velocity, bubbles, pressure))
     }
-
     pub(crate) fn fill_full(
         &self,
-        vertex_velocity: &[[f64; D]],
+        velocity: &[[f64; D]],
         bubbles: &[[f64; D]],
         pressure: &[f64],
     ) -> Vec<f64> {
-        let mut values = vec![0.0; self.full_size];
-        for (vertex, vector) in vertex_velocity.iter().enumerate() {
-            for component in 0..D {
-                values[self.full_vertex_velocity(vertex, component)] = vector[component];
+        let mut full = vec![0.0; self.mapping.full_count()];
+        for (keys, values) in self
+            .vertex_keys
+            .iter()
+            .zip(velocity)
+            .chain(self.bubble_keys.iter().zip(bubbles))
+        {
+            for (&key, &value) in keys.iter().zip(values) {
+                full[self.mapping.global_dof(key).expect("validated Field DOF")] = value;
             }
         }
-        for (cell, vector) in bubbles.iter().enumerate() {
-            for component in 0..D {
-                values[self.full_bubble_offset + cell * D + component] = vector[component];
-            }
+        for (&key, &value) in self.pressure_keys.iter().zip(pressure) {
+            full[self
+                .mapping
+                .global_dof(key)
+                .expect("validated pressure DOF")] = value;
         }
-        values[self.full_pressure_offset..self.full_pressure_offset + pressure.len()]
-            .copy_from_slice(pressure);
-        values
+        full
     }
-}
-
-fn checked_add(left: usize, right: usize, name: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| invalid(format!("fixed-reference FSI {name} overflows usize")))
-}
-
-fn checked_mul(left: usize, right: usize, name: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_mul(right)
-        .ok_or_else(|| invalid(format!("fixed-reference FSI {name} overflows usize")))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use eqiora_assembly::LocalUnknown;
-    use eqiora_meshing::{CellId, FacetId, MeshQualityGate};
+    use eqiora_meshing::{CellId, FacetId, MeshQualityGate, MeshTopology};
 
     #[test]
     fn shared_constraints_preserve_nonzero_component_values_and_exact_maps() {
@@ -333,34 +468,71 @@ mod tests {
             vec![FacetId::new(interface)],
         )
         .unwrap();
-        let prescribed = [[Some(1.25), None], [None; 2], [None; 2], [None, Some(-2.5)]];
-        let layout = FsiLayout::with_prescribed_velocity(&mesh, &partition, &prescribed).unwrap();
+        use crate::simplicial_fsi::{
+            FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiScale,
+            FixedReferenceFsiStepConfig,
+        };
+        use eqiora_geometry::{NamedEntitySet, PlanarFace, PlanarRegion};
+        let region = PlanarRegion::new(
+            vec![[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]],
+            vec![
+                PlanarFace::new(vec![0, 2, 1], vec![]),
+                PlanarFace::new(vec![1, 2, 3], vec![]),
+            ],
+            vec![
+                NamedEntitySet::new("fluid", 2, vec![0]),
+                NamedEntitySet::new("solid", 2, vec![1]),
+                NamedEntitySet::new("fluid_outer", 1, vec![0, 2]),
+                NamedEntitySet::new("solid_outer", 1, vec![4, 5]),
+                NamedEntitySet::new("fluid_contact", 1, vec![1]),
+                NamedEntitySet::new("solid_contact", 1, vec![3]),
+            ],
+            1e-12,
+        )
+        .unwrap();
+        let config = FixedReferenceFsiStepConfig::new(
+            0.1,
+            FixedReferenceFsiMaterial::new(2.0, 0.5, 3.0, 4.0, 2.0).unwrap(),
+            FixedReferenceFsiScale::new(1.0, 1.0, 1.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
+        )
+        .unwrap();
+        let solver = eqiora_solver::SolverPlan::new(
+            eqiora_solver::LinearSolver::MinimumResidual,
+            1e-10,
+            1e-12,
+            std::num::NonZeroUsize::new(100).unwrap(),
+        )
+        .unwrap();
+        let mut layout = crate::simplicial_fsi::test_model::planar_layout(
+            &region,
+            &mesh,
+            &partition,
+            &FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
+            config,
+            solver,
+            false,
+        );
+        // This focused constraint-map check supplies physical values on exact
+        // authored Field/entity keys; it is not a Model boundary-policy Run.
+        layout.mapping = layout
+            .mapping
+            .with_prescribed(&BTreeMap::from([
+                (layout.vertex_keys[0][0], 1.25),
+                (layout.vertex_keys[3][1], -2.5),
+            ]))
+            .unwrap();
         let fluid = [0, 1, 2].map(|index| MeshEntity::new(0, index));
         let solid = [1, 3, 2].map(|index| MeshEntity::new(0, index));
         let fluid_map = layout.fluid_map(0, &fluid, true).unwrap();
-        assert_eq!(
-            fluid_map.equations(),
-            &[
-                None,
-                Some(0),
-                Some(1),
-                Some(2),
-                Some(3),
-                Some(4),
-                Some(6),
-                Some(7),
-                Some(8),
-                Some(9),
-                Some(10)
-            ]
-            .map(|index| index.map(DofId::new))
-        );
+        assert_eq!(fluid_map.equations().len(), 11);
+        assert_eq!(fluid_map.equations()[0], None);
         assert_eq!(fluid_map.unknowns()[0], LocalUnknown::Fixed(1.25));
-        let solid_map = layout.solid_map(&solid, true).unwrap();
-        assert_eq!(
-            solid_map.equations(),
-            &[Some(1), Some(2), Some(5), None, Some(3), Some(4)].map(|index| index.map(DofId::new))
-        );
+        let solid_map = layout.solid_map(1, &solid, true).unwrap();
+        assert_eq!(solid_map.equations().len(), 6);
+        assert_eq!(solid_map.equations()[3], None);
+        assert_eq!(&fluid_map.equations()[2..4], &solid_map.equations()[0..2]);
+        assert_eq!(&fluid_map.equations()[4..6], &solid_map.equations()[4..6]);
         assert_eq!(solid_map.unknowns()[3], LocalUnknown::Fixed(-2.5));
         let values = (0..layout.reduced_size())
             .map(|index| index as f64 + 10.0)
@@ -374,6 +546,35 @@ mod tests {
         let direction = layout.reconstruct_direction(&values, 1).unwrap().0;
         assert_eq!((direction[0][0], direction[3][1]), (0.0, 0.0));
         assert!(layout.fluid_map(1, &fluid, true).is_err());
-        assert!(layout.solid_map(&[MeshEntity::new(0, 4)], false).is_err());
+        assert!(layout.fluid_map(0, &solid, true).is_err());
+        assert!(layout.solid_map(0, &fluid, true).is_err());
+        assert!(layout.solid_map(2, &solid, true).is_err());
+        layout.require_reference(&mesh, &partition).unwrap();
+        let changed = SimplicialMesh::new(
+            2,
+            mesh.vertices().to_vec(),
+            vec![vec![0, 1, 3], vec![0, 3, 2]],
+            MeshQualityGate::new(0.1).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(changed.vertices().len(), mesh.vertices().len());
+        assert_eq!(changed.cells().len(), mesh.cells().len());
+        assert!(layout.require_reference(&changed, &partition).is_err());
+        assert!(
+            layout
+                .require_boundary(&FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap())
+                .is_err()
+        );
+        layout.require_scale(config.scale()).unwrap();
+        assert!(
+            layout
+                .require_scale(FixedReferenceFsiScale::new(1.0, 1.0, 2.0).unwrap())
+                .is_err()
+        );
+        assert!(
+            layout
+                .solid_map(1, &[MeshEntity::new(0, 4)], false)
+                .is_err()
+        );
     }
 }

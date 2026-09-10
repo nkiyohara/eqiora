@@ -84,22 +84,14 @@ fn fixed_reference_monolithic_fsi_step_2d() {
 
     assert_eq!(direct.operator, direct.replayed_operator);
     assert_eq!(packaged.operator, packaged.replayed_operator);
-    assert_eq!(direct.operator, packaged.operator);
-    assert_eq!(
-        direct.solution.vertex_velocity_coefficients(),
-        packaged.solution.vertex_velocity_coefficients()
-    );
-    assert_eq!(
-        direct.solution.fluid_velocity_bubble_coefficients(),
-        packaged.solution.fluid_velocity_bubble_coefficients()
-    );
-    assert_eq!(
-        direct.solution.fluid_pressure_coefficients(),
-        packaged.solution.fluid_pressure_coefficients()
-    );
-    assert_eq!(
-        direct.solution.solid_displacement_coefficients(),
-        packaged.solution.solid_displacement_coefficients()
+    assert!(direct.physical_operator.agrees(&packaged.physical_operator));
+    direct
+        .physical_operator
+        .rejects_wrong_coordinates(&packaged.physical_operator);
+    direct.physical_operator.assert_residual_compatible(
+        &packaged.physical_operator,
+        &direct.solution,
+        &packaged.solution,
     );
     for execution in [&direct, &packaged] {
         let solution = &execution.solution;

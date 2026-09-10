@@ -32,6 +32,24 @@ mesh, multi-Domain Realization, Run inputs, and finalized operator. Reconstructe
 values retain exact Field IDs in memory. This case makes no durable fixed-mesh
 State or trajectory publication claim.
 
+Each Model retains exact CSR/RHS identity on replay. Direct and packaged Models
+have distinct Field identities, so their global algebraic coordinates need not
+have the same order. The comparison constructs a permutation from independently
+specified fluid/solid Field roles and authenticated mesh entities, basis slots,
+and components. It first verifies a complete bijection, including consistent
+interface aliases, then checks the complete matrix and RHS exactly under that
+permutation. Matrix values never determine the correspondence. Swapped physical
+components and a cross-wired Field support falsify the comparison.
+
+Solutions of the differently ordered systems may round differently during
+MINRES reductions. With physical values reconstructed through their exact
+Field scales, the comparison checks `||A (x_direct - P^T x_package)||_2 <=
+tau_direct + tau_package`, where each `tau` is its accepted true residual target.
+This follows from the residual identity and triangle inequality. It proves
+consistency with both accepted residuals under the same operator/RHS, not a
+forward-error bound in a nullspace or an ill-conditioned system. The individual
+physical, energy, kinematic, pressure-closure, and constraint checks remain.
+
 Run:
 
 ```bash

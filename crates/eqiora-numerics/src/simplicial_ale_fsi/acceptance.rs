@@ -51,7 +51,12 @@ fn accept_independent<const D: usize>(
     }
 
     let continuity_residual_norm = finite_norm(
-        &independent.full_fluid_residual()[independent.layout.full_pressure_range()],
+        &independent
+            .layout
+            .full_pressure_dofs()
+            .into_iter()
+            .map(|dof| independent.full_fluid_residual()[dof])
+            .collect::<Vec<_>>(),
         "ALE FSI weak incompressibility residual",
     )?;
     let algebraic_scale = finite_norm(independent.algebraic_values(), "ALE FSI accepted point")?;
@@ -448,6 +453,7 @@ mod tests {
     struct Fixture3d {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition<3>,
+        layout: crate::simplicial_fsi::layout::FsiLayout<3>,
         boundary: AleFsiBoundary<3>,
         motion: P1HarmonicMeshMotionAction<3>,
         previous: AleFsiState<3>,
@@ -463,12 +469,12 @@ mod tests {
 
         let mut point = initial_point(
             &fixture.mesh,
-            &fixture.partition,
             &fixture.boundary,
             &fixture.motion,
             &fixture.previous,
             fixture.plan,
             &quadrature,
+            &fixture.layout,
         )
         .unwrap();
         let initial = assemble(&fixture, &point, &quadrature);
@@ -613,6 +619,7 @@ mod tests {
             fixture.plan,
             quadrature,
             &REFERENCE_ASSEMBLY_BACKEND,
+            &fixture.layout,
         )
         .unwrap()
     }
@@ -693,7 +700,18 @@ mod tests {
             vec![[0.0; 3]; mesh.vertices().len()],
         )
         .unwrap();
+        let plan = step_plan_3d();
+        let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
+            &crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry(),
+            &mesh,
+            &partition,
+            &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
+            plan.fixed_reference_config(),
+            plan.linear_solver(),
+            true,
+        );
         Fixture3d {
+            layout,
             mesh,
             partition,
             boundary,

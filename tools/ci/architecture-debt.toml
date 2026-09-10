@@ -180,7 +180,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/canonical_fsi/ale_realization.rs"
-ceiling = 2280
+ceiling = 1500
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -198,7 +198,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_ale_fsi/assembly.rs"
-ceiling = 1347
+ceiling = 1310
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -470,7 +470,7 @@ ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 269
+ceiling = 263
 # RFC 0091: CommonAlgebraicPlan, CommonAlgebraicState, CommonObservation and CommonObservableStateTangent own typed declaration, execution or
 # exact reduction contracts shared by compiler/native/Python/replay consumers.
 # Withdraw these names only when accepted existing owners preserve exact identity,

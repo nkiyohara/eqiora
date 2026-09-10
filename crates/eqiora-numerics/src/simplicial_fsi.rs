@@ -21,6 +21,8 @@ pub(crate) mod partition;
 mod solve;
 
 #[cfg(test)]
+pub(crate) mod test_model;
+#[cfg(test)]
 mod tests;
 
 use eqiora_core::Diagnostic;
@@ -35,10 +37,9 @@ pub use contract::{
     FixedReferenceFsiScale, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
 };
 pub use partition::{FixedReferenceFsiInterfaceFacet, FixedReferenceFsiPartition};
-pub use solve::{
-    FinalizedFixedReferenceFsiStep, finalize_fixed_reference_fsi_step_3d,
-    solve_fixed_reference_fsi_step_3d,
-};
+pub use solve::FinalizedFixedReferenceFsiStep;
+#[cfg(test)]
+pub(crate) use solve::solve_fixed_reference_fsi_step_3d;
 pub(crate) use solve::{FixedReferenceFsiAssemblyTargetRoles, PreparedFixedReferenceFsiAssembly};
 
 const fn p1_count<const D: usize>() -> usize {
@@ -47,10 +48,6 @@ const fn p1_count<const D: usize>() -> usize {
 
 const fn mini_count<const D: usize>() -> usize {
     p1_count::<D>() + 1
-}
-
-const fn solid_local_size<const D: usize>() -> usize {
-    p1_count::<D>() * D
 }
 
 const fn fluid_local_size<const D: usize>() -> usize {

@@ -28,7 +28,19 @@ pub(super) fn finalize(
     config: FixedReferenceFsiStepConfig<2>,
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
-    finalize_source(SOURCE, problem, config, assembly)
+    finalize_source(SOURCE, problem, config, assembly, false)
+}
+
+pub(super) fn finalize_pressure_nullspace(
+    problem: &Fixture,
+) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
+    finalize_source(
+        SOURCE,
+        problem,
+        problem.config,
+        &REFERENCE_ASSEMBLY_BACKEND,
+        true,
+    )
 }
 
 fn finalize_source(
@@ -36,6 +48,7 @@ fn finalize_source(
     problem: &Fixture,
     config: FixedReferenceFsiStepConfig<2>,
     assembly: &dyn AssemblyBackend,
+    corrupt_pressure: bool,
 ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
     let material = config.material();
     let mut source = source.to_owned();
@@ -121,6 +134,22 @@ fn finalize_source(
         &capabilities,
     )
     .unwrap();
+    let pressure_fault;
+    let assembly = if corrupt_pressure {
+        let prepared = crate::canonical_fsi::prepare_resolved_fixed_reference_fsi_run_2d(
+            &model,
+            &resolved,
+            mesh_reference,
+            &problem.mesh,
+            &problem.partition,
+        )?;
+        pressure_fault = PressureNullspaceBackend {
+            pressure: prepared.layout().reduced_pressure_dofs(),
+        };
+        &pressure_fault as &dyn AssemblyBackend
+    } else {
+        assembly
+    };
     finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
         &model,
         &resolved,
@@ -170,6 +199,7 @@ fn assert_same_step_for_residual_reversal(component: &str, swapped_sides: bool) 
         &problem,
         problem.config,
         &REFERENCE_ASSEMBLY_BACKEND,
+        false,
     )
     .expect("negating the complete momentum residual preserves the same equation")
     .solve(&REFERENCE_LINEAR_SOLVER)
@@ -224,7 +254,7 @@ fn assert_same_step_for_residual_reversal(component: &str, swapped_sides: bool) 
 
 #[derive(Debug)]
 pub(super) struct PressureNullspaceBackend {
-    pub(super) pressure: std::ops::Range<usize>,
+    pub(super) pressure: Vec<usize>,
 }
 
 impl AssemblyBackend for PressureNullspaceBackend {
@@ -238,7 +268,7 @@ impl AssemblyBackend for PressureNullspaceBackend {
             .into_parts();
         let system = &systems[0];
         let n = system.matrix().rows();
-        assert!(self.pressure.len() > 1 && self.pressure.end <= n);
+        assert!(self.pressure.len() > 1 && self.pressure.iter().all(|&index| index < n));
         let mut values = vec![0.0; n * n];
         for row in 0..n {
             for column in 0..n {
@@ -249,11 +279,12 @@ impl AssemblyBackend for PressureNullspaceBackend {
         }
         // A chain Laplacian retains nonempty symmetric pressure rows but annihilates constants.
         // Remove pressure/velocity coupling so the full operator has that same null vector.
-        for row in self.pressure.start..self.pressure.end - 1 {
+        for pair in self.pressure.windows(2) {
+            let [row, next] = [pair[0], pair[1]];
             values[row * n + row] += 1.0;
-            values[(row + 1) * n + row + 1] += 1.0;
-            values[row * n + row + 1] -= 1.0;
-            values[(row + 1) * n + row] -= 1.0;
+            values[next * n + next] += 1.0;
+            values[row * n + next] -= 1.0;
+            values[next * n + row] -= 1.0;
         }
         let local = LocalContribution::new(n, n, values, system.rhs().to_vec())?;
         let map = AssemblyMap::new(

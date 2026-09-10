@@ -95,6 +95,24 @@ pub struct FinalizedResolvedFixedReferenceFsiStep2d {
 }
 
 impl FinalizedResolvedFixedReferenceFsiStep2d {
+    /// Reduced coordinate of a Field/entity basis component in this owner's scope.
+    /// Essential coordinates, absent supports, and eliminated state Fields return `None`.
+    #[must_use]
+    pub fn free_field_dof(
+        &self,
+        field: Id<kinds::Field>,
+        entity: eqiora_meshing::MeshEntity,
+        slot: usize,
+        component: usize,
+    ) -> Option<eqiora_assembly::DofId> {
+        self.inner
+            .free_field_dof(crate::region_assembly::mapping::FieldDof {
+                field: field.erase(),
+                entity,
+                slot,
+                component,
+            })
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         model: OntologyId<Model>,

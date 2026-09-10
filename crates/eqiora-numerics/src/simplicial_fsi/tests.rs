@@ -200,6 +200,7 @@ fn tetrahedral_monolithic_step_closes_the_same_physical_acceptance() {
         problem.config,
         &problem.quadrature,
         reference_solver(),
+        &problem.layout,
     )
     .unwrap();
 
@@ -231,6 +232,7 @@ fn tetrahedral_physical_step_is_invariant_under_dimensioned_scale_profiles() {
         problem.config,
         &problem.quadrature,
         reference_solver(),
+        &problem.layout,
     )
     .unwrap();
     let rescaled_config = FixedReferenceFsiStepConfig::<3>::new(
@@ -240,6 +242,15 @@ fn tetrahedral_physical_step_is_invariant_under_dimensioned_scale_profiles() {
         FixedReferenceFsiLoad::Zero,
     )
     .unwrap();
+    let rescaled_layout = super::test_model::polyhedra::polyhedral_layout(
+        &super::test_model::polyhedra::bipyramid_geometry(),
+        &problem.mesh,
+        &problem.partition,
+        &problem.boundary,
+        rescaled_config,
+        reference_solver().plan(),
+        false,
+    );
     let rescaled = solve_fixed_reference_fsi_step_3d(
         &problem.mesh,
         &problem.partition,
@@ -248,6 +259,7 @@ fn tetrahedral_physical_step_is_invariant_under_dimensioned_scale_profiles() {
         rescaled_config,
         &problem.quadrature,
         reference_solver(),
+        &rescaled_layout,
     )
     .unwrap();
 
@@ -335,17 +347,7 @@ fn physical_step_is_invariant_under_admitted_scale_profiles() {
 #[test]
 fn finalization_rejects_a_symmetric_operator_with_constant_pressure_nullspace() {
     let problem = fixture_problem();
-    let layout =
-        super::layout::FsiLayout::new(&problem.mesh, &problem.partition, &problem.boundary)
-            .unwrap();
-    let error = resolved::finalize(
-        &problem,
-        problem.config,
-        &resolved::PressureNullspaceBackend {
-            pressure: layout.reduced_pressure_range(),
-        },
-    )
-    .unwrap_err();
+    let error = resolved::finalize_pressure_nullspace(&problem).unwrap_err();
     assert_eq!(error.code(), codes::INVALID_DISCRETIZATION);
     assert!(error.message().contains("constant pressure unclosed"));
 }
@@ -403,6 +405,7 @@ struct Fixture {
 struct Fixture3d {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<3>,
+    layout: super::layout::FsiLayout<3>,
     boundary: FixedReferenceFsiBoundary<3>,
     previous: FixedReferenceFsiState<3>,
     config: FixedReferenceFsiStepConfig<3>,
@@ -470,7 +473,17 @@ fn fixture_problem_3d() -> Fixture3d {
     let config =
         FixedReferenceFsiStepConfig::<3>::new(0.05, material, scale, FixedReferenceFsiLoad::Zero)
             .unwrap();
+    let layout = super::test_model::polyhedra::polyhedral_layout(
+        &super::test_model::polyhedra::bipyramid_geometry(),
+        &mesh,
+        &partition,
+        &boundary,
+        config,
+        reference_solver().plan(),
+        false,
+    );
     Fixture3d {
+        layout,
         mesh,
         partition,
         boundary,

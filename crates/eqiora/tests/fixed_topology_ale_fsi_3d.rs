@@ -90,7 +90,6 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             &FaerLinearSolver,
         )
         .unwrap();
-        let quadrature = eqiora::meshing::simplex_duffy_gauss_legendre(3, 7).unwrap();
         let mut previous_color_count = None;
         for (states, step) in trajectory.states().windows(2).zip(trajectory.steps()) {
             assert!(step.final_residual_norm() <= step.residual_target());
@@ -103,16 +102,7 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             assert!(step.minimum_path_signed_jacobian() > 0.0);
             let (column_count, color_count, singleton_count, assembly_count, maximum_error) =
                 finalized
-                    .step_plan()
-                    .verify_accepted_jacobian(
-                        &fixture.mesh,
-                        &fixture.partition,
-                        &fixture.boundary,
-                        finalized.motion(),
-                        &states[0],
-                        &states[1],
-                        &quadrature,
-                    )
+                    .verify_accepted_jacobian(&states[0], &states[1])
                     .unwrap();
             assert!(maximum_error < 1.0e-3);
             assert!(column_count > color_count);

@@ -1,8 +1,11 @@
 //! Damped Newton execution for the bounded fixed-topology ALE FSI slice.
 
+use crate::simplicial_fsi::layout::FsiLayout;
 use std::ops::ControlFlow;
 
-use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_assembly::AssemblyBackend;
+#[cfg(test)]
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
@@ -29,7 +32,8 @@ use crate::step_count::NonZeroStepCount;
 /// unsuccessful globalization, or any acceptance falsifier. A failed step does
 /// not mutate the last accepted trajectory state.
 #[allow(clippy::too_many_arguments)]
-pub fn advance_simplicial_ale_fsi_2d(
+#[cfg(test)]
+pub(crate) fn advance_simplicial_ale_fsi_2d(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     boundary: &AleFsiBoundary<2>,
@@ -39,6 +43,7 @@ pub fn advance_simplicial_ale_fsi_2d(
     plan: AleFsiStepPlan<2>,
     quadrature: &QuadratureRule,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<2>,
 ) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     advance_simplicial_ale_fsi_2d_with_assembly(
         reference,
@@ -51,6 +56,7 @@ pub fn advance_simplicial_ale_fsi_2d(
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         solver,
+        base_layout,
     )
 }
 
@@ -60,7 +66,7 @@ pub fn advance_simplicial_ale_fsi_2d(
 /// Preserves all ALE, assembly, Newton, Krylov, and independent acceptance
 /// diagnostics without fallback.
 #[allow(clippy::too_many_arguments)]
-pub fn advance_simplicial_ale_fsi_2d_with_assembly(
+pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     boundary: &AleFsiBoundary<2>,
@@ -71,10 +77,20 @@ pub fn advance_simplicial_ale_fsi_2d_with_assembly(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<2>,
 ) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     advance_simplicial_ale_fsi_with_assembly::<2>(
-        reference, partition, boundary, motion, initial, step_count, plan, quadrature, assembly,
+        reference,
+        partition,
+        boundary,
+        motion,
+        initial,
+        step_count,
+        plan,
+        quadrature,
+        assembly,
         solver,
+        base_layout,
     )
 }
 
@@ -85,7 +101,8 @@ pub fn advance_simplicial_ale_fsi_2d_with_assembly(
 /// and independent-acceptance boundary as the established two-dimensional
 /// entry point.
 #[allow(clippy::too_many_arguments)]
-pub fn advance_simplicial_ale_fsi_3d(
+#[cfg(test)]
+pub(crate) fn advance_simplicial_ale_fsi_3d(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
     boundary: &AleFsiBoundary<3>,
@@ -95,6 +112,7 @@ pub fn advance_simplicial_ale_fsi_3d(
     plan: AleFsiStepPlan<3>,
     quadrature: &QuadratureRule,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<3>,
 ) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     advance_simplicial_ale_fsi_3d_with_assembly(
         reference,
@@ -107,6 +125,7 @@ pub fn advance_simplicial_ale_fsi_3d(
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         solver,
+        base_layout,
     )
 }
 
@@ -117,7 +136,7 @@ pub fn advance_simplicial_ale_fsi_3d(
 /// assembly, Newton, Krylov, and independent acceptance diagnostics without
 /// fallback.
 #[allow(clippy::too_many_arguments)]
-pub fn advance_simplicial_ale_fsi_3d_with_assembly(
+pub(crate) fn advance_simplicial_ale_fsi_3d_with_assembly(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
     boundary: &AleFsiBoundary<3>,
@@ -128,10 +147,20 @@ pub fn advance_simplicial_ale_fsi_3d_with_assembly(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<3>,
 ) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     advance_simplicial_ale_fsi_with_assembly::<3>(
-        reference, partition, boundary, motion, initial, step_count, plan, quadrature, assembly,
+        reference,
+        partition,
+        boundary,
+        motion,
+        initial,
+        step_count,
+        plan,
+        quadrature,
+        assembly,
         solver,
+        base_layout,
     )
 }
 
@@ -173,6 +202,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         quadrature: &'a QuadratureRule,
         assembly: &'a dyn AssemblyBackend,
         solver: &'a dyn LinearSolverBackend,
+        base_layout: &FsiLayout<D>,
     ) -> Result<Self, Diagnostic> {
         solver.capabilities().require_problem(
             plan.linear_solver(),
@@ -188,6 +218,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             initial,
             plan,
             quadrature,
+            base_layout,
         )?;
         #[cfg(test)]
         let phases = {
@@ -256,6 +287,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<D>,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic> {
     match advance_prepared_actions(
         AleFsiTrajectory::<D>::new(initial),
@@ -274,6 +306,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
                 quadrature,
                 assembly,
                 solver,
+                base_layout,
             )
         },
         |prepared, trajectory| {
@@ -303,6 +336,7 @@ pub(super) fn solve_one_step<const D: usize>(
     quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    base_layout: &FsiLayout<D>,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
     let prepared = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -315,7 +349,14 @@ pub(super) fn solve_one_step<const D: usize>(
         )?,
     };
     let structure = prepare_ale_fsi_structure(
-        reference, partition, &prepared, motion, previous, plan, quadrature,
+        reference,
+        partition,
+        &prepared,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        base_layout,
     )?;
     let action = structure.prepare_action(reference, partition, prepared, previous, plan)?;
     solve_one_step_prepared(

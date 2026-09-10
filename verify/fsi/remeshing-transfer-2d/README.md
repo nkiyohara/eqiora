@@ -28,6 +28,11 @@ The Cargo integration target executes the complete vertical slice:
   shared velocity, and material displacement are all nonzero;
 - a target interface that refines every source trace breakpoint, while the
   non-nested volume grids still force genuine many-to-many overlap;
+- exact replay of each material P1 midpoint displacement followed by `X + d`,
+  with every source breakpoint retained and an integer-dyadic proof that the
+  exact current source midpoint lies in the target point's binary64 rounding
+  cell in both components. The midpoint need not itself be exactly
+  representable; one-ULP interpolation/support mutations fail;
 - absolute solid-displacement projection in the material chart, followed by
   derivation of target harmonic geometry;
 - one coupled velocity projection using current-spatial fluid integration and

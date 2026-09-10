@@ -32,7 +32,7 @@ pub(crate) struct RegionFieldLayout {
     pub(crate) space: Space,
     pub(crate) range: Range<usize>,
     pub(crate) components: usize,
-    pub(super) scale: f64,
+    pub(crate) scale: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -241,7 +241,7 @@ fn positive_scale(scale: DynQuantity, value_type: &ValueType) -> Result<(), Diag
     Ok(())
 }
 
-pub(super) fn basis(
+pub(crate) fn basis(
     space: Space,
     reference: ReferenceCell,
 ) -> Result<Box<dyn DiscreteSpace>, Diagnostic> {
