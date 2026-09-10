@@ -2086,6 +2086,7 @@ def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | f
 A validated selection that can be inspected and committed once.
 
 ```python
+@final
 class ProjectUpdate:
     @property
     def resolution(self) -> bytes: ...
