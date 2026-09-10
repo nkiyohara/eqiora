@@ -435,7 +435,12 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             rust_index = artifact / RUSTDOC_ROOT / "eqiora/index.html"
             _append_main(
                 rust_index,
+                '<section id="impl-Instrument-for-T">'
+                '<a href="crate::Span">Span</a>'
+                '<a href="super::Span::current()">current span</a>'
+                "</section>"
                 '<section id="impl-WithSubscriber-for-T">'
+                '<a href="super::Subscriber">subscriber</a>'
                 '<a href="dispatcher#setting-the-default-subscriber">default</a>'
                 "</section>",
             )
@@ -1132,6 +1137,14 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         first_source, first_reference = ABSENT_REFERENCES[0]
         absent_source = RUSTDOC_ROOT / first_source
+        reject(
+            "tracing span link without blanket implementation",
+            lambda artifact: _append_main(
+                artifact / RUSTDOC_ROOT / "eqiora/index.html",
+                '<a href="crate::Span">Span</a>',
+            ),
+            "unsafe Rustdoc reference",
+        )
         reject(
             "tracing dispatcher link without blanket implementation",
             lambda artifact: _append_main(
