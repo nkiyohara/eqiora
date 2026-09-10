@@ -12,18 +12,23 @@ const ELECTRICAL_README: &[u8] =
     include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/README.md");
 const ELECTRICAL_MANIFEST: &[u8] =
     include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/package.json");
-const DRIVE_SOURCE: &str =
-    include_str!("../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi");
-const DRIVE_README: &[u8] =
-    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/README.md");
-const DRIVE_MANIFEST: &[u8] =
-    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/package.json");
-const ROOT_SOURCE: &str =
-    include_str!("../../../../crates/eqiora-api/packages/org.example.dc-motor-control/src/main.eqi");
+const DRIVE_SOURCE: &str = include_str!(
+    "../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi"
+);
+const DRIVE_README: &[u8] = include_bytes!(
+    "../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/README.md"
+);
+const DRIVE_MANIFEST: &[u8] = include_bytes!(
+    "../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/package.json"
+);
+const ROOT_SOURCE: &str = include_str!(
+    "../../../../crates/eqiora-api/packages/org.example.dc-motor-control/src/main.eqi"
+);
 const ROOT_README: &[u8] =
     include_bytes!("../../../../crates/eqiora-api/packages/org.example.dc-motor-control/README.md");
-const ROOT_MANIFEST: &[u8] =
-    include_bytes!("../../../../crates/eqiora-api/packages/org.example.dc-motor-control/package.json");
+const ROOT_MANIFEST: &[u8] = include_bytes!(
+    "../../../../crates/eqiora-api/packages/org.example.dc-motor-control/package.json"
+);
 
 pub(super) struct PreparedPackages {
     pub(super) document: PackagedModelDocument,
