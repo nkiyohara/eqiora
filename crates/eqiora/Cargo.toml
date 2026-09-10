@@ -39,6 +39,7 @@ eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }
 eqiora-differentiation = { workspace = true }
 eqiora-device = { workspace = true }
+eqiora-execution = { workspace = true }
 eqiora-distributed = { workspace = true }
 eqiora-backend-rayon = { workspace = true, optional = true }
 eqiora-schema = { workspace = true }
@@ -65,7 +66,6 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 eqiora-backend-faer = { workspace = true }
-eqiora-execution = { workspace = true }
 eqiora-backend-rayon = { workspace = true }
 eqiora-spatial-distribution = { workspace = true }
 num-rational = { workspace = true }

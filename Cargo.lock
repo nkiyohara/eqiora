@@ -1047,7 +1047,6 @@ name = "eqiora-python"
 version = "0.1.0-alpha.8"
 dependencies = [
  "eqiora",
- "eqiora-execution",
  "eqiora-numerics",
  "numpy",
  "pyo3",

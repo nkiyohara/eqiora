@@ -56,7 +56,7 @@ enum NativeWorkerOutcome {
 fn resolved_linear_backend(
     provider: SolverProvider,
 ) -> Result<&'static dyn LinearSolverBackend, Vec<Diagnostic>> {
-    let _setup = eqiora_execution::telemetry::setup().entered();
+    let _setup = eqiora::execution::telemetry::setup().entered();
     if provider == FAER_SOLVER_PROVIDER {
         Ok(&FaerLinearSolver)
     } else if provider == REFERENCE_SOLVER_PROVIDER {
@@ -74,12 +74,12 @@ fn execute_job(
     shared: &Arc<RunShared>,
 ) -> Result<NativeWorkerOutcome, Vec<Diagnostic>> {
     let family = job.family();
-    let _run = eqiora_execution::telemetry::run(family).entered();
+    let _run = eqiora::execution::telemetry::run(family).entered();
     match job {
         NativeRunJob::Algebraic(plan, state) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
-            let _solve = eqiora_execution::telemetry::solve(1).entered();
+            let _solve = eqiora::execution::telemetry::solve(1).entered();
             let result = plan
                 .run_result(&state, backend)
                 .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
@@ -92,7 +92,7 @@ fn execute_job(
         NativeRunJob::Scalar(plan) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
-            let _solve = eqiora_execution::telemetry::solve(1).entered();
+            let _solve = eqiora::execution::telemetry::solve(1).entered();
             let result = plan
                 .run_result(backend)
                 .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
@@ -105,7 +105,7 @@ fn execute_job(
         NativeRunJob::Elasticity(plan) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
-            let _solve = eqiora_execution::telemetry::solve(1).entered();
+            let _solve = eqiora::execution::telemetry::solve(1).entered();
             let result = plan
                 .run_result(backend)
                 .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
@@ -118,7 +118,7 @@ fn execute_job(
         NativeRunJob::SteadyStokes(plan) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
-            let _solve = eqiora_execution::telemetry::solve(1).entered();
+            let _solve = eqiora::execution::telemetry::solve(1).entered();
             let result = plan
                 .run_result(backend)
                 .map_err(|diagnostic| vec![diagnostic])?;
@@ -159,7 +159,7 @@ fn execute_job(
                     },
                 )),
                 ControlFlow::Continue(states) => {
-                    let _postprocess = eqiora_execution::telemetry::postprocess().entered();
+                    let _postprocess = eqiora::execution::telemetry::postprocess().entered();
                     let trajectory = CommonTrajectory::accept_transient_flow(*request, states)
                         .map_err(|diagnostic| vec![diagnostic])?;
                     let result = CommonResult::accept_trajectory(
@@ -203,7 +203,7 @@ fn execute_job(
                     },
                 )),
                 ControlFlow::Continue(states) => {
-                    let _postprocess = eqiora_execution::telemetry::postprocess().entered();
+                    let _postprocess = eqiora::execution::telemetry::postprocess().entered();
                     let trajectory = CommonTrajectory::accept_fsi(*request, states)
                         .map_err(|diagnostic| vec![diagnostic])?;
                     let result = CommonResult::accept_trajectory(
@@ -221,17 +221,17 @@ fn execute_job(
         NativeRunJob::Ode(request) => {
             let started = Instant::now();
             let problem = {
-                let _setup = eqiora_execution::telemetry::setup().entered();
+                let _setup = eqiora::execution::telemetry::setup().entered();
                 request.problem().map_err(|diagnostic| vec![diagnostic])?
             };
             let solution = {
-                let _solve = eqiora_execution::telemetry::solve(1).entered();
+                let _solve = eqiora::execution::telemetry::solve(1).entered();
                 DiffsolTimeBackend::new()
                     .solve(&problem, request.time_plan())
                     .map_err(|diagnostic| vec![diagnostic])?
             };
             let result = {
-                let _postprocess = eqiora_execution::telemetry::postprocess().entered();
+                let _postprocess = eqiora::execution::telemetry::postprocess().entered();
                 let trajectory = CommonTrajectory::accept_ode(*request, solution)
                     .map_err(|diagnostic| vec![diagnostic])?;
                 CommonResult::accept_trajectory(started.elapsed().as_secs_f64(), trajectory)

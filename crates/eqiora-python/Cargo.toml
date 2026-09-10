@@ -15,7 +15,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 eqiora = { workspace = true, features = ["diffsol", "faer", "package-filesystem"] }
 eqiora-numerics.workspace = true
-eqiora-execution.workspace = true
 numpy = { workspace = true }
 pyo3 = { workspace = true }
 serde.workspace = true
