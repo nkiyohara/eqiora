@@ -6,7 +6,33 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a8] - 2026-09-10
+
 ### Added
+
+- Unified source and Python modeling through `eqiora.Module`, explicit imports,
+  structural dimensions, imported pure operators, named connectors, grouped
+  relations, boundary families, evolution, events, and sampled components.
+- Added exact integers, Boolean predicates, nominal enums, static arrays and
+  slices, bounded indexed equations and reductions, flat records and typed
+  buses, scalar partial derivatives, analytic scalar properties, and real tables.
+- Added deterministic project resolution over local, bundled, and Git sources,
+  exact dependency locks, and offline vendoring.
+- Added equation-derived region assembly for coupled linear scalar Q1 equations
+  and fixed-reference FSI, with exact Field ownership through assembly and
+  recovery of physical boundary fluxes, loads, and reactions.
+- Added typed Result observables, ordered native parameter batches, first-order
+  derivative products, and bounded JAX `vmap` composition.
+- Added smooth scalar ODE terminal observables and accepted-step Simpson
+  integration independent of requested output cadence. These functionals cover
+  the complete fixed Run interval; events, resets, derivatives, and spatial-time
+  composition remain unsupported.
+- Added exact convex-polyhedral Geometry and authenticated correspondence to
+  supplied tetrahedral meshes. This adds neither tetrahedral mesh generation
+  nor new PDE/FSI execution.
+- Added source and Python steady scalar conservation Laws retaining explicit
+  outward flux and source through Model replay. Storage and moving volumes
+  remain unsupported.
 
 - Added the `eqiora-language-server` stdio preview with versioned full-document
   diagnostics, formatting, symbols, folding, Markdown hover, definition navigation,
@@ -16,11 +42,22 @@ are recorded here.
   bounded background worker, discards superseded document versions, and accepts
   request cancellation while an editor operation waits for the current snapshot.
 
-- Added `Eqiora.Fluid@0.3.0` and `Eqiora.Solid@0.3.0` with field-driven vector
+- Added `Eqiora.Fluid@0.4.0` and `Eqiora.Solid@0.4.0` with field-driven vector
   velocity, displacement, and traction boundaries. Installed-distribution
   vendoring now provides these releases.
 
 ### Changed
+
+- Linear solver requests now select an explicit planning objective or a complete
+  algorithm/preconditioner/reduction/provider combination. Tolerances alone do
+  not define a complete request. Execution-required reductions are admitted
+  before candidate ranking and exact selection.
+- Converged Model/Component signatures and file-owned module/import syntax.
+  Python symbolic equalities use explicit `equation(lhs, rhs)`.
+- Advanced current Model/Transaction artifacts to v25, Plans and Results to v3,
+  Trajectories to v2, Source identity to v17, and structural fingerprints to v20.
+  Recompile models and regenerate saved execution artifacts and package locks;
+  obsolete pre-1.0 decoders and aliases are removed.
 
 - Refreshed the exact Diffsol runtime to 0.16.2 and re-bound its backend
   identity and registered scientific evidence to that release.
@@ -29,6 +66,9 @@ are recorded here.
   build baseline to maturin 1.15.0.
 
 ### Removed
+
+- Removed displaced Python `Source`/builder paths in favor of `eqiora.Module`,
+  raw public FSI solve entries, and redundant compatibility scaffolding.
 
 - Removed the flat `ConnectionDecl::ports()` compatibility view; consumers now
   use structurally segmented Port paths.

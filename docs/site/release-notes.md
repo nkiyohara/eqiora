@@ -1,7 +1,34 @@
 # Release notes
 
-Eqiora `0.1.0a7` is the current public alpha. APIs and saved-file formats may
+Eqiora `0.1.0a8` is the current public alpha. APIs and saved-file formats may
 change before 1.0; review the changes below when upgrading.
+
+## 0.1.0a8 — unified authoring and explicit numerical execution
+
+Eqiora 0.1.0a8 expands source and Python modeling through `eqiora.Module`,
+with typed arrays, records, enums, explicit derivatives, events, and clocks.
+Projects gain exact local/Git dependency locks and offline vendoring, and the
+language-server preview provides diagnostics, formatting, and navigation.
+
+Coupled scalar Q1 equations and fixed-reference FSI share equation-derived
+region assembly with exact Field ownership. Solver requests explicitly choose
+an objective or a complete algorithm, preconditioner, reduction, and provider.
+Typed observables, parameter batches, and bounded JAX `vmap` composition extend
+analysis. Smooth ODE functionals add terminal evaluation and accepted-step
+Simpson integration independent of output cadence. Steady scalar Laws retain
+outward flux and source through Model replay.
+
+These are bounded alpha capabilities. Laws exclude storage and moving volumes;
+trajectory functionals exclude events, resets, derivatives, and spatial-time
+composition. Convex-polyhedral Geometry supports correspondence to supplied
+tetrahedral meshes, without adding a tetrahedral mesher or new PDE/FSI execution.
+General equation-driven numerical admission and arbitrary multi-region
+composition remain work for the subsequent 0.1.0 release.
+
+When upgrading, replace displaced Python `Source`/builder paths with
+`eqiora.Module`, update Model/Component signatures, and use explicit symbolic
+`equation(lhs, rhs)` calls. Recompile models and regenerate saved execution
+artifacts and package locks; obsolete pre-1.0 decoders and aliases are removed.
 
 ## 0.1.0a7
 
