@@ -14,7 +14,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -36,7 +36,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -58,7 +58,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -95,7 +95,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -117,7 +117,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -139,7 +139,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -176,7 +176,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -198,7 +198,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -220,7 +220,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -246,7 +246,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -280,7 +280,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -298,7 +298,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -347,7 +347,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -361,7 +361,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -387,7 +387,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -436,7 +436,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -454,7 +454,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -488,7 +488,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -530,7 +530,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -552,7 +552,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -574,7 +574,7 @@
             ],
             [
               "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -794,7 +794,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -812,7 +812,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -846,7 +846,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -878,7 +878,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -896,7 +896,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -930,7 +930,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -962,7 +962,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -980,7 +980,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1014,7 +1014,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -1046,7 +1046,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.robust-reproducible"
+              "candidate.selected.robust-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -1064,7 +1064,7 @@
             ],
             [
               "eqiora.faer.sparse-lu-general-identity-fast-f64",
-              "candidate.selected.fast-direct"
+              "candidate.selected.fast-preference"
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1098,7 +1098,7 @@
             ],
             [
               "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-              "candidate.selected.low-memory-krylov"
+              "candidate.selected.low-memory-preference"
             ]
           ],
           "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -1200,7 +1200,7 @@
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-            "candidate.selected.robust-reproducible"
+            "candidate.selected.robust-preference"
           ]
         ],
         "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -1218,7 +1218,7 @@
           ],
           [
             "eqiora.faer.sparse-lu-general-identity-fast-f64",
-            "candidate.selected.fast-direct"
+            "candidate.selected.fast-preference"
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1252,7 +1252,7 @@
           ],
           [
             "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-            "candidate.selected.low-memory-krylov"
+            "candidate.selected.low-memory-preference"
           ]
         ],
         "selected_candidate_id": "eqiora.reference.bicgstab-general-jacobi-reproducible-f64"
@@ -1455,7 +1455,7 @@
         ],
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-          "candidate.selected.robust-reproducible"
+          "candidate.selected.robust-preference"
         ]
       ],
       "precedence": [
@@ -1490,7 +1490,7 @@
         ],
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
-          "candidate.selected.fast-direct"
+          "candidate.selected.fast-preference"
         ],
         [
           "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
@@ -1532,7 +1532,7 @@
         ],
         [
           "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-          "candidate.selected.low-memory-krylov"
+          "candidate.selected.low-memory-preference"
         ],
         [
           "eqiora.faer.sparse-lu-general-identity-fast-f64",
@@ -1585,8 +1585,8 @@
     "capability.exact-tuple-required",
     "candidate.admitted",
     "candidate.not-selected",
-    "candidate.selected.robust-reproducible",
-    "candidate.selected.fast-direct",
-    "candidate.selected.low-memory-krylov"
+    "candidate.selected.robust-preference",
+    "candidate.selected.fast-preference",
+    "candidate.selected.low-memory-preference"
   ]
 }

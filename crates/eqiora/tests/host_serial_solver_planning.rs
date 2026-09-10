@@ -388,7 +388,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::LowMemory,
         ] {
             let decision = plan_host_serial_solver_v2(
-                HostSerialSolverProfile::canonical_csr(properties, Some(diagonal)),
+                HostSerialSolverProfile::canonical_csr(properties, Some(diagonal), None),
                 objective,
                 1e-12,
                 1e-14,
@@ -479,7 +479,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
         SolverPlanningObjective::LowMemory,
     ] {
         let profile =
-            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None);
+            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
         let decision = plan_host_serial_solver_v2(
             profile,
             objective,
@@ -511,10 +511,14 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
     // Unknown is not fabricated absence. A genuinely asserted absence must
     // still reject this matrix's present diagonal before any numerical work.
     assert!(
-        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(false))
-            .require_problem(&problem)
-            .unwrap_err()
-            .message()
-            .contains("diagonal-availability-mismatch")
+        HostSerialSolverProfile::canonical_csr(
+            LinearOperatorProperties::General,
+            Some(false),
+            None
+        )
+        .require_problem(&problem)
+        .unwrap_err()
+        .message()
+        .contains("diagonal-availability-mismatch")
     );
 }

@@ -655,9 +655,9 @@ fn assert_actual_canonical_operator_ledger(
 
 fn selected_reason(objective: SolverPlanningObjective) -> &'static str {
     match objective {
-        SolverPlanningObjective::Robust => "candidate.selected.robust-reproducible",
-        SolverPlanningObjective::Fast => "candidate.selected.fast-direct",
-        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-krylov",
+        SolverPlanningObjective::Robust => "candidate.selected.robust-preference",
+        SolverPlanningObjective::Fast => "candidate.selected.fast-preference",
+        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-preference",
     }
 }
 
@@ -727,19 +727,19 @@ fn expected_trace(objective: SolverPlanningObjective) -> Vec<(&'static str, &'st
             (FAER_SPARSE_LU_ID, "candidate.admitted"),
             (FAER_SPARSE_LU_ID, "candidate.not-selected"),
             (REFERENCE_ID, "candidate.admitted"),
-            (REFERENCE_ID, "candidate.selected.robust-reproducible"),
+            (REFERENCE_ID, "candidate.selected.robust-preference"),
         ],
         SolverPlanningObjective::Fast => vec![
             (FAER_BICGSTAB_ID, "candidate.admitted"),
             (FAER_BICGSTAB_ID, "candidate.not-selected"),
             (FAER_SPARSE_LU_ID, "candidate.admitted"),
-            (FAER_SPARSE_LU_ID, "candidate.selected.fast-direct"),
+            (FAER_SPARSE_LU_ID, "candidate.selected.fast-preference"),
             (REFERENCE_ID, "candidate.admitted"),
             (REFERENCE_ID, "candidate.not-selected"),
         ],
         SolverPlanningObjective::LowMemory => vec![
             (FAER_BICGSTAB_ID, "candidate.admitted"),
-            (FAER_BICGSTAB_ID, "candidate.selected.low-memory-krylov"),
+            (FAER_BICGSTAB_ID, "candidate.selected.low-memory-preference"),
             (FAER_SPARSE_LU_ID, "candidate.admitted"),
             (FAER_SPARSE_LU_ID, "candidate.not-selected"),
             (REFERENCE_ID, "candidate.admitted"),
@@ -1383,7 +1383,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
             vec![
                 (FAER_BICGSTAB_ID, "profile.complete-diagonal-required"),
                 (FAER_SPARSE_LU_ID, "candidate.admitted"),
-                (FAER_SPARSE_LU_ID, "candidate.selected.robust-reproducible"),
+                (FAER_SPARSE_LU_ID, "candidate.selected.robust-preference"),
                 (REFERENCE_ID, "profile.complete-diagonal-required"),
             ]
         );
@@ -1598,7 +1598,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
         // These descriptors advertise only General capabilities. The correct
         // algorithm alone cannot admit the requested symmetric operator class.
-        let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false));
+        let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false), None);
         let rejected = plan_host_serial_solver_v2(
             profile,
             SolverPlanningObjective::Robust,
@@ -1650,4 +1650,80 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         assert_eq!(reference.solve_calls.load(Ordering::SeqCst), 0);
         assert_eq!(faer.solve_calls.load(Ordering::SeqCst), 0);
     }
+}
+
+#[test]
+fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
+    let exact = plan(
+        LinearSolver::MinimumResidual,
+        PreconditionerPolicy::Identity,
+        ReductionPolicy::Reproducible,
+    );
+    let mut reference = CountingBackend::new(REFERENCE_PROVIDER, exact);
+    reference.capability = SolverCapability {
+        operator_properties: LinearOperatorProperties::SymmetricIndefinite,
+        ..capability(exact)
+    };
+    let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
+    faer.capability.operator_properties = LinearOperatorProperties::SymmetricIndefinite;
+    let profile = HostSerialSolverProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricIndefinite,
+        None,
+        Some(ReductionPolicy::Reproducible),
+    );
+    profile.require_plan(exact).unwrap();
+    let error = profile.require_plan(faer_sparse_lu_plan()).unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("profile.required-reduction-mismatch")
+    );
+    for objective in [
+        SolverPlanningObjective::Robust,
+        SolverPlanningObjective::Fast,
+        SolverPlanningObjective::LowMemory,
+    ] {
+        let selected = plan_host_serial_solver_v2(
+            profile,
+            objective,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &reference,
+            &faer,
+        )
+        .unwrap();
+        assert_eq!(selected.solver_plan(), exact);
+        assert_eq!(selected.solver_provider(), REFERENCE_PROVIDER);
+        assert!(
+            selected
+                .reasons()
+                .any(|reason| reason
+                    == (FAER_INDEFINITE_LU_ID, "profile.required-reduction-mismatch"))
+        );
+    }
+    // Change only the execution requirement: Fast now admits LU and excludes MINRES,
+    // even when the caller's preference is Robust. No algorithm is forced by a name.
+    let fast_profile = HostSerialSolverProfile::canonical_csr(
+        LinearOperatorProperties::SymmetricIndefinite,
+        None,
+        Some(ReductionPolicy::Fast),
+    );
+    let fast = plan_host_serial_solver_v2(
+        fast_profile,
+        SolverPlanningObjective::Robust,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(100).unwrap(),
+        &reference,
+        &faer,
+    )
+    .unwrap();
+    assert_eq!(fast.solver_plan().algorithm(), LinearSolver::SparseLu);
+    assert!(
+        fast.reasons()
+            .any(|reason| reason == (REFERENCE_MINRES_ID, "profile.required-reduction-mismatch"))
+    );
+    assert_eq!(reference.solve_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(faer.solve_calls.load(Ordering::SeqCst), 0);
 }

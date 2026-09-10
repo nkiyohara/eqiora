@@ -40,6 +40,16 @@ cargo run -p eqiora-verify -- run \
   --case numerics.host-serial-solver-planning-private
 ```
 
+## Selection reason vocabulary
+
+Selected reason codes name the caller's ranking preference: `robust-preference`,
+`fast-preference`, or `low-memory-preference`. They do not assert that the selected
+candidate uses reproducible reduction, direct factorization, or an iterative
+method: admission can exclude the preferred candidates. This pre-1.0 vocabulary
+correction retains the v2 catalog and ranking table without legacy reason aliases.
+The independent literal derivation updates these labels only; candidate tuples,
+rankings, rational numerical expectations, and tolerances are unchanged.
+
 ## Boundary
 
 `Robust`, `Fast`, and `LowMemory` are names for this literal v2 rule table,
