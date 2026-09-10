@@ -274,7 +274,7 @@ impl Parser<'_> {
             self.parse_instance().map(Item::Instance)
         } else {
             self.error_here(
-                "expected domain, variable, state, initial, parameter, let, port, clock, relation, connect, boundary, or instance",
+                "expected domain, variable, state, initial, parameter, let, port, clock, relation, law, connect, boundary, or instance",
             );
             None
         }
