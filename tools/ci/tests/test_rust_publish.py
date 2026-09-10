@@ -140,6 +140,8 @@ class RustPublicationTests(unittest.TestCase):
 class RustPublicationWorkflowTests(unittest.TestCase):
     def test_candidate_authentication_builds_and_secret_are_separated(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/python-production-publish.yml").read_text()
+        python_publish = workflow.split("  publish:\n", 1)[1].split("  prepare_rust:\n", 1)[0]
+        self.assertIn("    needs: [verify, prepare_rust]\n", python_publish)
         prepare = workflow.split("  prepare_rust:\n", 1)[1].split("  publish_rust:\n", 1)[0]
         publish = workflow.split("  publish_rust:\n", 1)[1]
         self.assertIn("    needs: verify\n", prepare)

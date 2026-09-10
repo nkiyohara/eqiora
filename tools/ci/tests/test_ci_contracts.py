@@ -417,7 +417,7 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertEqual(
                 publish_downloads[0]["github-token"], "${{ github.token }}"
             )
-            self.assertRegex(publish, r"(?m)^    needs: verify$")
+            self.assertRegex(publish, r"(?m)^    needs: \[verify, prepare_rust\]$")
             self.assertIn(f"packages-dir: {publish_family_path}", publish)
 
     def test_role_d_production_workflow_binds_its_dispatch_revision(self) -> None:
@@ -443,7 +443,7 @@ class HostedTriggerTests(unittest.TestCase):
             )
             self.assertIn(acquisition, verify)
             self.assertLess(verify.index(equality), verify.index(acquisition))
-            self.assertRegex(publish, r"(?m)^    needs: verify$")
+            self.assertRegex(publish, r"(?m)^    needs: (?:verify|\[verify, prepare_rust\])$")
 
         reference = f"""\
 jobs:
