@@ -195,20 +195,30 @@ where
 {
     let mut point = initial_point_prepared(mesh, prepared, previous)?;
     require_consistent_initial_state(mesh, cell_quadrature, previous, plan)?;
-    let mut current = assemble_step_linearization_prepared(
-        mesh,
-        prepared,
-        body_force,
-        previous,
-        &point,
-        plan,
-        cell_quadrature,
-        facet_quadrature,
-        assembly_backend,
-        viscous_form,
-    )?;
+    let mut current = {
+        let _assembly = eqiora_execution::telemetry::assembly().entered();
+        assemble_step_linearization_prepared(
+            mesh,
+            prepared,
+            body_force,
+            previous,
+            &point,
+            plan,
+            cell_quadrature,
+            facet_quadrature,
+            assembly_backend,
+            viscous_form,
+        )?
+    };
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = plan.nonlinear_target(initial_residual_norm)?;
+    eqiora_execution::telemetry::nonlinear_status(
+        "newton",
+        0,
+        initial_residual_norm,
+        residual_target,
+        initial_residual_norm <= residual_target,
+    );
     if initial_residual_norm <= residual_target {
         return accept_step(
             mesh,
@@ -228,6 +238,10 @@ where
 
     let mut reports = Vec::new();
     for iteration in 1..=plan.maximum_newton_iterations().get() {
+        let previous_norm = current.residual_norm()?;
+        let _iteration =
+            eqiora_execution::telemetry::nonlinear_iteration("newton", iteration, previous_norm)
+                .entered();
         let right_hand_side = current
             .residual
             .iter()
@@ -240,7 +254,6 @@ where
         let solution = solver.solve(&linear_problem, plan.linear_solver())?;
         reports.push(solution.report().clone());
         let correction = solution.values();
-        let previous_norm = current.residual_norm()?;
         let mut accepted = None;
         let mut scale = 1.0;
         for _ in 0..=plan.maximum_line_search_steps() {
@@ -249,18 +262,21 @@ where
                 .zip(correction)
                 .map(|(point, correction)| point + scale * correction)
                 .collect::<Vec<_>>();
-            let assembled = assemble_step_linearization_prepared(
-                mesh,
-                prepared,
-                body_force,
-                previous,
-                &candidate,
-                plan,
-                cell_quadrature,
-                facet_quadrature,
-                assembly_backend,
-                viscous_form,
-            )?;
+            let assembled = {
+                let _assembly = eqiora_execution::telemetry::assembly().entered();
+                assemble_step_linearization_prepared(
+                    mesh,
+                    prepared,
+                    body_force,
+                    previous,
+                    &candidate,
+                    plan,
+                    cell_quadrature,
+                    facet_quadrature,
+                    assembly_backend,
+                    viscous_form,
+                )?
+            };
             let norm = assembled.residual_norm()?;
             if norm <= residual_target || norm < previous_norm {
                 accepted = Some((candidate, assembled, norm));
@@ -275,6 +291,13 @@ where
         };
         point = candidate;
         current = assembled;
+        eqiora_execution::telemetry::nonlinear_status(
+            "newton",
+            iteration,
+            norm,
+            residual_target,
+            norm <= residual_target,
+        );
         if norm <= residual_target {
             return accept_step(
                 mesh,

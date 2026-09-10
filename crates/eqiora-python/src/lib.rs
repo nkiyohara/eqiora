@@ -24,6 +24,7 @@ mod modeling;
 mod notation;
 mod package;
 mod planar_operation;
+mod profile;
 mod realization;
 mod result;
 mod static_bindings;
@@ -243,6 +244,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     elasticity::register(module)?;
     jax_ffi::register_module(module)?;
     result::register(module)?;
+    profile::register(module)?;
     execution::register(module)?;
     fsi_evidence::register(module)?;
     geometry::register(module)?;

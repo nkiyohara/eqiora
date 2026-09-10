@@ -146,6 +146,7 @@ pub(crate) struct PyRunResult {
     identity: RunIdentity,
     elapsed_seconds: f64,
     payload: ResultPayload,
+    profile: Option<Py<crate::profile::PyProfile>>,
 }
 
 impl PyRunResult {
@@ -262,6 +263,11 @@ impl PyRunResult {
         self.elapsed_seconds
     }
 
+    #[getter]
+    fn profile(&self, py: Python<'_>) -> Option<Py<crate::profile::PyProfile>> {
+        self.profile.as_ref().map(|profile| profile.clone_ref(py))
+    }
+
     /// Canonical complete Result bytes, including fields and accepted evidence.
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         self.native
@@ -278,7 +284,7 @@ impl PyRunResult {
         let identity = RunIdentity::from_common_result(&native).ok_or_else(|| {
             PyRuntimeError::new_err("Result artifact has no valid execution occurrence")
         })?;
-        materialize_common_result(py, plan, identity, native)
+        materialize_common_result(py, plan, identity, native, None)
     }
 
     /// Atomically write this exact complete Result to an `.eqresult` file.
@@ -304,7 +310,7 @@ impl PyRunResult {
         let identity = RunIdentity::from_common_result(&native).ok_or_else(|| {
             PyRuntimeError::new_err("Result artifact has no valid execution occurrence")
         })?;
-        materialize_common_result(py, plan, identity, native)
+        materialize_common_result(py, plan, identity, native, None)
     }
 
     /// Independently sampled common-ODE series in canonical Field order.
@@ -654,6 +660,7 @@ fn materialize_common_spatial_trajectory(
             trajectory,
             fsi_evidence,
         }),
+        profile: None,
     })
 }
 
@@ -713,10 +720,11 @@ fn materialize_common_ode_trajectory(
             lookup,
             states,
         }),
+        profile: None,
     })
 }
 
-pub(crate) fn materialize_common_result(
+fn materialize_common_result_unprofiled(
     py: Python<'_>,
     plan: PyRef<'_, PyPlan>,
     identity: RunIdentity,
@@ -859,7 +867,22 @@ pub(crate) fn materialize_common_result(
             evidence,
             steady_stokes_observation,
         })),
+        profile: None,
     })
+}
+
+pub(crate) fn materialize_common_result(
+    py: Python<'_>,
+    plan: PyRef<'_, PyPlan>,
+    identity: RunIdentity,
+    result: eqiora_numerics::CommonResult,
+    profile: Option<crate::profile::ProfileData>,
+) -> PyResult<PyRunResult> {
+    let mut result = materialize_common_result_unprofiled(py, plan, identity, result)?;
+    result.profile = profile
+        .map(|profile| Py::new(py, crate::profile::PyProfile::new(profile)))
+        .transpose()?;
+    Ok(result)
 }
 
 fn capability_error(py: Python<'_>, message: &str) -> PyErr {

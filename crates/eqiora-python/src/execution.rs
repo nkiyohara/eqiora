@@ -51,7 +51,17 @@ impl NativeRunProgress {
 
 #[derive(Debug)]
 enum NativeRunOutput {
-    Result(Box<eqiora_numerics::CommonResult>),
+    Result(
+        Box<eqiora_numerics::CommonResult>,
+        Option<crate::profile::ProfileData>,
+    ),
+}
+
+impl NativeRunOutput {
+    fn attach_profile(&mut self, profile: crate::profile::ProfileData) {
+        let Self::Result(_, slot) = self;
+        *slot = Some(profile);
+    }
 }
 
 enum ResultMaterializationContext {
@@ -481,6 +491,7 @@ impl PyRun {
         py: Python<'_>,
         plan: Py<PyPlan>,
         request: Option<CommonRunRequest>,
+        profile: bool,
     ) -> PyResult<Self> {
         let plan_ref = plan.borrow(py);
         let (identity, job, thread_name, cancellation_supported) = match (
@@ -582,6 +593,7 @@ impl PyRun {
             ResultMaterializationContext::CommonPlan { plan },
             thread_name,
             cancellation_supported,
+            profile,
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -592,12 +604,13 @@ impl PyRun {
         materialization: ResultMaterializationContext,
         thread_name: &str,
         cancellation_supported: bool,
+        profile: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         let shared = Arc::new(RunShared::new());
         let worker_shared = Arc::clone(&shared);
         let spawn = thread::Builder::new()
             .name(thread_name.to_owned())
-            .spawn(move || run_worker(job, worker_shared));
+            .spawn(move || run_worker(job, worker_shared, profile));
         if let Err(error) = spawn {
             let diagnostics = vec![Diagnostic::error(
                 codes::INTERNAL_FAILURE,
@@ -783,16 +796,21 @@ fn materialize_result(
 ) -> PyResult<Py<PyAny>> {
     let ResultMaterializationContext::CommonPlan { plan } = context;
     match result {
-        NativeRunOutput::Result(result) => {
-            crate::result::materialize_common_result(py, plan.borrow(py), identity.clone(), *result)
-                .and_then(|result| Py::new(py, result))
-                .map(Py::into_any)
-        }
+        NativeRunOutput::Result(result, profile) => crate::result::materialize_common_result(
+            py,
+            plan.borrow(py),
+            identity.clone(),
+            *result,
+            profile,
+        )
+        .and_then(|result| Py::new(py, result))
+        .map(Py::into_any),
     }
 }
 
 #[pyfunction]
-#[pyo3(signature = (plan, /, *, state=None, until_s=None, output_times_s=None, steps=None, output_steps=None))]
+#[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (plan, /, *, state=None, until_s=None, output_times_s=None, steps=None, output_steps=None, profile=false))]
 pub(crate) fn submit_plan(
     py: Python<'_>,
     plan: Py<PyPlan>,
@@ -801,6 +819,7 @@ pub(crate) fn submit_plan(
     output_times_s: Option<Vec<f64>>,
     steps: Option<usize>,
     output_steps: Option<Vec<usize>>,
+    profile: bool,
 ) -> PyResult<PyRun> {
     panic_boundary(py, || {
         let plan_ref = plan.borrow(py);
@@ -918,7 +937,7 @@ pub(crate) fn submit_plan(
             None
         };
         drop(plan_ref);
-        PyRun::submit_common(py, plan, request)
+        PyRun::submit_common(py, plan, request, profile)
     })
 }
 

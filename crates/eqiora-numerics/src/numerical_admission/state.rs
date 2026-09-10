@@ -48,6 +48,7 @@ fn advance_common_prepared_actions<P>(
     initial: CommonState,
     maximum_actions: usize,
     output_actions: &[usize],
+    step_s: f64,
     prepare: impl FnOnce(&CommonState) -> Result<P, Diagnostic>,
     mut advance: impl FnMut(&P, &CommonState) -> Result<CommonState, Diagnostic>,
     mut stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
@@ -60,6 +61,9 @@ fn advance_common_prepared_actions<P>(
         context,
         maximum_actions,
         |context| prepare(&context.state),
+        |step, context| {
+            eqiora_execution::telemetry::time_step(step, context.state.time_s() + step_s, step_s)
+        },
         |prepared, context| advance(prepared, &context.state),
         |context, accepted_actions, candidate| {
             context.state = candidate;
@@ -171,6 +175,7 @@ impl CommonFsiRunRequest {
             self.schedule.state.clone(),
             self.schedule.accepted_steps.get(),
             &self.schedule.output_steps,
+            self.plan.temporal().step().value(),
             |state| self.plan.prepare_execution(state, backend),
             |prepared, state| prepared.advance(state),
             stop_at_boundary,
@@ -284,6 +289,7 @@ impl CommonTransientRunRequest {
             self.schedule.state.clone(),
             self.schedule.accepted_steps.get(),
             &self.schedule.output_steps,
+            self.plan.temporal().step().value(),
             |state| self.plan.prepare_execution(state, backend),
             |prepared, state| prepared.advance(state),
             stop_at_boundary,

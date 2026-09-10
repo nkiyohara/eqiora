@@ -1677,6 +1677,8 @@ class Result:
     def adapter_version(self) -> str: ...
     @property
     def elapsed_seconds(self) -> float: ...
+    @property
+    def profile(self) -> Profile | None: ...
     def to_bytes(self) -> bytes: ...
     @staticmethod
     def from_bytes(plan: Plan, data: bytes) -> Result: ...
@@ -1699,6 +1701,58 @@ class Result:
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
     def trajectory(self) -> trajectory.Trajectory: ...
+```
+
+<a id="api-eqiora-Profile"></a>
+
+### `eqiora.Profile`
+
+Process-local timings and events for one profiled Run.
+
+```python
+@final
+class Profile:
+    @property
+    def phases(self) -> list[ProfilePhase]: ...
+    @property
+    def events(self) -> list[ProfileEvent]: ...
+    @property
+    def total_seconds(self) -> float: ...
+    def summary(self) -> str: ...
+```
+
+<a id="api-eqiora-ProfileEvent"></a>
+
+### `eqiora.ProfileEvent`
+
+Structured metadata for one phase or solver observation.
+
+```python
+@final
+class ProfileEvent:
+    @property
+    def path(self) -> list[str]: ...
+    @property
+    def fields(self) -> dict[str, str]: ...
+```
+
+<a id="api-eqiora-ProfilePhase"></a>
+
+### `eqiora.ProfilePhase`
+
+Aggregate timing for one hierarchical execution phase.
+
+```python
+@final
+class ProfilePhase:
+    @property
+    def path(self) -> list[str]: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def count(self) -> int: ...
+    @property
+    def total_seconds(self) -> float: ...
 ```
 
 <a id="api-eqiora-Revision"></a>
@@ -2168,7 +2222,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
 ```python
-def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None) -> Result: ...
+def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Result: ...
 ```
 
 <a id="api-eqiora-submit"></a>
@@ -2178,7 +2232,7 @@ def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, out
 Submit a steady Plan or a transient Plan with a specified time interval.
 
 ```python
-def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None) -> Run[Result]: ...
+def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Run[Result]: ...
 ```
 
 <a id="api-eqiora-through"></a>

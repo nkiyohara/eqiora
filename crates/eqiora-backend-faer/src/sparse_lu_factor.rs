@@ -42,6 +42,8 @@ pub(super) struct SparseLuNumericFactor {
 pub(super) fn factor_symbolic(
     system: &CanonicalCsrSystemView,
 ) -> Result<SparseLuSymbolicFactor, Diagnostic> {
+    let _phase =
+        eqiora_execution::telemetry::backend_phase("symbolic_factorization", "faer").entered();
     let symbolic_row = SymbolicSparseRowMat::<usize>::new_checked(
         system.rows(),
         system.columns(),
@@ -61,6 +63,8 @@ pub(super) fn factor_numeric(
     symbolic: &SparseLuSymbolicFactor,
     system: &CanonicalCsrSystemView,
 ) -> Result<SparseLuNumericFactor, Diagnostic> {
+    let _phase =
+        eqiora_execution::telemetry::backend_phase("numeric_factorization", "faer").entered();
     let symbolic_row = SymbolicSparseRowMat::<usize>::new_checked(
         system.rows(),
         system.columns(),
@@ -107,6 +111,7 @@ pub(super) fn solve_factored_oriented(
     right_hand_side: &[f64],
     orientation: LinearOperatorOrientation,
 ) -> Result<Vec<f64>, Diagnostic> {
+    let _phase = eqiora_execution::telemetry::backend_phase("backsolve", "faer").entered();
     if right_hand_side.len() != symbolic.factor.nrows()
         || symbolic.factor.nrows() != symbolic.factor.ncols()
     {

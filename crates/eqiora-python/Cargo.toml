@@ -15,12 +15,15 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 eqiora = { workspace = true, features = ["diffsol", "faer", "package-filesystem"] }
 eqiora-numerics.workspace = true
+eqiora-execution.workspace = true
 numpy = { workspace = true }
 pyo3 = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = { workspace = true }
 ulid.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix = { workspace = true, features = ["process"] }

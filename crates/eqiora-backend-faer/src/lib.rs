@@ -140,6 +140,10 @@ impl LinearSolverBackend for FaerLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
+        let algorithm = format!("{:?}", plan.algorithm());
+        let _linear =
+            eqiora_execution::telemetry::linear_solve(&algorithm, self.provider().id().as_str())
+                .entered();
         if execution.report() != ExecutionReport::host_serial() {
             return Err(invalid_realization(
                 "the faer adapter currently admits only direct serial execution",

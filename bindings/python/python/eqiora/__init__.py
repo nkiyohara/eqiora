@@ -101,6 +101,9 @@ from ._eqiora import (
     Initial,
     Relation,
     Result,
+    Profile,
+    ProfileEvent,
+    ProfilePhase,
     Revision,
     ResolvedExecution,
     ScalarPlanView,
@@ -249,6 +252,9 @@ __all__ = [
     "Initial",
     "Relation",
     "Result",
+    "Profile",
+    "ProfileEvent",
+    "ProfilePhase",
     "Revision",
     "ResolvedExecution",
     "ScalarPlanView",
@@ -389,6 +395,7 @@ def run(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    profile: bool = False,
 ) -> Result:
     """Execute one accepted common request synchronously."""
 
@@ -399,6 +406,7 @@ def run(
         output_times_s=output_times_s,
         steps=steps,
         output_steps=output_steps,
+        profile=profile,
     ).result()
 
 
@@ -490,6 +498,7 @@ def submit(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    profile: bool = False,
 ) -> Run:
     """Submit exactly one steady or transient common request shape."""
 
@@ -501,5 +510,6 @@ def submit(
             output_times_s=output_times_s,
             steps=steps,
             output_steps=output_steps,
+            profile=profile,
         )
     )
