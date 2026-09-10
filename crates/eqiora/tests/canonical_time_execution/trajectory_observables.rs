@@ -103,7 +103,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     assert_eq!(terminal.quadrature(), None);
     assert_eq!(terminal.interval_s(), [1.0, 1.0]);
     assert_eq!(terminal.endpoint_convention(), "terminal-fixed-time");
-    // Samples without accepted history remain valid outputs but cannot own integrals.
+    // Sample-only backend outputs cannot become an accepted common ODE Trajectory.
     let request =
         CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 1.0, vec![1.0])
             .unwrap();
@@ -116,12 +116,11 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     let samples =
         eqiora::time::TimeSolution::accepted(1, vec![1.0], vec![3.0 * (-2.0_f64).exp()], report)
             .unwrap();
-    let sampled = CommonTrajectory::accept_ode(request, samples).unwrap();
-    assert!(sampled.observe_terminal(&model, observable).is_err());
+    let error = CommonTrajectory::accept_ode(request, samples).unwrap_err();
     assert!(
-        sampled
-            .observe_time_integral(&model, observable, rule)
-            .is_err()
+        error
+            .message()
+            .contains("requires accepted native integration history")
     );
     let resolved = ResolvedCommonPlan::Ode(Box::new(plan));
     let bytes = sparse.to_bytes().unwrap();
@@ -133,6 +132,20 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
             .unwrap(),
         integrated
     );
+    for missing in [false, true] {
+        let mut invalid: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        if missing {
+            invalid["payload"]
+                .as_object_mut()
+                .unwrap()
+                .remove("history");
+        } else {
+            invalid["payload"]["history"] = serde_json::Value::Null;
+        }
+        let error = CommonTrajectory::from_bytes(&serde_json::to_vec(&invalid).unwrap(), &resolved)
+            .unwrap_err();
+        assert!(error.message().contains("invalid common Trajectory JSON"));
+    }
     let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     forged["payload"]["history"][0]["midpoint_state"][0] = serde_json::json!(8.0);
     assert!(

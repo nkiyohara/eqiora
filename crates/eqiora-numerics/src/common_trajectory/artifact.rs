@@ -21,7 +21,7 @@ enum WireTrajectoryPayload {
         until_s: f64,
         output_times_s: Vec<f64>,
         states_base64: Vec<String>,
-        history: Option<Vec<WireTimeStep>>,
+        history: Vec<WireTimeStep>,
     },
     TransientFlow {
         plan_identity: String,
@@ -113,19 +113,17 @@ impl WireCommonTrajectoryV2 {
                 initial_state_base64: encode(&request.state().to_bytes()?),
                 until_s: request.until_s(),
                 output_times_s: request.output_times_s().to_vec(),
-                history: history.as_ref().map(|history| {
-                    history
-                        .steps()
-                        .iter()
-                        .map(|step| WireTimeStep {
-                            start_time: step.start_time(),
-                            end_time: step.end_time(),
-                            start_state: step.start_state().to_vec(),
-                            midpoint_state: step.midpoint_state().to_vec(),
-                            end_state: step.end_state().to_vec(),
-                        })
-                        .collect()
-                }),
+                history: history
+                    .steps()
+                    .iter()
+                    .map(|step| WireTimeStep {
+                        start_time: step.start_time(),
+                        end_time: step.end_time(),
+                        start_state: step.start_state().to_vec(),
+                        midpoint_state: step.midpoint_state().to_vec(),
+                        end_state: step.end_state().to_vec(),
+                    })
+                    .collect(),
                 states_base64: states
                     .iter()
                     .map(|state| state.to_bytes().map(|bytes| encode(&bytes)))
@@ -198,24 +196,19 @@ impl WireCommonTrajectoryV2 {
                     .iter()
                     .map(|bytes| CommonOdeState::from_bytes(&decode(bytes, "output State")?, plan))
                     .collect::<Result<Vec<_>, _>>()?;
-                let history = history
-                    .as_ref()
-                    .map(|steps| {
-                        let steps = steps
-                            .iter()
-                            .map(|step| {
-                                eqiora_time::TimeHistoryStep::accepted(
-                                    step.start_time,
-                                    step.end_time,
-                                    step.start_state.clone(),
-                                    step.midpoint_state.clone(),
-                                    step.end_state.clone(),
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        AcceptedTimeHistory::accepted(plan.field_dimensions().len(), steps)
+                let steps = history
+                    .iter()
+                    .map(|step| {
+                        eqiora_time::TimeHistoryStep::accepted(
+                            step.start_time,
+                            step.end_time,
+                            step.start_state.clone(),
+                            step.midpoint_state.clone(),
+                            step.end_state.clone(),
+                        )
                     })
-                    .transpose()?;
+                    .collect::<Result<Vec<_>, _>>()?;
+                let history = AcceptedTimeHistory::accepted(plan.field_dimensions().len(), steps)?;
                 CommonTrajectory::accept_ode_states(request, states, history)?
             }
             (

@@ -22,7 +22,7 @@ pub enum CommonTrajectory {
     Ode {
         request: Box<CommonOdeRunRequest>,
         states: Vec<CommonOdeState>,
-        history: Option<AcceptedTimeHistory>,
+        history: AcceptedTimeHistory,
         identity: String,
     },
     TransientFlow {
@@ -65,13 +65,16 @@ impl CommonTrajectory {
                 CommonOdeState::new(request.plan(), time, values.to_vec(), "result")
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Self::accept_ode_states(request, states, solution.history().cloned())
+        let history = solution.history().cloned().ok_or_else(|| {
+            invalid("common ODE Trajectory requires accepted native integration history")
+        })?;
+        Self::accept_ode_states(request, states, history)
     }
 
     pub(crate) fn accept_ode_states(
         request: CommonOdeRunRequest,
         states: Vec<CommonOdeState>,
-        history: Option<AcceptedTimeHistory>,
+        history: AcceptedTimeHistory,
     ) -> Result<Self, Diagnostic> {
         if states.len() != request.output_times_s().len()
             || states
@@ -86,25 +89,21 @@ impl CommonTrajectory {
                 "accepted ODE Trajectory differs from its exact Run request",
             ));
         }
-        if let Some(history) = &history {
-            let first = history.steps().first().expect("history is nonempty");
-            let last = history.steps().last().expect("history is nonempty");
-            if history.dimension() != request.plan().field_dimensions().len()
-                || first.start_time().to_bits() != request.state().time_s().to_bits()
-                || first.start_state() != request.state().values()
-                || last.end_time().to_bits() != request.until_s().to_bits()
-            {
-                return Err(invalid(
-                    "accepted ODE history differs from its exact Run interval or initial State",
-                ));
-            }
+        let first = history.steps().first().expect("history is nonempty");
+        let last = history.steps().last().expect("history is nonempty");
+        if history.dimension() != request.plan().field_dimensions().len()
+            || first.start_time().to_bits() != request.state().time_s().to_bits()
+            || first.start_state() != request.state().values()
+            || last.end_time().to_bits() != request.until_s().to_bits()
+        {
+            return Err(invalid(
+                "accepted ODE history differs from its exact Run interval or initial State",
+            ));
         }
-        if let Some(history) = &history {
-            for state in &states {
-                history_boundary::validate(history, state.time_s(), state.values())?;
-            }
+        for state in &states {
+            history_boundary::validate(&history, state.time_s(), state.values())?;
         }
-        let identity = ode_identity(request.identity(), &states, history.as_ref());
+        let identity = ode_identity(request.identity(), &states, &history);
         Ok(Self::Ode {
             request: Box::new(request),
             states,
@@ -192,7 +191,7 @@ impl CommonTrajectory {
     #[must_use]
     pub fn ode_history(&self) -> Option<&AcceptedTimeHistory> {
         match self {
-            Self::Ode { history, .. } => history.as_ref(),
+            Self::Ode { history, .. } => Some(history),
             Self::TransientFlow { .. } | Self::Fsi { .. } => None,
         }
     }
@@ -230,7 +229,7 @@ fn validate_spatial(
 fn ode_identity(
     request_identity: &str,
     states: &[CommonOdeState],
-    history: Option<&AcceptedTimeHistory>,
+    history: &AcceptedTimeHistory,
 ) -> String {
     let mut bytes = Vec::new();
     push(&mut bytes, b"ode");
@@ -239,19 +238,16 @@ fn ode_identity(
         bytes.extend_from_slice(&state.time_s().to_bits().to_be_bytes());
         push(&mut bytes, state.identity().as_bytes());
     }
-    bytes.push(u8::from(history.is_some()));
-    if let Some(history) = history {
-        for step in history.steps() {
-            bytes.extend_from_slice(&step.start_time().to_bits().to_be_bytes());
-            bytes.extend_from_slice(&step.end_time().to_bits().to_be_bytes());
-            for value in step
-                .start_state()
-                .iter()
-                .chain(step.midpoint_state())
-                .chain(step.end_state())
-            {
-                bytes.extend_from_slice(&value.to_bits().to_be_bytes());
-            }
+    for step in history.steps() {
+        bytes.extend_from_slice(&step.start_time().to_bits().to_be_bytes());
+        bytes.extend_from_slice(&step.end_time().to_bits().to_be_bytes());
+        for value in step
+            .start_state()
+            .iter()
+            .chain(step.midpoint_state())
+            .chain(step.end_state())
+        {
+            bytes.extend_from_slice(&value.to_bits().to_be_bytes());
         }
     }
     digest(&bytes)
