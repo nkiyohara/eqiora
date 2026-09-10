@@ -1,9 +1,10 @@
+mod history;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use diffsol::{
-    DenseMatrix, MatrixCommon, NalgebraLU, NalgebraMat, NalgebraVec, OdeBuilder, OdeSolverMethod,
-    OdeSolverStopReason, SensitivitiesOdeSolverMethod, Vector, VectorView,
+    NalgebraLU, NalgebraMat, NalgebraVec, OdeBuilder, OdeSolverMethod, OdeSolverStopReason, Vector,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
@@ -298,7 +299,7 @@ fn solve_ode_forward_sensitivities(
             )
         })?;
 
-    let (primal_values, sensitivity_values, stop) = match plan.method() {
+    match plan.method() {
         TimeMethod::Tsitouras45 => {
             let mut solver = ode.tsit45_sens().map_err(|error| {
                 map_failure(
@@ -307,31 +308,32 @@ fn solve_ode_forward_sensitivities(
                     error,
                 )
             })?;
-            solver
-                .solve_dense_sensitivities(plan.output_times())
-                .map_err(|error| {
-                    map_failure(
-                        &failures,
-                        "integrate Diffsol Tsitouras45 sensitivities",
-                        error,
-                    )
-                })?
+            history::capture(
+                &mut solver,
+                problem.primal(),
+                plan,
+                problem.parameter_dimension(),
+                &failures,
+            )?
+            .sensitivities(problem.parameter_dimension())
         }
         TimeMethod::Bdf => {
             let mut solver = ode.bdf_sens::<NalgebraLU<f64>>().map_err(|error| {
                 map_failure(&failures, "initialize Diffsol BDF sensitivities", error)
             })?;
-            solver
-                .solve_dense_sensitivities(plan.output_times())
-                .map_err(|error| {
-                    map_failure(&failures, "integrate Diffsol BDF sensitivities", error)
-                })?
+            history::capture(
+                &mut solver,
+                problem.primal(),
+                plan,
+                problem.parameter_dimension(),
+                &failures,
+            )?
+            .sensitivities(problem.parameter_dimension())
         }
         TimeMethod::ImplicitEuler => {
             unreachable!("Diffsol admission rejects the reference implicit-Euler method")
         }
-    };
-    accept_forward_sensitivity_solution(problem, plan, primal_values, sensitivity_values, stop)
+    }
 }
 
 fn solve_mass_matrix_forward_sensitivities(
@@ -407,38 +409,14 @@ fn solve_mass_matrix_forward_sensitivities(
             error,
         )
     })?;
-    let (primal_values, sensitivity_values, stop) = solver
-        .solve_dense_sensitivities(plan.output_times())
-        .map_err(|error| {
-            map_failure(
-                &failures,
-                "integrate Diffsol mass-matrix BDF sensitivities",
-                error,
-            )
-        })?;
-    accept_forward_sensitivity_solution(problem, plan, primal_values, sensitivity_values, stop)
-}
-
-fn accept_forward_sensitivity_solution(
-    problem: &ForwardSensitivityProblem<'_>,
-    plan: &TimePlan,
-    primal_values: NalgebraMat<f64>,
-    sensitivity_values: Vec<NalgebraMat<f64>>,
-    stop: OdeSolverStopReason<f64>,
-) -> Result<ForwardSensitivitySolution, Diagnostic> {
-    let primal = accept_solution(problem.primal(), plan, primal_values, stop)?;
-    if sensitivity_values.len() != problem.parameter_dimension() {
-        return Err(solve_failed(
-            "Diffsol returned an unexpected number of parameter sensitivities",
-        ));
-    }
-    let mut flattened = Vec::with_capacity(
-        problem.parameter_dimension() * plan.output_times().len() * problem.primal().dimension(),
-    );
-    for values in &sensitivity_values {
-        append_time_major(values, problem.primal().dimension(), plan, &mut flattened)?;
-    }
-    ForwardSensitivitySolution::accepted(primal, problem.parameter_dimension(), flattened)
+    history::capture(
+        &mut solver,
+        problem.primal(),
+        plan,
+        problem.parameter_dimension(),
+        &failures,
+    )?
+    .sensitivities(problem.parameter_dimension())
 }
 
 fn solve_ode(problem: &TimeProblem<'_>, plan: &TimePlan) -> Result<TimeSolution, Diagnostic> {
@@ -473,19 +451,13 @@ fn solve_ode(problem: &TimeProblem<'_>, plan: &TimePlan) -> Result<TimeSolution,
             let mut solver = ode
                 .tsit45()
                 .map_err(|error| map_failure(&failures, "initialize Diffsol Tsitouras45", error))?;
-            let (values, stop) = solver
-                .solve_dense(plan.output_times())
-                .map_err(|error| map_failure(&failures, "integrate Diffsol Tsitouras45", error))?;
-            accept_solution(problem, plan, values, stop)
+            Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
         }
         TimeMethod::Bdf => {
             let mut solver = ode
                 .bdf::<NalgebraLU<f64>>()
                 .map_err(|error| map_failure(&failures, "initialize Diffsol BDF", error))?;
-            let (values, stop) = solver
-                .solve_dense(plan.output_times())
-                .map_err(|error| map_failure(&failures, "integrate Diffsol BDF", error))?;
-            accept_solution(problem, plan, values, stop)
+            Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
         }
         TimeMethod::ImplicitEuler => {
             unreachable!("Diffsol admission rejects the reference implicit-Euler method")
@@ -530,56 +502,7 @@ fn solve_mass_matrix(
     let mut solver = ode.bdf::<NalgebraLU<f64>>().map_err(|error| {
         map_failure(&failures, "initialize consistent Diffsol BDF state", error)
     })?;
-    let (values, stop) = solver
-        .solve_dense(plan.output_times())
-        .map_err(|error| map_failure(&failures, "integrate Diffsol mass-matrix BDF", error))?;
-    accept_solution(problem, plan, values, stop)
-}
-
-fn accept_solution(
-    problem: &TimeProblem<'_>,
-    plan: &TimePlan,
-    values: NalgebraMat<f64>,
-    stop: OdeSolverStopReason<f64>,
-) -> Result<TimeSolution, Diagnostic> {
-    if stop != OdeSolverStopReason::TstopReached {
-        return Err(solve_failed(format!(
-            "Diffsol stopped before the final requested output: {stop:?}"
-        )));
-    }
-    let mut flattened = Vec::with_capacity(values.nrows() * values.ncols());
-    append_time_major(&values, problem.dimension(), plan, &mut flattened)?;
-    TimeSolution::accepted(
-        problem.dimension(),
-        plan.output_times().to_vec(),
-        flattened,
-        TimeExecutionReport::new(
-            DIFFSOL_TIME_BACKEND,
-            plan.method(),
-            problem.equation_class(),
-            problem.initial_condition(),
-        ),
-    )
-}
-
-fn append_time_major(
-    values: &NalgebraMat<f64>,
-    dimension: usize,
-    plan: &TimePlan,
-    flattened: &mut Vec<f64>,
-) -> Result<(), Diagnostic> {
-    if values.nrows() != dimension || values.ncols() != plan.output_times().len() {
-        return Err(solve_failed(
-            "Diffsol returned an unexpected dense-output shape",
-        ));
-    }
-    for column in 0..values.ncols() {
-        let state = values.column(column);
-        for row in 0..values.nrows() {
-            flattened.push(state.get_index(row));
-        }
-    }
-    Ok(())
+    Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
 }
 
 #[derive(Clone, Default)]

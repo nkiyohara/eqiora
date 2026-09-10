@@ -46,6 +46,20 @@ class OdePlanView:
     def __repr__(self) -> str: ...
 ```
 
+<a id="api-eqiora-time-TimeFunctionalQuadrature"></a>
+
+## `TimeFunctionalQuadrature`
+
+Explicit quadrature over native accepted-step integration history.
+
+```python
+@final
+class TimeFunctionalQuadrature:
+    AcceptedStepSimpson: ClassVar[TimeFunctionalQuadrature]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-time-Tsitouras45"></a>
 
 ## `Tsitouras45`

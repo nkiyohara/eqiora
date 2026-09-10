@@ -810,8 +810,17 @@ model decay() {
         assert_eq!(request.time_plan().output_times(), &[0.1, 0.2]);
         assert_eq!(request.plan().identity(), plan.identity());
         let output = CommonOdeState::new(&plan, 0.1, vec![0.9], "result").unwrap();
+        let history = eqiora_time::AcceptedTimeHistory::accepted(
+            1,
+            vec![
+                eqiora_time::TimeHistoryStep::accepted(0.0, 0.2, vec![1.0], vec![0.9], vec![0.8])
+                    .unwrap(),
+            ],
+        )
+        .unwrap();
         let trajectory =
-            crate::CommonTrajectory::accept_ode_states(request.clone(), vec![output]).unwrap();
+            crate::CommonTrajectory::accept_ode_states(request.clone(), vec![output], history)
+                .unwrap();
         let trajectory_bytes = trajectory.to_bytes().unwrap();
         assert_eq!(
             crate::CommonTrajectory::from_bytes(&trajectory_bytes, &resolved).unwrap(),

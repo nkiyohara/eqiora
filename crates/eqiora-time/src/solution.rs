@@ -1,5 +1,6 @@
 //! Accepted time-execution reports and owned solution samples.
 
+use crate::AcceptedTimeHistory;
 use crate::diagnostic::{invalid_sensitivity, time_solve_failed};
 use crate::lowering::TimeEquationClass;
 use crate::plan::TimeMethod;
@@ -192,6 +193,7 @@ pub struct TimeSolution {
     times: Vec<f64>,
     values: Vec<f64>,
     report: TimeExecutionReport,
+    history: Option<AcceptedTimeHistory>,
 }
 
 impl TimeSolution {
@@ -224,7 +226,37 @@ impl TimeSolution {
             times,
             values,
             report,
+            history: None,
         })
+    }
+
+    /// Attach native accepted history to the same requested output samples.
+    /// # Errors
+    /// Rejects incompatible dimensions, interval coverage, or non-finite samples.
+    pub fn accepted_with_history(
+        dimension: usize,
+        times: Vec<f64>,
+        values: Vec<f64>,
+        report: TimeExecutionReport,
+        history: AcceptedTimeHistory,
+    ) -> Result<Self, Diagnostic> {
+        let mut solution = Self::accepted(dimension, times, values, report)?;
+        if history.dimension() != dimension
+            || history.steps()[0].start_time() > solution.times[0]
+            || history.steps().last().unwrap().end_time() != *solution.times.last().unwrap()
+        {
+            return Err(time_solve_failed(
+                "accepted history does not cover the requested solution interval",
+            ));
+        }
+        solution.history = Some(history);
+        Ok(solution)
+    }
+
+    /// Native accepted stencils, absent for adapters supplying only output samples.
+    #[must_use]
+    pub const fn history(&self) -> Option<&AcceptedTimeHistory> {
+        self.history.as_ref()
     }
 
     /// Scalar state dimension.
@@ -259,6 +291,7 @@ pub struct ForwardSensitivitySolution {
     primal: TimeSolution,
     parameter_dimension: usize,
     sensitivities: Vec<f64>,
+    history: Option<AcceptedTimeHistory>,
 }
 
 impl ForwardSensitivitySolution {
@@ -286,7 +319,48 @@ impl ForwardSensitivitySolution {
             primal,
             parameter_dimension,
             sensitivities,
+            history: None,
         })
+    }
+
+    /// Attach parameter-major native sensitivity stencils at the primal steps.
+    /// # Errors
+    /// Rejects dimension or accepted-step mismatches.
+    pub fn accepted_with_history(
+        primal: TimeSolution,
+        parameter_dimension: usize,
+        sensitivities: Vec<f64>,
+        history: AcceptedTimeHistory,
+    ) -> Result<Self, Diagnostic> {
+        let mut solution = Self::accepted(primal, parameter_dimension, sensitivities)?;
+        let Some(primal_history) = solution.primal.history() else {
+            return Err(invalid_sensitivity(
+                "sensitivity history requires primal accepted history",
+            ));
+        };
+        if solution.primal.dimension().checked_mul(parameter_dimension) != Some(history.dimension())
+            || primal_history.steps().len() != history.steps().len()
+            || primal_history
+                .steps()
+                .iter()
+                .zip(history.steps())
+                .any(|(primal, sensitivity)| {
+                    primal.start_time() != sensitivity.start_time()
+                        || primal.end_time() != sensitivity.end_time()
+                })
+        {
+            return Err(invalid_sensitivity(
+                "sensitivity history must match the same smooth primal accepted steps",
+            ));
+        }
+        solution.history = Some(history);
+        Ok(solution)
+    }
+
+    /// Parameter-major sensitivity vectors at each native accepted stencil.
+    #[must_use]
+    pub const fn sensitivity_history(&self) -> Option<&AcceptedTimeHistory> {
+        self.history.as_ref()
     }
 
     /// Accepted primal trajectory.

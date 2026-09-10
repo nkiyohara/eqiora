@@ -21,6 +21,8 @@ use eqiora::time::{
 use eqiora::{DimExponents, DynQuantity, Id};
 
 mod support;
+#[path = "canonical_time_execution/trajectory_observables.rs"]
+mod trajectory_observables;
 
 #[test]
 fn canonical_relation_lowers_structurally_and_runs_through_diffsol() {

@@ -623,3 +623,100 @@ fn assert_relative(actual: f64, expected: f64, tolerance: f64) {
         "actual={actual:.16e}, expected={expected:.16e}, tolerance={tolerance:.3e}"
     );
 }
+
+#[test]
+fn native_history_and_sensitivity_stencils_are_output_cadence_independent() {
+    let system = ParametricDecay { parameters: [0.7] };
+    let problem = ForwardSensitivityProblem::new(
+        &system,
+        TimeEquationClass::ExplicitOde,
+        InitialConditionPolicy::Provided,
+        vec![1.0],
+    )
+    .unwrap();
+    let sensitivity_plan = ForwardSensitivityPlan::new(1.0e-8, vec![1.0e-10]).unwrap();
+    for method in [TimeMethod::Tsitouras45, TimeMethod::Bdf] {
+        let solve = |times| {
+            let plan = TimePlan::new(method, 0.0, 1.0e-4, 1.0e-8, vec![1.0e-10], times).unwrap();
+            DiffsolTimeBackend::new()
+                .solve_forward_sensitivities(&problem, &plan, &sensitivity_plan)
+                .unwrap()
+        };
+        let sparse = solve(vec![2.0]);
+        let dense = solve(vec![0.1, 0.5, 1.0, 2.0]);
+        assert_eq!(dense.primal().times(), &[0.1, 0.5, 1.0, 2.0]);
+        assert_eq!(sparse.primal().history(), dense.primal().history());
+        assert_eq!(sparse.sensitivity_history(), dense.sensitivity_history());
+        let primal = dense.primal().history().unwrap();
+        assert_eq!(primal.steps()[0].start_time(), 0.0);
+        assert_eq!(primal.steps()[0].start_state(), &[1.0]);
+        assert_eq!(primal.steps().last().unwrap().end_time(), 2.0);
+        for (state, sensitivity) in primal
+            .steps()
+            .iter()
+            .zip(dense.sensitivity_history().unwrap().steps())
+        {
+            let time = state.start_time() + 0.5 * (state.end_time() - state.start_time());
+            let expected = (-0.7 * time).exp();
+            assert_relative(state.midpoint_state()[0], expected, 2.0e-6);
+            assert_relative(sensitivity.midpoint_state()[0], -time * expected, 3.0e-6);
+        }
+    }
+}
+
+#[test]
+fn samples_at_retained_stencil_times_are_bit_exact() {
+    let system = ParametricDecay { parameters: [0.7] };
+    let problem = ForwardSensitivityProblem::new(
+        &system,
+        TimeEquationClass::ExplicitOde,
+        InitialConditionPolicy::Provided,
+        vec![1.0],
+    )
+    .unwrap();
+    let sensitivity_plan = ForwardSensitivityPlan::new(1.0e-8, vec![1.0e-10]).unwrap();
+    for method in [TimeMethod::Tsitouras45, TimeMethod::Bdf] {
+        let solve = |times| {
+            let plan = TimePlan::new(method, 0.0, 1.0e-4, 1.0e-8, vec![1.0e-10], times).unwrap();
+            DiffsolTimeBackend::new()
+                .solve_forward_sensitivities(&problem, &plan, &sensitivity_plan)
+                .unwrap()
+        };
+        let reference = solve(vec![2.0]);
+        let history = reference.primal().history().unwrap();
+        let mut times = Vec::new();
+        for step in history.steps() {
+            times.push(step.start_time() + 0.5 * (step.end_time() - step.start_time()));
+            times.push(step.end_time());
+        }
+        let sampled = solve(times);
+        assert_eq!(sampled.primal().history(), reference.primal().history());
+        assert_eq!(
+            sampled.sensitivity_history(),
+            reference.sensitivity_history()
+        );
+        for (index, (state, sensitivity)) in history
+            .steps()
+            .iter()
+            .zip(reference.sensitivity_history().unwrap().steps())
+            .enumerate()
+        {
+            assert_eq!(
+                sampled.primal().state(2 * index).unwrap(),
+                state.midpoint_state()
+            );
+            assert_eq!(
+                sampled.primal().state(2 * index + 1).unwrap(),
+                state.end_state()
+            );
+            assert_eq!(
+                sampled.sensitivity(0, 2 * index).unwrap(),
+                sensitivity.midpoint_state()
+            );
+            assert_eq!(
+                sampled.sensitivity(0, 2 * index + 1).unwrap(),
+                sensitivity.end_state()
+            );
+        }
+    }
+}

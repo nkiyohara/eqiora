@@ -125,6 +125,7 @@ EXPECTED_EQIORA_ALL = [
     "Observable",
     "ObservableRef",
     "Observation",
+    "TrajectoryObservation",
     "ObservableStateTangent",
     "integral",
     "measure",

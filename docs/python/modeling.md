@@ -231,6 +231,32 @@ requires `1`. Finite values omit this argument. A State direction is created wit
 with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
 `evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
 
+### Smooth trajectory functionals
+
+For a scalar ODE Observable, evaluate the accepted terminal state or integrate over
+its complete Run interval with an explicit numerical rule:
+
+```python
+sample = model.observable("sample")
+terminal = result.observe_terminal(sample)
+integral = result.observe_time_integral(
+    sample, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+)
+```
+
+The integral uses each accepted solver step's native start, midpoint, and end
+values. Requested output times do not select the integration samples. This is
+Simpson quadrature over retained native history, not an exact analytic integral.
+`value_type` includes the Observable dimension multiplied by seconds;
+`interval_s`, `quadrature`, and exact Result/Trajectory identities retain the
+numerical scope. Terminal evaluation uses the fixed terminal time even when it
+was omitted from requested outputs. Result persistence retains the same history.
+
+The current profile admits smooth real scalar ODE expressions only. Missing
+history, foreign Model references, and event/reset histories are rejected.
+Spatial-time composition, interval clipping, moving endpoints, and trajectory
+derivatives remain outside this profile.
+
 ## Author Eqiora Language source
 
 `eqiora.Module` owns the shared equations-language graph for Python authoring:

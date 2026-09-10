@@ -2,8 +2,12 @@ use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
+// The fixture replaces sys.modules; imports can release the GIL mid-initialization.
+static MODULE_FIXTURE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn python_result_observations_retain_types_rules_and_exact_state_lineage() -> PyResult<()> {
+    let _fixture = MODULE_FIXTURE.lock().expect("Python package fixture lock");
     Python::initialize();
     Python::attach(|py| {
         let locals = PyDict::new(py);
@@ -29,6 +33,8 @@ assert observed.observable_id == output.id
 assert observed.quadrature is observed.quadrature_points is None
 assert eqiora.Result.from_bytes(plan, result.to_bytes()).observe(output).result_identity == observed.result_identity
 for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
+                lambda: result.observe_terminal(output),
+                lambda: result.observe_time_integral(output, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson),
                 lambda: result.observe(output, quadrature_points=2)):
     try:
         invalid()
@@ -95,6 +101,75 @@ except eqiora.ValidationError:
     pass
 else:
     raise AssertionError("stale Result tangent was admitted")
+"#), Some(&locals), Some(&locals))
+    })
+}
+
+#[test]
+fn python_time_functionals_use_accepted_history_and_exact_model_lineage() -> PyResult<()> {
+    let _fixture = MODULE_FIXTURE.lock().expect("Python package fixture lock");
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+import base64
+import json
+import math
+source = "model Decay() { state x: 1; initial { x=3; } parameter rate: 1/s=2; relation flow { derivative(x)=-rate*x; } observable sample: 1=x; }"
+model = eqiora.compile(source=source)
+field = model.field('x')
+observable = model.observable('sample')
+plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={field: 1e-13}))
+rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=(0.25,))
+dense = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=tuple(i/10 for i in range(1, 10)))
+terminal = sparse.observe_terminal(observable)
+integral = sparse.observe_time_integral(observable, quadrature=rule)
+assert isinstance(terminal, eqiora.TrajectoryObservation)
+assert terminal.evaluation_kind == 'terminal' and terminal.quadrature is None
+assert terminal.interval_s == (1.0, 1.0)
+assert terminal.endpoint_convention == 'terminal-fixed-time'
+assert integral.interval_s == (0.0, 1.0)
+assert integral.endpoint_convention == 'fixed-interval-dt'
+assert integral.evaluation_kind == 'time-integral' and integral.quadrature == rule
+# Independent solution x(t)=3exp(-2t), J=3(1-exp(-2))/2 over [0,1].
+assert math.isclose(terminal.value, 3*math.exp(-2), abs_tol=1e-9, rel_tol=0)
+assert math.isclose(integral.value, 1.5*(1-math.exp(-2)), abs_tol=1e-8, rel_tol=0)
+assert terminal.value_type == eqiora.ValueType.real(eqiora.Dimension())
+assert integral.value_type == eqiora.ValueType.real(eqiora.Dimension(time=1))
+assert integral.observable_id == terminal.observable_id == observable.id
+assert terminal.result_identity == integral.result_identity == json.loads(sparse.to_bytes())['identity']
+trajectory_wire = json.loads(base64.b64decode(json.loads(sparse.to_bytes())["content"]["payload"]["trajectory_base64"]))
+assert integral.trajectory_identity == terminal.trajectory_identity == trajectory_wire["identity"]
+assert dense.observe_terminal(observable).value == terminal.value
+assert dense.observe_time_integral(observable, quadrature=rule).value == integral.value
+assert dense.observe_time_integral(observable, quadrature=rule).result_identity != integral.result_identity
+replayed_plan = eqiora.Plan.from_bytes(plan.to_bytes())
+replayed = eqiora.Result.from_bytes(replayed_plan, sparse.to_bytes())
+receipt = replayed.observe_time_integral(observable, quadrature=rule)
+assert receipt.value == integral.value
+assert receipt.result_identity == integral.result_identity
+assert receipt.trajectory_identity == integral.trajectory_identity
+foreign = eqiora.compile(source=source.replace('1/s=2', '1/s=3')).observable('sample')
+for invalid in (lambda: sparse.observe_terminal(foreign),
+                lambda: sparse.observe_time_integral(foreign, quadrature=rule),
+                lambda: sparse.observe_time_integral(observable),
+                lambda: sparse.observe_time_integral(observable, quadrature='AcceptedStepSimpson'),
+                lambda: sparse.observe_time_integral(observable, quadrature=None),
+                lambda: sparse.observe_terminal('sample')):
+    try:
+        invalid()
+    except (ValueError, TypeError):
+        pass
+    else:
+        raise AssertionError('foreign reference or missing/untyped quadrature was admitted')
+try:
+    integral.value = 8
+except AttributeError:
+    pass
+else:
+    raise AssertionError('trajectory observation must be immutable')
 "#), Some(&locals), Some(&locals))
     })
 }

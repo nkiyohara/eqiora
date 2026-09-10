@@ -8,12 +8,14 @@
 
 mod diagnostic;
 mod event_linearization;
+mod history;
 mod lowering;
 mod plan;
 mod problem;
 mod reference_implicit;
 mod root_registration;
 mod solution;
+pub use history::{AcceptedTimeHistory, TimeHistoryStep};
 mod system;
 
 #[cfg(test)]

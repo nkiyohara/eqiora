@@ -27,6 +27,7 @@ use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 
 mod field_output;
 mod observe;
+mod time_observe;
 
 use field_output::FieldOutputBlock;
 pub(crate) use field_output::PyFieldOutput;
@@ -174,6 +175,26 @@ impl PyRunResult {
 
 #[pymethods]
 impl PyRunResult {
+    /// Evaluate at the accepted terminal State, independently of output cadence.
+    fn observe_terminal(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+    ) -> PyResult<time_observe::PyTrajectoryObservation> {
+        self.observe_trajectory(py, observable, None)
+    }
+
+    /// Integrate accepted history with an explicitly selected quadrature policy.
+    #[pyo3(signature = (observable, *, quadrature))]
+    fn observe_time_integral(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        quadrature: time_observe::PyTimeFunctionalQuadrature,
+    ) -> PyResult<time_observe::PyTrajectoryObservation> {
+        self.observe_trajectory(py, observable, Some(quadrature))
+    }
+
     /// Evaluate one exact derived output; spatial reductions require points per axis.
     #[pyo3(signature = (observable, *, quadrature_points=None))]
     fn observe(
@@ -847,6 +868,7 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     observe::register(module)?;
+    time_observe::register(module)?;
     module.add_class::<PySeries>()?;
     module.add_class::<PyFieldOutput>()?;
     module.add_class::<PyRunResult>()?;
