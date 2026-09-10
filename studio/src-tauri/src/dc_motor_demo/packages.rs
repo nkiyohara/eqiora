@@ -7,23 +7,23 @@ use eqiora::package::{
 };
 
 const ELECTRICAL_SOURCE: &str =
-    include_str!("../../../../packages/Eqiora.Electrical.Basic/src/basic.eqi");
+    include_str!("../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi");
 const ELECTRICAL_README: &[u8] =
-    include_bytes!("../../../../packages/Eqiora.Electrical.Basic/README.md");
+    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/README.md");
 const ELECTRICAL_MANIFEST: &[u8] =
-    include_bytes!("../../../../packages/Eqiora.Electrical.Basic/package.json");
+    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/package.json");
 const DRIVE_SOURCE: &str =
-    include_str!("../../../../packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi");
+    include_str!("../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi");
 const DRIVE_README: &[u8] =
-    include_bytes!("../../../../packages/Eqiora.Electromechanical.DcDrive/README.md");
+    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/README.md");
 const DRIVE_MANIFEST: &[u8] =
-    include_bytes!("../../../../packages/Eqiora.Electromechanical.DcDrive/package.json");
+    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/package.json");
 const ROOT_SOURCE: &str =
-    include_str!("../../../../packages/org.example.dc-motor-control/src/main.eqi");
+    include_str!("../../../../crates/eqiora-api/packages/org.example.dc-motor-control/src/main.eqi");
 const ROOT_README: &[u8] =
-    include_bytes!("../../../../packages/org.example.dc-motor-control/README.md");
+    include_bytes!("../../../../crates/eqiora-api/packages/org.example.dc-motor-control/README.md");
 const ROOT_MANIFEST: &[u8] =
-    include_bytes!("../../../../packages/org.example.dc-motor-control/package.json");
+    include_bytes!("../../../../crates/eqiora-api/packages/org.example.dc-motor-control/package.json");
 
 pub(super) struct PreparedPackages {
     pub(super) document: PackagedModelDocument,

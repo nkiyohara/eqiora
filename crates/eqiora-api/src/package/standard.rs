@@ -16,41 +16,39 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             | "Eqiora.Solid.LinearElasticity"
     ) {
         let mechanics = sources(
-            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
-            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/README.md"),
+            include_bytes!("../../packages/Eqiora.Mechanics.Interfaces/package.json"),
+            include_bytes!("../../packages/Eqiora.Mechanics.Interfaces/README.md"),
             "src/interfaces.eqi",
-            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"),
+            include_bytes!("../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"),
         )?;
         releases.push(prepare_package_release_v1(mechanics, &[])?);
     }
     let source = match name {
         "Eqiora.Mechanics.Interfaces" => None,
         "Eqiora.Electrical.Basic" => Some(sources(
-            include_bytes!("../../../../packages/Eqiora.Electrical.Basic/package.json"),
-            include_bytes!("../../../../packages/Eqiora.Electrical.Basic/README.md"),
+            include_bytes!("../../packages/Eqiora.Electrical.Basic/package.json"),
+            include_bytes!("../../packages/Eqiora.Electrical.Basic/README.md"),
             "src/basic.eqi",
-            include_bytes!("../../../../packages/Eqiora.Electrical.Basic/src/basic.eqi"),
+            include_bytes!("../../packages/Eqiora.Electrical.Basic/src/basic.eqi"),
         )?),
         "Eqiora.Controls.Sampled" => Some(sources(
-            include_bytes!("../../../../packages/Eqiora.Controls.Sampled/package.json"),
-            include_bytes!("../../../../packages/Eqiora.Controls.Sampled/README.md"),
+            include_bytes!("../../packages/Eqiora.Controls.Sampled/package.json"),
+            include_bytes!("../../packages/Eqiora.Controls.Sampled/README.md"),
             "src/sampled.eqi",
-            include_bytes!("../../../../packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+            include_bytes!("../../packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
         )?),
         "Eqiora.Fluid.Incompressible" => Some(sources(
-            include_bytes!("../../../../packages/Eqiora.Fluid.Incompressible/package.json"),
-            include_bytes!("../../../../packages/Eqiora.Fluid.Incompressible/README.md"),
+            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/package.json"),
+            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/README.md"),
             "src/incompressible.eqi",
-            include_bytes!(
-                "../../../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
-            ),
+            include_bytes!("../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"),
         )?),
         "Eqiora.Solid.LinearElasticity" => Some(sources(
-            include_bytes!("../../../../packages/Eqiora.Solid.LinearElasticity/package.json"),
-            include_bytes!("../../../../packages/Eqiora.Solid.LinearElasticity/README.md"),
+            include_bytes!("../../packages/Eqiora.Solid.LinearElasticity/package.json"),
+            include_bytes!("../../packages/Eqiora.Solid.LinearElasticity/README.md"),
             "src/linear_elasticity.eqi",
             include_bytes!(
-                "../../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
+                "../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
             ),
         )?),
         _ => {

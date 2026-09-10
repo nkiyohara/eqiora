@@ -22,8 +22,9 @@ const DIRECT: &str =
     include_str!("../../../verify/solid/dynamic-linear-solid-semantics-2d/models/direct.eqi");
 const PACKAGED: &str =
     include_str!("../../../verify/solid/dynamic-linear-solid-semantics-2d/models/packaged.eqi");
-const SOLID_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
+const SOLID_SOURCE: &str = include_str!(
+    "../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
+);
 const STATIC_PACKAGED: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/packaged.eqi");
 

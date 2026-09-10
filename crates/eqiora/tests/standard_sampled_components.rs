@@ -12,7 +12,8 @@ use eqiora::{Id, RawId, ValueLiteral};
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const CONTROLS: &str = include_str!("../../../packages/Eqiora.Controls.Sampled/src/sampled.eqi");
+const CONTROLS: &str =
+    include_str!("../../../crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi");
 const PHYSICAL: &str = include_str!("../../../examples/standard-sampled-components/src/main.eqi");
 const IMPORT: &str = "import Eqiora.Controls.Sampled.sampled as controls;";
 const ROOT: &str = r#"
@@ -75,12 +76,14 @@ fn period_source(root: &str, denominator: u64) -> String {
 
 fn locked_document(controls: &str, root: &str, denominator: u64) -> PackagedModelDocument {
     let sources = embedded_package::sources(
-        include_bytes!("../../../packages/Eqiora.Controls.Sampled/package.json"),
+        include_bytes!("../../../crates/eqiora-api/packages/Eqiora.Controls.Sampled/package.json"),
         &[
             (
                 "README.md",
                 BundleRoleV1::Documentation,
-                include_bytes!("../../../packages/Eqiora.Controls.Sampled/README.md"),
+                include_bytes!(
+                    "../../../crates/eqiora-api/packages/Eqiora.Controls.Sampled/README.md"
+                ),
             ),
             (
                 "src/sampled.eqi",

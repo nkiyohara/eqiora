@@ -45,8 +45,9 @@ const DIRECT_SOURCE: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi");
 const PACKAGED_SOURCE: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/packaged.eqi");
-const LIVE_PACKAGE_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
+const LIVE_PACKAGE_SOURCE: &str = include_str!(
+    "../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
+);
 const ROOT_NAME: &str = "org.eqiora.verify.mixed_boundary_elasticity_2d";
 const ROOT_VERSION: &str = "0.1.0";
 

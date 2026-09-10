@@ -263,7 +263,9 @@ fn python_common_finite_route_owns_exact_plan_state_and_result() -> PyResult<()>
             "source",
             format!(
                 "{}\n{}",
-                include_str!("../../../packages/Eqiora.Electrical.Basic/src/basic.eqi"),
+                include_str!(
+                    "../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi"
+                ),
                 include_str!("../../../examples/voltage_divider.eqi")
             ),
         )?;

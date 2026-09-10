@@ -21,7 +21,7 @@ checked through the public compiler. For executed problems, see the [gallery](/g
 ## Source and installation boundary
 
 [Get started](/get-started/#install-with-uv) creates `eqiora-source` at the exact
-revision of these pages and installs it with uv. Its `packages/` directory holds
+revision of these pages and installs it with uv. Its `crates/eqiora-api/packages/` directory holds
 the declarations linked below. Run the snippets from the working folder containing
 that checkout and your `.venv`.
 
@@ -36,15 +36,15 @@ are listed for discovery, without implying a Python solve workflow for each.
 
 | Source module | Physical purpose |
 |---|---|
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Controls.Sampled/src/sampled.eqi">Controls.Sampled</ExactSourceLink> | Supplied-clock UnitDelay and DiscreteIntegrator with explicit initial memory |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic</ExactSourceLink> | Electrical Pin, ideal voltage source, resistor and ground |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | A parallel DC circuit composed from Basic |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load and speed sensor |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi">Fluid.Incompressible</ExactSourceLink> | Steady Stokes balance and Newtonian mechanical boundary interface |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes</ExactSourceLink> | Inertial Stokes balance with a force potential |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi">Mechanics.Interfaces</ExactSourceLink> | Velocity/traction connector, zero velocity and zero traction |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi">Mechanics.BoundaryLoads</ExactSourceLink> | Pressure-derived normal traction |
-| <ExactSourceLink kind="blob" path="packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity</ExactSourceLink> | Elastic balances, mechanical interfaces and fixed/free boundaries |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi">Controls.Sampled</ExactSourceLink> | Supplied-clock UnitDelay and DiscreteIntegrator with explicit initial memory |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic</ExactSourceLink> | Electrical Pin, ideal voltage source, resistor and ground |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | A parallel DC circuit composed from Basic |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load and speed sensor |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi">Fluid.Incompressible</ExactSourceLink> | Steady Stokes balance and Newtonian mechanical boundary interface |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes</ExactSourceLink> | Inertial Stokes balance with a force potential |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi">Mechanics.Interfaces</ExactSourceLink> | Velocity/traction connector, zero velocity and zero traction |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi">Mechanics.BoundaryLoads</ExactSourceLink> | Pressure-derived normal traction |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity</ExactSourceLink> | Elastic balances, mechanical interfaces and fixed/free boundaries |
 
 The source and its package manifest own the declarations and dependencies. To
 author your own relations, use the [language reference](/reference/language/equations/).
@@ -58,4 +58,4 @@ and conductances 1.2/1.6 W/K at 310/340 K and reopens the Model artifact. The
 <ExactSourceLink kind="blob" path="crates/eqiora/tests/source_property_tables.rs">Rust source/package specimen</ExactSourceLink>
 checks independent secant slopes, validity, knot rejection and authenticated asset closure.
 These specimen packages are constructed by their tests; they are not distributed releases
-in `packages/`. A heated-body Law and transient thermal solve are outside this example.
+in `crates/eqiora-api/packages/`. A heated-body Law and transient thermal solve are outside this example.

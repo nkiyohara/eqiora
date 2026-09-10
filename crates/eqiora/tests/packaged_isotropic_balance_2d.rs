@@ -32,10 +32,11 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const COMPONENT_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
+const COMPONENT_SOURCE: &str = include_str!(
+    "../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
+);
 const COMPONENT_README: &[u8] =
-    include_bytes!("../../../packages/Eqiora.Solid.LinearElasticity/README.md");
+    include_bytes!("../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/README.md");
 const SYNTHETIC_COMPONENT: &str =
     include_str!("../../../verify/solid/packaged-isotropic-balance-2d/models/components.eqi");
 const SYNTHETIC_COMPONENT_PERMUTED: &str = include_str!(

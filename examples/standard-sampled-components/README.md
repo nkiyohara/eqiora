@@ -55,4 +55,4 @@ first tick at zero. Before that first tick, no
 output sample is present. Selecting `before` or `after` does not add memory.
 
 For the current type and clock boundaries, see the
-[sampled package contract](../../packages/Eqiora.Controls.Sampled/README.md).
+[sampled package contract](../../crates/eqiora-api/packages/Eqiora.Controls.Sampled/README.md).

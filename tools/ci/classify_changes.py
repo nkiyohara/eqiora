@@ -145,7 +145,7 @@ SITE_INPUT_FILES = {
     "mise.lock",
     "mise.toml",
     "mkdocs.yml",
-    "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
+    "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
     "pyproject.toml",
     "rust-toolchain.toml",
     "crates/eqiora-api/schemas/compile-v2.schema.json",

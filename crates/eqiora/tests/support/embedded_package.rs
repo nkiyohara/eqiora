@@ -74,116 +74,140 @@ pub(crate) fn generated_sources(
 pub(crate) fn public_sources(package: &str) -> PackageSourcesV1 {
     match package {
         "Eqiora.Fluid" => sources(
-            include_bytes!("../../../../packages/Eqiora.Fluid/package.json"),
+            include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Fluid/package.json"),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Fluid/README.md"),
+                    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Fluid/README.md"),
                 ),
                 (
                     "src/fluid.eqi",
                     BundleRoleV1::ModelSource,
-                    include_bytes!("../../../../packages/Eqiora.Fluid/src/fluid.eqi"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi"
+                    ),
                 ),
             ],
         ),
         "Eqiora.Solid" => sources(
-            include_bytes!("../../../../packages/Eqiora.Solid/package.json"),
+            include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Solid/package.json"),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Solid/README.md"),
+                    include_bytes!("../../../../crates/eqiora-api/packages/Eqiora.Solid/README.md"),
                 ),
                 (
                     "src/solid.eqi",
                     BundleRoleV1::ModelSource,
-                    include_bytes!("../../../../packages/Eqiora.Solid/src/solid.eqi"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Solid/src/solid.eqi"
+                    ),
                 ),
             ],
         ),
         "Eqiora.Mechanics.Interfaces" => sources(
-            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
+            include_bytes!(
+                "../../../../crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/package.json"
+            ),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/README.md"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/README.md"
+                    ),
                 ),
                 (
                     "src/interfaces.eqi",
                     BundleRoleV1::ModelSource,
                     include_bytes!(
-                        "../../../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"
+                        "../../../../crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"
                     ),
                 ),
             ],
         ),
         "Eqiora.Mechanics.BoundaryLoads" => sources(
-            include_bytes!("../../../../packages/Eqiora.Mechanics.BoundaryLoads/package.json"),
+            include_bytes!(
+                "../../../../crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/package.json"
+            ),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Mechanics.BoundaryLoads/README.md"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/README.md"
+                    ),
                 ),
                 (
                     "src/boundary_loads.eqi",
                     BundleRoleV1::ModelSource,
                     include_bytes!(
-                        "../../../../packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi"
+                        "../../../../crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi"
                     ),
                 ),
             ],
         ),
         "Eqiora.Fluid.Incompressible" => sources(
-            include_bytes!("../../../../packages/Eqiora.Fluid.Incompressible/package.json"),
+            include_bytes!(
+                "../../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/package.json"
+            ),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Fluid.Incompressible/README.md"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/README.md"
+                    ),
                 ),
                 (
                     "src/incompressible.eqi",
                     BundleRoleV1::ModelSource,
                     include_bytes!(
-                        "../../../../packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
+                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi"
                     ),
                 ),
             ],
         ),
         "Eqiora.Fluid.InertialStokes" => sources(
-            include_bytes!("../../../../packages/Eqiora.Fluid.InertialStokes/package.json"),
+            include_bytes!(
+                "../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/package.json"
+            ),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Fluid.InertialStokes/README.md"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/README.md"
+                    ),
                 ),
                 (
                     "src/inertial_stokes.eqi",
                     BundleRoleV1::ModelSource,
                     include_bytes!(
-                        "../../../../packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"
+                        "../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"
                     ),
                 ),
             ],
         ),
         "Eqiora.Solid.LinearElasticity" => sources(
-            include_bytes!("../../../../packages/Eqiora.Solid.LinearElasticity/package.json"),
+            include_bytes!(
+                "../../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/package.json"
+            ),
             &[
                 (
                     "README.md",
                     BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/Eqiora.Solid.LinearElasticity/README.md"),
+                    include_bytes!(
+                        "../../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/README.md"
+                    ),
                 ),
                 (
                     "src/linear_elasticity.eqi",
                     BundleRoleV1::ModelSource,
                     include_bytes!(
-                        "../../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
+                        "../../../../crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"
                     ),
                 ),
             ],

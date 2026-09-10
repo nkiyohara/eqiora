@@ -45,7 +45,7 @@ def test_installed_divider_executes_and_reopens_offline(tmp_path):
     }
     model = eqiora.compile_package(store, resolution, entry="VoltageDivider")
     assert_divider(model)
-    basic = (ROOT / "packages/Eqiora.Electrical.Basic/src/basic.eqi").read_text()
+    basic = (ROOT / "crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi").read_text()
     direct_source = SOURCE.replace("import Eqiora.Electrical.Basic.basic as electrical;", "").replace(
         "electrical.", ""
     )

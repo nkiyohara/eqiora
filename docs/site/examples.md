@@ -24,7 +24,7 @@ keeps orientation paths intentionally small.
 ## A spatial problem, end to end
 
 The equation excerpt below comes from the verification-only
-[`org.example.poisson`](https://github.com/nkiyohara/eqiora/tree/main/packages/org.example.poisson)
+[`org.example.poisson`](https://github.com/nkiyohara/eqiora/tree/main/crates/eqiora-api/packages/org.example.poisson)
 package; the public lifecycle walkthrough then uses the installed exact-cylinder workflow.
 
 ### The problem

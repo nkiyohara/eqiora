@@ -157,7 +157,7 @@ uses exact package identity rather than directory location.
   through to `Basic`.
 
 The `Basic -> Circuits -> org.example.closed_circuit` path is registered by
-[`packages.composed-model-package`](../verify/packages/composed-model-package/README.md).
+[`packages.composed-model-package`](../../../verify/packages/composed-model-package/README.md).
 Its intermediate public component intentionally has no physical boundary
 Ports. Cross-boundary connection-set union remains a separate semantic gate.
 

@@ -34,9 +34,12 @@ use eqiora_numerics::scalar::{
 };
 use eqiora_sem::KernelProgram;
 
-const MANIFEST: &[u8] = include_bytes!("../../../packages/org.example.poisson/package.json");
-const SOURCE: &str = include_str!("../../../packages/org.example.poisson/src/main.eqi");
-const README: &[u8] = include_bytes!("../../../packages/org.example.poisson/README.md");
+const MANIFEST: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/org.example.poisson/package.json");
+const SOURCE: &str =
+    include_str!("../../../crates/eqiora-api/packages/org.example.poisson/src/main.eqi");
+const README: &[u8] =
+    include_bytes!("../../../crates/eqiora-api/packages/org.example.poisson/README.md");
 const SHADOW_RELATIVE: f64 = 1.0e-15;
 const MAXIMUM_BALANCE: f64 = 2.0e-11;
 

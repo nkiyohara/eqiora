@@ -3,9 +3,9 @@
 This interface case introduces no copied model fixture. The native composition
 embeds the exact checked-in files from:
 
-- `packages/Eqiora.Electrical.Basic`;
-- `packages/Eqiora.Electromechanical.DcDrive`; and
-- `packages/org.example.dc-motor-control`.
+- `crates/eqiora-api/packages/Eqiora.Electrical.Basic`;
+- `crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive`; and
+- `crates/eqiora-api/packages/org.example.dc-motor-control`.
 
 Their canonical author manifests, documentation entries, and model sources are
 passed through `AuthorPackageSourcesV1` and

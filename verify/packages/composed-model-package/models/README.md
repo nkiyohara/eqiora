@@ -1,10 +1,10 @@
 # Models
 
 The executable sources are the ordinary package trees at
-[`packages/Eqiora.Electrical.Basic`](../../../../packages/Eqiora.Electrical.Basic/),
-[`packages/Eqiora.Electrical.Circuits`](../../../../packages/Eqiora.Electrical.Circuits/),
+[`crates/eqiora-api/packages/Eqiora.Electrical.Basic`](../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/),
+[`crates/eqiora-api/packages/Eqiora.Electrical.Circuits`](../../../../crates/eqiora-api/packages/Eqiora.Electrical.Circuits/),
 and
-[`packages/org.example.closed_circuit`](../../../../packages/org.example.closed_circuit/).
+[`crates/eqiora-api/packages/org.example.closed_circuit`](../../../../crates/eqiora-api/packages/org.example.closed_circuit/).
 The integration target admits their closed inventories directly, derives all
 release and lock identities through the public facade, and installs the three
 release wires into a temporary exact store.

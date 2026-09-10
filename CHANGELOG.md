@@ -44,9 +44,13 @@ are recorded here.
 
 - Added `Eqiora.Fluid@0.4.0` and `Eqiora.Solid@0.4.0` with field-driven vector
   velocity, displacement, and traction boundaries. Installed-distribution
-  vendoring now provides these releases.
+  vendoring provides the specialized `Eqiora.Fluid.Incompressible@0.6.0` and
+  `Eqiora.Solid.LinearElasticity@0.6.0` packages and their exact dependencies.
 
 ### Changed
+
+- Moved the sole checked-in package source tree under `eqiora-api` so Cargo
+  archives contain the same bundled package inputs as source and Python builds.
 
 - Linear solver requests now select an explicit planning objective or a complete
   algorithm/preconditioner/reduction/provider combination. Tolerances alone do

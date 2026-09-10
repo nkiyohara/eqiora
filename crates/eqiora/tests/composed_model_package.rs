@@ -50,7 +50,7 @@ impl Drop for TestDirectory {
 
 fn package_root(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages")
+        .join("../eqiora-api/packages")
         .join(name)
 }
 
