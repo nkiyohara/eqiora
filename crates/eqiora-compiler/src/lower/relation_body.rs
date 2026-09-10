@@ -30,3 +30,45 @@ impl LoweringRelationBody {
             .chain(source)
     }
 }
+
+impl LoweringRelationBody {
+    pub(super) fn lower(
+        &self,
+        file: &str,
+        range: super::TextRange,
+        activation: &super::ActivationSyntax,
+        domain: Option<&str>,
+        initial: bool,
+        bindings: &std::collections::BTreeMap<String, super::Binding>,
+    ) -> Result<
+        (
+            super::expression::LoweredRelation,
+            Option<eqiora_schema::kernel::ConservationTerms>,
+        ),
+        eqiora_core::Diagnostic,
+    > {
+        use super::expression::lower_relation;
+        use super::{codes, expression, source_error};
+        match self {
+            LoweringRelationBody::Equations(equations) => lower_relation(
+                file, range, activation, domain, equations, initial, bindings,
+            )
+            .map(|lowered| (lowered, None)),
+            LoweringRelationBody::Conservation { flux, source } => {
+                let domain = domain.ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        "Law requires volume support",
+                    )
+                });
+                domain
+                    .and_then(|domain| {
+                        expression::lower_law(file, range, domain, flux, source, bindings)
+                    })
+                    .map(|(lowered, terms)| (lowered, Some(terms)))
+            }
+        }
+    }
+}

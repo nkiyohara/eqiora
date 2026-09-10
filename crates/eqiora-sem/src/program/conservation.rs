@@ -18,7 +18,7 @@ pub(super) fn validate_conservation_types(
         ));
         return;
     };
-    for (role, value) in [("flux", terms.flux()), ("source", terms.source())].into_iter() {
+    for (role, value) in [("flux", terms.flux()), ("source", terms.source())] {
         let Some(value_type) = typed.node_type(value) else {
             diagnostics.push(kernel_error(
                 owner,

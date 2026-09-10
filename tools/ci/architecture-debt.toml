@@ -439,7 +439,12 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 98
+ceiling = 100
+# Steady Law authoring: ConservationSyntax and RelationBody retain exact flux/source
+# syntax and distinguish it from ordinary Equations across parser, native factory,
+# compiler and Python. No storage/constraint placeholder is exported.
+# Remove them only when an existing source owner preserves the same exclusive
+# meaning and source ranges without duplicated parser/adapter interpretation.
 # Analytic and exact table property integration:
 # PropertySourceSyntax and PropertyTableSyntax retain the closed analytic/table alternatives and exact
 # asset, axis, dimensions and validity syntax for parser, native factory, formatter and compiler
@@ -503,7 +508,11 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 107
+ceiling = 109
+# ConservationTerms and RelationMeaning retain exact steady flux/source identities
+# separately from ordinary equations across semantic admission, numerical recognition,
+# Model replay and fingerprints. Withdraw only when existing owners preserve the same
+# exclusive meaning and validation without parallel descriptors or lost term identity.
 # Analytic and exact table property integration:
 # PropertyDerivatives, PropertyMeaning and PropertyRelease retain the exact occurrence contract shared
 # by compiler, SEM, Model replay and fingerprinting. AcceptedRealTable, RealTableProfile and
