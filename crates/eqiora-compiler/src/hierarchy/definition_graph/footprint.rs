@@ -183,9 +183,12 @@ pub(super) fn component_local_footprint(
             _ => {}
         }
         match item {
-            ComponentItem::Relation(relation) => {
-                families.equations(relation.equations(), 1, &mut expression_nodes, diagnostics)
-            }
+            ComponentItem::Relation(relation) => families.expressions(
+                relation.expressions(),
+                1,
+                &mut expression_nodes,
+                diagnostics,
+            ),
             ComponentItem::Initial(initial) => {
                 families.equations(initial.equations(), 1, &mut expression_nodes, diagnostics)
             }
@@ -215,8 +218,8 @@ pub(super) fn component_local_footprint(
                         )
                     })
                 {
-                    families.equations(
-                        family.relation().equations(),
+                    families.expressions(
+                        family.relation().expressions(),
                         members,
                         &mut expression_nodes,
                         diagnostics,
@@ -480,8 +483,8 @@ pub(super) fn model_local_footprint(
             ),
         }
         match item {
-            Item::Relation(relation) => families.equations(
-                relation.equations(),
+            Item::Relation(relation) => families.expressions(
+                relation.expressions(),
                 1,
                 &mut footprint.expression_nodes,
                 diagnostics,
@@ -492,8 +495,8 @@ pub(super) fn model_local_footprint(
                 &mut footprint.expression_nodes,
                 diagnostics,
             ),
-            Item::RelationFamily(family) => families.equations(
-                family.relation().equations(),
+            Item::RelationFamily(family) => families.expressions(
+                family.relation().expressions(),
                 families
                     .extent(family.binder().set().as_str())
                     .or_else(|| {

@@ -503,7 +503,14 @@ pub(super) fn rewrite_relation(
     file: &str,
     declaration: &RelationDecl,
     scope: &Scope,
-) -> Result<(ActivationSyntax, Option<String>, Vec<LoweringEquation>), Diagnostic> {
+) -> Result<
+    (
+        ActivationSyntax,
+        Option<String>,
+        crate::lower::LoweringRelationBody,
+    ),
+    Diagnostic,
+> {
     let activation = match declaration.activation() {
         ActivationSyntax::Continuous => ActivationSyntax::Continuous,
         ActivationSyntax::Named(clock) => {
@@ -540,13 +547,48 @@ pub(super) fn rewrite_relation(
             .map(|symbol| symbol.internal_name.clone())
         })
         .transpose()?;
-    let equations = rewrite_equations(file, declaration.equations(), scope, None)?;
-    Ok((activation, domain, equations))
+    Ok((
+        activation,
+        domain,
+        rewrite_relation_body(file, declaration, scope, None)?,
+    ))
+}
+
+pub(super) fn rewrite_relation_body(
+    file: &str,
+    declaration: &RelationDecl,
+    scope: &Scope,
+    active: Option<ActiveBoundaryMember<'_>>,
+) -> Result<crate::lower::LoweringRelationBody, Diagnostic> {
+    Ok(match declaration.body() {
+        eqiora_lang::RelationBody::Conditions(conditions) => {
+            rewrite_equations(file, conditions, scope, active)?.into()
+        }
+        eqiora_lang::RelationBody::Conservation(terms) => {
+            let rewrite = |value: &eqiora_lang::Expr| {
+                if scope.reduction_terms_limit > 0 {
+                    super::reductions::preflight(
+                        file,
+                        value,
+                        &mut |name| scope.index_set(name).map(|set| set.extent()),
+                        &scope.symbolic_parameters(),
+                        scope.reduction_terms_limit,
+                    )?;
+                }
+                rewrite_expression_with_boundary_member(file, value, scope, active)
+            };
+            crate::lower::LoweringRelationBody::Conservation {
+                storage: terms.storage().map(rewrite).transpose()?,
+                flux: rewrite(terms.flux())?,
+                source: rewrite(terms.source())?,
+            }
+        }
+    })
 }
 
 pub(super) fn rewrite_equations(
     file: &str,
-    equations: &[eqiora_lang::Equation],
+    equations: &[eqiora_lang::RelationCondition],
     scope: &Scope,
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<Vec<LoweringEquation>, Diagnostic> {

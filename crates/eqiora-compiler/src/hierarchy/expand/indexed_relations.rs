@@ -47,6 +47,7 @@ impl RootExpansion<'_, '_> {
             )?;
             let (activation, domain, equations) =
                 rewrite_relation(file, family.relation(), &member)?;
+            let equations: crate::lower::LoweringRelationBody = equations.into();
             self.record_physical_relation_owners(
                 file,
                 family.range(),
@@ -58,7 +59,7 @@ impl RootExpansion<'_, '_> {
                 name: internal_name(identity.entity.full),
                 activation,
                 domain,
-                equations,
+                body: equations.into(),
                 range: family.range(),
                 identity,
             });

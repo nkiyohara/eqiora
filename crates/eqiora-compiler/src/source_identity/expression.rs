@@ -333,13 +333,9 @@ pub(super) fn encode_relation(
     declaration: &RelationDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    if declaration.equations().len() > budget.limits.max_residuals_per_relation {
-        return Err(source_identity_error(format!(
-            "Relation `{}` has {} residuals, exceeding the {} residual limit",
-            declaration.name(),
-            declaration.equations().len(),
-            budget.limits.max_residuals_per_relation
-        )));
+    let count = declaration.conditions().map_or(1, |values| values.len());
+    if count > budget.limits.max_residuals_per_relation {
+        return Err(source_identity_error("Relation exceeds residual limit"));
     }
     encoder.field(1, |encoder| {
         encode_name(encoder, declaration.name(), budget)
@@ -358,11 +354,30 @@ pub(super) fn encode_relation(
         encode_optional_name(encoder, declaration.domain(), budget)
     })?;
     encoder.field(4, |encoder| {
-        encoder.u32(as_u32(
-            declaration.equations().len(),
-            "Relation residual count",
-        )?)?;
-        for equation in declaration.equations() {
+        let conditions = match declaration.body() {
+            eqiora_lang::RelationBody::Conservation(terms) => {
+                encoder.u16(2)?;
+                encoder.field(1, |encoder| match terms.storage() {
+                    Some(value) => {
+                        encoder.u16(1)?;
+                        encode_expression(encoder, value, budget, 1)
+                    }
+                    None => encoder.u16(0),
+                })?;
+                encoder.field(2, |encoder| {
+                    encode_expression(encoder, terms.flux(), budget, 1)
+                })?;
+                return encoder.field(3, |encoder| {
+                    encode_expression(encoder, terms.source(), budget, 1)
+                });
+            }
+            eqiora_lang::RelationBody::Conditions(conditions) => {
+                encoder.u16(1)?;
+                conditions
+            }
+        };
+        encoder.u32(as_u32(conditions.len(), "Relation residual count")?)?;
+        for equation in conditions {
             encoder.field(1, |encoder| {
                 encoder.field(1, |encoder| {
                     encode_expression(encoder, equation.left(), budget, 1)

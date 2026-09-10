@@ -6,7 +6,27 @@ pub(super) fn recognize_exterior_law(
     field: RawId,
     volume_coefficient: &ScalarSpatialExpression,
     dimensions: usize,
+    physical_law: bool,
 ) -> Result<ScalarExteriorLaw, Diagnostic> {
+    if physical_law {
+        return recognize_exterior_law_oriented(
+            program,
+            relation,
+            field,
+            dimensions,
+            |expression, normal| {
+                physical_conormal_orientation(
+                    program,
+                    expression,
+                    normal,
+                    field,
+                    volume_coefficient,
+                    relation,
+                    dimensions,
+                )
+            },
+        );
+    }
     recognize_exterior_law_with_flux(
         program,
         relation,
@@ -33,6 +53,25 @@ pub(crate) fn recognize_exterior_law_with_flux(
     dimensions: usize,
     check_flux: impl FnOnce(&ExprDag, ExprId) -> Result<(), Diagnostic>,
 ) -> Result<ScalarExteriorLaw, Diagnostic> {
+    recognize_exterior_law_oriented(
+        program,
+        relation,
+        field,
+        dimensions,
+        |expression, normal| {
+            check_flux(expression, normal)?;
+            Ok(false)
+        },
+    )
+}
+
+fn recognize_exterior_law_oriented(
+    program: &KernelProgram,
+    relation: RawId,
+    field: RawId,
+    dimensions: usize,
+    check_flux: impl FnOnce(&ExprDag, ExprId) -> Result<bool, Diagnostic>,
+) -> Result<ScalarExteriorLaw, Diagnostic> {
     require_continuous_relation(program, relation)?;
     let typed = typed_relation(program, relation)?;
     let expression = typed.expression();
@@ -55,14 +94,29 @@ pub(crate) fn recognize_exterior_law_with_flux(
     if trace.is_some() && (normal.is_some() || robin.is_some()) {
         return Err(view.mismatch("boundary law cannot prescribe trace and flux simultaneously"));
     }
+    let reversed_conormal = normal
+        .map(|normal| check_flux(expression, normal.value()))
+        .transpose()?
+        .unwrap_or(false);
+    let normal_sign = normal.map(|normal| {
+        if reversed_conormal {
+            match normal.sign() {
+                crate::additive_residual::AdditiveSign::Positive => {
+                    crate::additive_residual::AdditiveSign::Negative
+                }
+                crate::additive_residual::AdditiveSign::Negative => {
+                    crate::additive_residual::AdditiveSign::Positive
+                }
+            }
+        } else {
+            normal.sign()
+        }
+    });
     let operator_sign = trace
         .map(|leaf| leaf.sign())
-        .or_else(|| normal.map(|leaf| leaf.sign()))
+        .or(normal_sign)
         .or_else(|| robin.map(|(leaf, _, _)| leaf.sign()))
         .ok_or_else(|| view.mismatch("boundary law requires trace, normal flux, or Robin terms"))?;
-    if let Some(normal) = normal {
-        check_flux(expression, normal.value())?;
-    }
     let operator_ids = [
         trace.map(|leaf| leaf.value()),
         normal.map(|leaf| leaf.value()),
@@ -75,7 +129,7 @@ pub(crate) fn recognize_exterior_law_with_flux(
         .collect::<Vec<_>>();
     let (value, datum_expression) = match values.as_slice() {
         [] => (ScalarSpatialExpression::constant(dimensions, 0.0), None),
-        [value] if value.sign() != operator_sign => {
+        [value] if value.sign() != operator_sign || reversed_conormal => {
             if contains_state_symbol(expression, value.value()) {
                 return Err(lowering_error(
                     relation,
@@ -89,7 +143,15 @@ pub(crate) fn recognize_exterior_law_with_flux(
                     value.value(),
                     relation,
                     dimensions,
-                )?,
+                )?
+                .multiply(ScalarSpatialExpression::constant(
+                    dimensions,
+                    if value.sign() == operator_sign {
+                        -1.0
+                    } else {
+                        1.0
+                    },
+                )),
                 Some(value.value()),
             )
         }
@@ -128,7 +190,7 @@ pub(crate) fn recognize_exterior_law_with_flux(
             },
         }),
         (None, Some(normal), Some((robin, coefficient_expression, trace_expression)))
-            if normal.sign() == robin.sign() =>
+            if normal_sign == Some(robin.sign()) =>
         {
             let coefficient = spatial_expression::lower(
                 program,
@@ -226,4 +288,30 @@ pub(super) fn exact_boundaries(
         }
     }
     Ok(result)
+}
+
+/// Convert an admitted physical flux to the diffusion realization's conormal
+/// convention without changing the retained boundary equation or its lineage.
+fn physical_conormal_orientation(
+    program: &KernelProgram,
+    expression: &ExprDag,
+    normal: ExprId,
+    field: RawId,
+    volume_coefficient: &ScalarSpatialExpression,
+    relation: RawId,
+    dimensions: usize,
+) -> Result<bool, Diagnostic> {
+    let Some(ExprNode::NormalComponent(flux)) = expression.node(normal) else {
+        return Err(lowering_error(relation, "expected physical normal flux"));
+    };
+    let (coefficient, reversed) = super::retained::signed_flux_coefficient(
+        program, expression, *flux, field, relation, dimensions,
+    )?;
+    if coefficient.is_same_coefficient_as(volume_coefficient) {
+        return Ok(reversed);
+    }
+    Err(lowering_error(
+        relation,
+        "boundary flux differs from the exact physical Law constitutive coefficient",
+    ))
 }

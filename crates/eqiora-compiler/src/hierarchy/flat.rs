@@ -9,8 +9,8 @@ use crate::identity::{
     ElaborationKey, FullElaborationIdentity, ModelViewKey, StagedIdentities, StagingIdAllocator,
 };
 use crate::lower::{
-    CompiledModel, LoweringDomainContract, LoweringEquation, LoweringIdentities, LoweringItem,
-    LoweringModel, LoweringPortContract, ModelSymbols,
+    CompiledModel, LoweringDomainContract, LoweringIdentities, LoweringItem, LoweringModel,
+    LoweringPortContract, ModelSymbols,
 };
 use crate::projection::{
     PhysicalExposureContract, PhysicalExposureProjection, PhysicalExposureProjectionMap,
@@ -141,7 +141,7 @@ pub(super) enum FlatItemBlueprint {
         name: String,
         activation: ActivationSyntax,
         domain: Option<String>,
-        equations: Vec<LoweringEquation>,
+        body: crate::lower::LoweringRelationBody,
         initial: bool,
         range: TextRange,
         identity: RelationIdentity,
@@ -535,7 +535,7 @@ impl ExpandedBlueprint {
                     name,
                     activation,
                     domain,
-                    equations,
+                    body,
                     initial,
                     range,
                     ..
@@ -543,7 +543,7 @@ impl ExpandedBlueprint {
                     name: name.clone(),
                     activation: activation.clone(),
                     domain: domain.clone(),
-                    equations: equations.clone(),
+                    body: body.clone(),
                     initial: *initial,
                     range: *range,
                 },

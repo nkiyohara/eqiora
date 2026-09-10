@@ -18,7 +18,8 @@ use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
     ConnectionSemantics, DomainKind, EventDirection, ExprDag, ExprNode, KernelNode, PortPayload,
-    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction,
+    RelationConditionKind, RelationMeaning, RepresentationKind, SignalDirection, SymbolRef,
+    UnaryMathFunction,
 };
 use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};
@@ -30,9 +31,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V19: &[u8] = b"eqiora.structural-semantic-fingerprint/v19\0";
+const FINGERPRINT_DOMAIN_V20: &[u8] = b"eqiora.structural-semantic-fingerprint/v20\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V19: u16 = 19;
+const GENERATION_V20: u16 = 20;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -47,7 +48,7 @@ pub enum SemanticFingerprintGeneration {
     /// nominal records with ordered heterogeneous member expressions, and typed
     /// Observables with exact expression and reduction support, and analytic/table
     /// property derivative profiles bound to their exact expression roots.
-    V19,
+    V20,
 }
 
 impl SemanticFingerprintGeneration {
@@ -55,19 +56,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V19 => "eqiora.structural-semantic-fingerprint/v19",
+            Self::V20 => "eqiora.structural-semantic-fingerprint/v20",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V19 => GENERATION_V19,
+            Self::V20 => GENERATION_V20,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V19 => FINGERPRINT_DOMAIN_V19,
+            Self::V20 => FINGERPRINT_DOMAIN_V20,
         }
     }
 }
@@ -210,7 +211,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V19;
+        let generation = SemanticFingerprintGeneration::V20;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -257,6 +258,7 @@ fn encode_node(
             encode_expression(
                 &mut encoder,
                 instance.expression(),
+                &[],
                 4,
                 ids,
                 references,
@@ -291,6 +293,7 @@ fn encode_node(
             encode_expression(
                 &mut encoder,
                 definition.expression(),
+                &[],
                 4,
                 ids,
                 references,
@@ -398,14 +401,42 @@ fn encode_node(
         KernelNode::Relation(relation) => {
             encoder.u8(6)?;
             encoder.u8(u8::from(relation.is_initial()))?;
-            encode_expression(
+            let extra_roots = match relation.meaning() {
+                RelationMeaning::Conditions(_) => Vec::new(),
+                RelationMeaning::Conservation(terms) => terms
+                    .storage()
+                    .into_iter()
+                    .flat_map(|stored| [stored.value(), stored.accumulation()])
+                    .chain([terms.flux(), terms.source()])
+                    .collect(),
+            };
+            let canonical_index = encode_expression(
                 &mut encoder,
                 relation.expression(),
+                &extra_roots,
                 1,
                 ids,
                 references,
                 budget,
             )?;
+            match relation.meaning() {
+                RelationMeaning::Conditions(conditions) => {
+                    encoder.u8(0)?;
+                    encoder.len(conditions.len())?;
+                    for condition in conditions {
+                        encoder.u8(match condition {
+                            RelationConditionKind::Equality => 0,
+                        })?;
+                    }
+                }
+                RelationMeaning::Conservation(terms) => {
+                    encoder.u8(1)?;
+                    encoder.u8(u8::from(terms.storage().is_some()))?;
+                    for term in extra_roots {
+                        encoder.u32(canonical_expr_id(term, &canonical_index)?)?;
+                    }
+                }
+            }
         }
         KernelNode::Activation(activation) => {
             encoder.u8(7)?;
@@ -415,11 +446,11 @@ fn encode_node(
                 ActivationKind::Event { guard, direction } => {
                     encoder.u8(3)?;
                     encode_event_direction(&mut encoder, *direction)?;
-                    encode_expression(&mut encoder, guard, 2, ids, references, budget)?;
+                    encode_expression(&mut encoder, guard, &[], 2, ids, references, budget)?;
                 }
                 ActivationKind::Guard { guard } => {
                     encoder.u8(4)?;
-                    encode_expression(&mut encoder, guard, 3, ids, references, budget)?;
+                    encode_expression(&mut encoder, guard, &[], 3, ids, references, budget)?;
                 }
                 _ => return Err(newer_vocabulary("Activation kind")),
             }
@@ -554,13 +585,14 @@ fn encode_domain_kind(
 fn encode_expression(
     encoder: &mut Encoder,
     expression: &ExprDag,
+    extra_roots: &[eqiora_schema::kernel::ExprId],
     scope: u8,
     ids: &BTreeMap<RawId, usize>,
     references: &mut Vec<Reference>,
     budget: &mut ConstructionBudget,
-) -> Result<(), Diagnostic> {
+) -> Result<Vec<u32>, Diagnostic> {
     budget.account_expression_nodes(expression.nodes().len())?;
-    let (order, canonical_index) = canonical_expression_order(expression)?;
+    let (order, canonical_index) = canonical_expression_order(expression, extra_roots)?;
     encoder.len(order.len())?;
     for original_index in order {
         let node = expression.nodes().get(original_index).ok_or_else(|| {
@@ -706,7 +738,7 @@ fn encode_expression(
         encoder.bytes(&bytes)?;
     }
     property::encode(encoder, expression, &canonical_index)?;
-    Ok(())
+    Ok(canonical_index)
 }
 
 fn encode_symbol(
@@ -771,14 +803,17 @@ fn binary_expr(
     encoder.u32(canonical_expr_id(right, canonical_index)?)
 }
 
-fn canonical_expression_order(expression: &ExprDag) -> Result<(Vec<usize>, Vec<u32>), Diagnostic> {
+fn canonical_expression_order(
+    expression: &ExprDag,
+    extra_roots: &[eqiora_schema::kernel::ExprId],
+) -> Result<(Vec<usize>, Vec<u32>), Diagnostic> {
     let nodes = expression.nodes();
     let mut state = vec![0_u8; nodes.len()];
     let mut order = Vec::new();
     order
         .try_reserve_exact(nodes.len())
         .map_err(|_| fingerprint_error("cannot reserve canonical expression order"))?;
-    for root in expression.roots() {
+    for root in expression.roots().iter().chain(extra_roots) {
         let root = expression_index(*root, nodes.len())?;
         let mut stack = vec![(root, false)];
         while let Some((index, exiting)) = stack.pop() {
@@ -970,7 +1005,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v19"
+        "{subject} is newer than structural semantic fingerprint generation v20"
     ))
 }
 

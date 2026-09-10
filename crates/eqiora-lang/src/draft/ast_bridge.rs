@@ -7,8 +7,8 @@ use eqiora_core::GraphPath;
 
 use super::{DraftDeclaration, connection_path, value_type};
 use crate::ast::{
-    ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Equation, Expr,
-    ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
+    ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Expr, ExprKind,
+    FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax, RelationCondition,
     RelationDecl, TextRange, VisibilitySyntax,
 };
 
@@ -207,32 +207,39 @@ impl super::ModelDeclarations {
                         .domain
                         .as_ref()
                         .map(|domain| domain.name().to_owned()),
-                    equations: relation
-                        .equations
-                        .iter()
-                        .map(|(left, right)| {
-                            let left = left
-                                .ast(
-                                    &path,
-                                    &mut ranges,
-                                    &mut paths,
-                                    &mut |id| self.nominal_name(id),
-                                    &mut |id| self.enum_definition(id),
-                                )
-                                .expect("validated native expression scope");
-                            let right = right
-                                .ast(
-                                    &path,
-                                    &mut ranges,
-                                    &mut paths,
-                                    &mut |id| self.nominal_name(id),
-                                    &mut |id| self.enum_definition(id),
-                                )
-                                .expect("validated native expression scope");
-                            let range = left.range();
-                            Equation { left, right, range }
-                        })
-                        .collect(),
+                    body: crate::ast::RelationBody::Conditions(
+                        relation
+                            .equations
+                            .iter()
+                            .map(|(left, right)| {
+                                let left = left
+                                    .ast(
+                                        &path,
+                                        &mut ranges,
+                                        &mut paths,
+                                        &mut |id| self.nominal_name(id),
+                                        &mut |id| self.enum_definition(id),
+                                    )
+                                    .expect("validated native expression scope");
+                                let right = right
+                                    .ast(
+                                        &path,
+                                        &mut ranges,
+                                        &mut paths,
+                                        &mut |id| self.nominal_name(id),
+                                        &mut |id| self.enum_definition(id),
+                                    )
+                                    .expect("validated native expression scope");
+                                let range = left.range();
+                                RelationCondition {
+                                    kind: crate::ast::RelationConditionKind::Equality,
+                                    left,
+                                    right,
+                                    range,
+                                }
+                            })
+                            .collect(),
+                    ),
                     range,
                 }),
                 DraftDeclaration::Initial(residuals) => Item::Initial(crate::ast::InitialDecl {
@@ -259,7 +266,12 @@ impl super::ModelDeclarations {
                                 )
                                 .expect("validated native expression scope");
                             let range = left.range();
-                            Equation { left, right, range }
+                            RelationCondition {
+                                kind: crate::ast::RelationConditionKind::Equality,
+                                left,
+                                right,
+                                range,
+                            }
                         })
                         .collect(),
                     range,

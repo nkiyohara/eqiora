@@ -4,6 +4,7 @@ pub(super) use observable::validate_observable;
 mod channels;
 mod enumeration;
 mod integer;
+mod law;
 mod partial;
 mod reductions;
 mod transitions;
@@ -120,7 +121,8 @@ pub(super) fn validate_relation_expression(
             "Activation syntax is newer than definition-body validation",
         )),
     }
-    if declaration.equations().is_empty() {
+    let conditions = declaration.conditions();
+    if conditions.is_some_and(|conditions| conditions.is_empty()) {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
             scope.file,
@@ -144,7 +146,17 @@ pub(super) fn validate_relation_expression(
         contextual: Vec::new(),
         sampling: false,
     };
-    for equation in declaration.equations() {
+    if let eqiora_lang::RelationBody::Conservation(terms) = declaration.body() {
+        if let Err(error) = checker.check_law(terms) {
+            diagnostics.push(error);
+        }
+        return if diagnostics.is_empty() {
+            Ok(checker.physical_endpoints)
+        } else {
+            Err(diagnostics)
+        };
+    }
+    for equation in conditions.expect("condition body was distinguished from Law") {
         let inferred = match checker.check_equation(equation) {
             Ok(inferred) => inferred,
             Err(error) => {
@@ -194,7 +206,15 @@ pub(super) fn validate_relation_family_expression(
             "boundary Relation family support must name its binder member",
         ));
     }
-    if relation.equations().is_empty() {
+    let conditions = relation.conditions().ok_or_else(|| {
+        vec![source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            scope.file,
+            relation.range(),
+            "Law family requires retained term validation",
+        )]
+    })?;
+    if conditions.is_empty() {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
             scope.file,
@@ -217,7 +237,7 @@ pub(super) fn validate_relation_family_expression(
         contextual: Vec::new(),
         sampling: false,
     };
-    for equation in relation.equations() {
+    for equation in conditions {
         let inferred = match checker.check_equation(equation) {
             Ok(inferred) => inferred,
             Err(error) => {
@@ -254,7 +274,7 @@ struct ExpressionChecker<'a, 'e, 'd> {
 impl ExpressionChecker<'_, '_, '_> {
     fn check_equation(
         &mut self,
-        equation: &eqiora_lang::Equation,
+        equation: &eqiora_lang::RelationCondition,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         for value in [equation.left(), equation.right()] {
             crate::hierarchy::reductions::preflight(

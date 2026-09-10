@@ -1033,6 +1033,7 @@ class Component:
         "_properties",
         "_relations",
         "_observables",
+        "_laws",
         "_source",
         "_supports",
     )
@@ -1081,6 +1082,7 @@ class Component:
         self._relations: list[
             tuple[str, Support | None, tuple[tuple[Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
+        self._laws: list[tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]] = []
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
         ] = []
@@ -1546,6 +1548,7 @@ class Component:
                 left._nodes + right._nodes
                 for item in self._relations for left, right in item[2]
             )
+            + sum(sum(term._nodes for term in item[2:5] if term is not None) for item in self._laws)
             + sum(left._nodes + right._nodes for left, right in pairs)
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
@@ -1557,6 +1560,23 @@ class Component:
             (admitted, on, pairs, at, doc_lines)
         )
         return Relation(_CREATE, self._owner, self._component_token, admitted)
+
+    def law(
+        self,
+        name: str,
+        *,
+        on: Support,
+        flux: Expression,
+        source: Expression,
+        storage: Expression | None = None,
+        doc: str | None = None,
+    ) -> Relation:
+        """Declare div(outward flux) = source on a fixed volume.
+
+        Storage is unsupported in this steady profile. Source is always explicit.
+        """
+        from ._law import declare
+        return declare(self, name, on, flux, source, storage, doc)
 
     def primal_form(
         self,
@@ -1587,6 +1607,7 @@ class Component:
                 left._nodes + right._nodes
                 for item in self._relations for left, right in item[2]
             )
+            + sum(sum(term._nodes for term in item[2:5] if term is not None) for item in self._laws)
             + left_expression._nodes
             + right_expression._nodes
         )
@@ -1768,6 +1789,10 @@ class Component:
         for name, support, pairs, clock, doc in self._relations:
             add(name, doc, lambda n: _boundaries.relation_declaration(
                 name, support, pairs, clock, n))
+        for name, support, storage, flux, source, doc in self._laws:
+            add(name, doc, lambda n: _AstDeclaration.law(
+                name, support._name, flux._ast, source._ast,
+                None if storage is None else storage._ast, n))
         for name, component, bindings, doc in self._instances:
             add(name, doc, lambda n: _AstDeclaration.instance(
                 name, component._qualified_name, bindings, n))

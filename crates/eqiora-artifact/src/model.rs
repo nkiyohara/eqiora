@@ -101,6 +101,7 @@ mod expression;
 mod literal;
 mod node;
 mod primitive;
+mod relation;
 mod value_type;
 mod vocabulary;
 

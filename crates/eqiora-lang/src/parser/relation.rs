@@ -1,7 +1,7 @@
 //! Relation declaration and natural-equation parsing.
 
 use crate::ast::{
-    ActivationSyntax, Equation, InitialDecl, RelationDecl, RelationFamilyDecl, TextRange,
+    ActivationSyntax, InitialDecl, RelationCondition, RelationDecl, RelationFamilyDecl, TextRange,
 };
 use crate::lexer::TokenKind;
 
@@ -75,7 +75,7 @@ impl Parser<'_> {
             name,
             activation,
             domain,
-            equations,
+            body: crate::ast::RelationBody::Conditions(equations),
             range: TextRange::new(start, end),
         };
         let Some(binder) = binder else {
@@ -87,12 +87,17 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_relation_statement(&mut self) -> Option<Equation> {
+    fn parse_relation_statement(&mut self) -> Option<RelationCondition> {
         let left = self.parse_expression(0)?;
         self.expect(TokenKind::Equal, "`=` after Relation left-hand expression")?;
         let right = self.parse_expression(0)?;
         self.expect(TokenKind::Semicolon, "`;` after equation")?;
         let range = TextRange::new(left.range().start(), right.range().end());
-        Some(Equation { left, right, range })
+        Some(RelationCondition {
+            kind: crate::ast::RelationConditionKind::Equality,
+            left,
+            right,
+            range,
+        })
     }
 }

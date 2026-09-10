@@ -35,6 +35,8 @@ use connection::{lower_connection, prepare_flat_physical_connections};
 use declaration::lower_port;
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
 use expression::lower_relation;
+mod relation_body;
+pub(crate) use relation_body::LoweringRelationBody;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -360,7 +362,7 @@ pub(crate) enum LoweringItem {
         name: String,
         activation: ActivationSyntax,
         domain: Option<String>,
-        equations: Vec<LoweringEquation>,
+        body: LoweringRelationBody,
         initial: bool,
         range: TextRange,
     },
@@ -784,19 +786,49 @@ pub(crate) fn lower_typed_model(
                 name,
                 activation,
                 domain,
-                equations,
+                body,
                 initial,
                 range,
-            } => lower_relation(
-                file,
-                *range,
-                activation,
-                domain.as_deref(),
-                equations,
-                *initial,
-                &bindings,
-            )
-            .and_then(|lowered| {
+            } => match body {
+                LoweringRelationBody::Conditions(equations) => lower_relation(
+                    file,
+                    *range,
+                    activation,
+                    domain.as_deref(),
+                    equations,
+                    *initial,
+                    &bindings,
+                )
+                .map(|lowered| (lowered, None)),
+                LoweringRelationBody::Conservation {
+                    storage,
+                    flux,
+                    source,
+                } => {
+                    let domain = domain.as_deref().ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            *range,
+                            "Law requires volume support",
+                        )
+                    });
+                    domain
+                        .and_then(|domain| {
+                            expression::lower_law(
+                                file,
+                                *range,
+                                domain,
+                                storage.as_ref(),
+                                flux,
+                                source,
+                                &bindings,
+                            )
+                        })
+                        .map(|(lowered, terms)| (lowered, Some(terms)))
+                }
+            }
+            .and_then(|(lowered, conservation)| {
                 let Binding::Relation {
                     relation,
                     activation: activation_id,
@@ -805,7 +837,9 @@ pub(crate) fn lower_typed_model(
                     unreachable!("first pass assigns Relation bindings");
                 };
                 nodes.push(
-                    if *initial {
+                    if let Some(terms) = conservation {
+                        RelationDef::conservation(relation, lowered.expression, terms)
+                    } else if *initial {
                         RelationDef::initial(relation, lowered.expression)
                     } else {
                         RelationDef::new(relation, lowered.expression)
@@ -831,7 +865,7 @@ pub(crate) fn lower_typed_model(
                     file,
                     *range,
                     relation.erase(),
-                    equations,
+                    body,
                     &bindings,
                     &mut edges,
                 )?;

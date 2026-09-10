@@ -13,6 +13,14 @@ pub(super) fn validate_relations(
             continue;
         };
 
+        if let eqiora_schema::kernel::RelationMeaning::Conservation(terms) = relation.meaning()
+            && terms.storage().is_some()
+        {
+            diagnostics.push(kernel_error(
+                id,
+                "transient conservation Law requires independently admitted storage accumulation",
+            ));
+        }
         let scopes = edge_targets(edges, id, EdgeKind::AppliesOn);
         if relation.is_initial() && !scopes.is_empty() {
             diagnostics.push(kernel_error(

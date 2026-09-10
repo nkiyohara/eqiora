@@ -29,7 +29,7 @@ use crate::identity::{
     DeclarationPath, ElaborationKey, FullElaborationIdentity, GeneratedRole, IdentityNamespace,
     InstancePath, ModelViewKey,
 };
-use crate::lower::{LoweringDomainContract, LoweringEquation, LoweringPortContract};
+use crate::lower::{LoweringDomainContract, LoweringPortContract};
 
 use super::body_check::field_expression_type;
 use super::complete_exterior::CartesianDomain;

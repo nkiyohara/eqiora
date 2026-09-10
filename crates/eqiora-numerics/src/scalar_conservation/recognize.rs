@@ -221,8 +221,14 @@ fn recognize_region(
                 ),
             ));
         };
-        let law =
-            recognize_exterior_law(program, *relation, *field, &flux.coefficient, dimensions)?;
+        let law = recognize_exterior_law(
+            program,
+            *relation,
+            *field,
+            &flux.coefficient,
+            dimensions,
+            matches!(program.node(*balance_relation), Some(KernelNode::Relation(value)) if matches!(value.meaning(), eqiora_schema::kernel::RelationMeaning::Conservation(_))),
+        )?;
         exterior.insert(
             (axis, side),
             ScalarExteriorBoundary {

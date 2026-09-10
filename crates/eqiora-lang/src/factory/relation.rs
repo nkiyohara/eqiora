@@ -8,7 +8,7 @@ impl SourceAstFactory {
     /// # Errors
     /// Rejects empty conditions, malformed expressions, and invalid byte ranges.
     pub fn initial(
-        equations: Vec<Equation>,
+        equations: Vec<RelationCondition>,
         range: TextRange,
     ) -> Result<crate::ast::InitialDecl, AstConstructionError> {
         if equations.is_empty() {
@@ -36,10 +36,11 @@ impl SourceAstFactory {
         left: Expr,
         right: Expr,
         range: TextRange,
-    ) -> Result<Equation, AstConstructionError> {
+    ) -> Result<RelationCondition, AstConstructionError> {
         validate_expression(&left)?;
         validate_expression(&right)?;
-        Ok(Equation {
+        Ok(RelationCondition {
+            kind: crate::ast::RelationConditionKind::Equality,
             left,
             right,
             range: checked_range(range)?,
@@ -54,7 +55,7 @@ impl SourceAstFactory {
         name: impl Into<String>,
         activation: ActivationSyntax,
         domain: Option<String>,
-        equations: Vec<Equation>,
+        equations: Vec<RelationCondition>,
         range: TextRange,
     ) -> Result<RelationDecl, AstConstructionError> {
         if equations.is_empty() {
@@ -78,7 +79,7 @@ impl SourceAstFactory {
             name: checked_identifier(name, "Relation")?,
             activation,
             domain,
-            equations,
+            body: crate::ast::RelationBody::Conditions(equations),
             range: checked_range(range)?,
         })
     }
@@ -94,7 +95,9 @@ impl SourceAstFactory {
     ) -> Result<RelationFamilyDecl, AstConstructionError> {
         validate_boundary_family_binder(&binder)?;
         checked_range(relation.range())?;
-        for equation in relation.equations() {
+        for equation in relation.conditions().ok_or_else(|| {
+            AstConstructionError::new("Law families require explicit supported elaboration")
+        })? {
             validate_expression(equation.left())?;
             validate_expression(equation.right())?;
             checked_range(equation.range())?;

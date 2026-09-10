@@ -64,7 +64,8 @@ model coupled() {
     let Item::Relation(relation) = &document.models()[0].items()[2] else {
         panic!("model relation retained");
     };
-    let ExprKind::Call { callee, arguments } = relation.equations()[0].left().kind() else {
+    let ExprKind::Call { callee, arguments } = relation.conditions().unwrap()[0].left().kind()
+    else {
         panic!("residual is a qualified application");
     };
     assert_eq!(callee.segments().collect::<Vec<_>>(), ["ops", "dyadic"]);
@@ -282,7 +283,7 @@ model parallel(port positive: Pin) {
     let ComponentItem::Relation(relation) = &component.items()[3] else {
         panic!("sixth member is the Relation");
     };
-    let ExprKind::Binary { left, .. } = relation.equations()[0].left().kind() else {
+    let ExprKind::Binary { left, .. } = relation.conditions().unwrap()[0].left().kind() else {
         panic!("Relation retains its subtraction");
     };
     let ExprKind::Path(path) = left.kind() else {
@@ -622,7 +623,7 @@ model coupled() {
         panic!("fifth item is the Relation");
     };
     assert!(matches!(
-        relation.equations()[0].left().kind(),
+        relation.conditions().unwrap()[0].left().kind(),
         ExprKind::Path(path) if path.as_str() == "interface.traction"
     ));
 }
@@ -714,7 +715,8 @@ exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         panic!("fourth component member is a Relation family");
     };
     assert_eq!(relation.relation().domain(), Some("boundary"));
-    let ExprKind::Member { value, member } = relation.relation().equations()[0].left().kind()
+    let ExprKind::Member { value, member } =
+        relation.relation().conditions().unwrap()[0].left().kind()
     else {
         panic!("family Relation equation reads a named Port quantity");
     };

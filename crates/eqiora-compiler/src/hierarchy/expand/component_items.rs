@@ -32,7 +32,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.entity.full),
                         activation: eqiora_lang::ActivationSyntax::Continuous,
                         domain: None,
-                        equations,
+                        body: equations.into(),
                         initial: true,
                         range: declaration.range(),
                         identity,
@@ -215,6 +215,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.relations[declaration.name()].clone();
                     let (activation, domain, equations) =
                         rewrite_relation(component.file, declaration, scope)?;
+                    let equations: crate::lower::LoweringRelationBody = equations.into();
                     self.record_physical_relation_owners(
                         component.file,
                         declaration.range(),
@@ -226,7 +227,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        equations,
+                        body: equations.into(),
                         range: declaration.range(),
                         identity,
                     });
@@ -287,10 +288,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         ));
                         let equations = rewrite_equations(
                             component.file,
-                            declaration.equations(),
+                            declaration.conditions().ok_or_else(|| {
+                                hierarchy_error(
+                                    "Law families require explicit retained term lowering",
+                                )
+                            })?,
                             scope,
                             active,
                         )?;
+                        let equations: crate::lower::LoweringRelationBody = equations.into();
                         self.record_physical_relation_owners(
                             component.file,
                             family.range(),
@@ -302,7 +308,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             name: internal_name(identity.entity.full),
                             activation: eqiora_lang::ActivationSyntax::Continuous,
                             domain: Some(member.target().to_owned()),
-                            equations,
+                            body: equations.into(),
                             range: family.range(),
                             identity,
                         });
