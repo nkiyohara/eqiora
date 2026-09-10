@@ -23,11 +23,12 @@ const PRESENTATION_OK = {
   pointerEvents: 0,
 };
 const SUMMARY_OK = { tag: 0, parent: 0, name: 0, tabIndex: 0, forbidden: 0, open: 0 };
-// Rustdoc 1.97.1: with_context adds one open method block and four signature
-// anchors (the method, AsRef, str and Diagnostic).
+// Rustdoc 1.98.0: tracing adds the Instrument and WithSubscriber blanket
+// implementations. Together they contribute six details/sections/groups, four
+// open method blocks, and seven source/signature links.
 const REAL_PROJECTION = {
-  details: 108, open: 83, sections: 107, nested: 0,
-  sources: 325, groups: 107, links: 325,
+  details: 114, open: 87, sections: 113, nested: 0,
+  sources: 332, groups: 113, links: 332,
 };
 
 async function seriousViolations(page: Page) {
