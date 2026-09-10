@@ -470,7 +470,12 @@ ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 263
+ceiling = 265
+# Smooth trajectory functionals: CommonTrajectoryObservation retains exact time
+# scope, trajectory identity and time dimension; TimeFunctionalQuadrature names
+# the admitted numerical approximation shared by native/Python evaluation.
+# Remove these only when accepted existing owners retain the same distinct
+# instantaneous-versus-trajectory authority without tuple/string protocols.
 # RFC 0091: CommonAlgebraicPlan, CommonAlgebraicState, CommonObservation and CommonObservableStateTangent own typed declaration, execution or
 # exact reduction contracts shared by compiler/native/Python/replay consumers.
 # Withdraw these names only when accepted existing owners preserve exact identity,
@@ -551,7 +556,9 @@ ceiling = 26
 
 [[public_surface]]
 crate = "eqiora-time"
-ceiling = 39
+ceiling = 41
+reason = "AcceptedTimeHistory and TimeHistoryStep own complete smooth native integration traces and midpoint stencils shared by the backend, common trajectory and artifact replay; output samples do not own quadrature history"
+removal = "withdraw only when accepted existing owners preserve the same typed history and stencil validation without duplicated backend or adapter rules"
 
 [[public_surface]]
 crate = "eqiora-verify"
