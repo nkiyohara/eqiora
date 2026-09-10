@@ -292,6 +292,15 @@ impl ExprDag {
         self.definitions.get(&digest)
     }
 
+    /// Resolve a wire arena index only when it belongs to this expression.
+    #[must_use]
+    pub fn node_id(&self, index: u32) -> Option<ExprId> {
+        usize::try_from(index)
+            .ok()
+            .filter(|index| *index < self.nodes.len())
+            .map(|_| ExprId(index))
+    }
+
     /// Look up a node by its arena ID.
     #[must_use]
     pub fn node(&self, id: ExprId) -> Option<&ExprNode> {

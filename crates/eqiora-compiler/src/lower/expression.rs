@@ -2,6 +2,8 @@ mod property;
 mod pure_operator;
 mod record;
 pub(super) use record::lower_record;
+mod law;
+pub(super) use law::lower_law;
 mod source;
 pub(super) use source::from_source;
 mod contextual;

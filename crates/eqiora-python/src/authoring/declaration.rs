@@ -262,6 +262,17 @@ impl PyAstDeclaration {
     }
 
     #[staticmethod]
+    fn law(
+        name: String,
+        support: String,
+        flux: &PyAstExpression,
+        source: &PyAstExpression,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        super::law::declaration(name, support, flux, source, ordinal)
+    }
+
+    #[staticmethod]
     fn relation(
         name: String,
         support: Option<String>,

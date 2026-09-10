@@ -78,7 +78,7 @@ impl SourceAstFactory {
             name: checked_identifier(name, "Relation")?,
             activation,
             domain,
-            equations,
+            body: crate::ast::RelationBody::Equations(equations),
             range: checked_range(range)?,
         })
     }
@@ -94,7 +94,9 @@ impl SourceAstFactory {
     ) -> Result<RelationFamilyDecl, AstConstructionError> {
         validate_boundary_family_binder(&binder)?;
         checked_range(relation.range())?;
-        for equation in relation.equations() {
+        for equation in relation.equations().ok_or_else(|| {
+            AstConstructionError::new("Law families require explicit supported elaboration")
+        })? {
             validate_expression(equation.left())?;
             validate_expression(equation.right())?;
             checked_range(equation.range())?;

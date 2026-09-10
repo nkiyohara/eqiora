@@ -90,13 +90,14 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
                 activation: eqiora_lang::ActivationSyntax::Continuous,
                 initial: false,
                 range,
-                equations: vec![crate::lower::LoweringEquation {
+                body: vec![crate::lower::LoweringEquation {
                     left: LoweringExpression::name("x".into(), range),
                     right,
                     contextual_left_zero: false,
                     contextual_right_zero: false,
                     range,
-                }],
+                }]
+                .into(),
             },
         ],
     };

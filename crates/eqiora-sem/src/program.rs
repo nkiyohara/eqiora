@@ -1,5 +1,6 @@
 //! Whole-model validation and immutable interpreter input.
 
+mod conservation;
 pub(crate) mod geometry_admission;
 mod nominal_values;
 mod numerical_residuals;
@@ -721,9 +722,9 @@ fn validate_expression(
         .collect();
     let relation_support =
         scope.and_then(|scope| environment.spatial_supports.get(&scope).cloned());
-    if let Err(errors) = TypedResidual::infer(
+    match TypedResidual::infer(
         expression.clone(),
-        relation_support,
+        relation_support.clone(),
         root_contract,
         |symbol| {
             symbol_type(
@@ -734,11 +735,25 @@ fn validate_expression(
             )
         },
     ) {
-        diagnostics.extend(
+        Ok(typed) => {
+            if let Some(KernelNode::Relation(relation)) = environment.nodes.get(&owner)
+                && let eqiora_schema::kernel::RelationMeaning::Conservation(terms) =
+                    relation.meaning()
+            {
+                conservation::validate_conservation_types(
+                    owner,
+                    *terms,
+                    &typed,
+                    relation_support.as_ref(),
+                    diagnostics,
+                );
+            }
+        }
+        Err(errors) => diagnostics.extend(
             errors
                 .into_iter()
                 .map(|error| typed_residual_diagnostic(owner, error)),
-        );
+        ),
     }
     symbols
 }

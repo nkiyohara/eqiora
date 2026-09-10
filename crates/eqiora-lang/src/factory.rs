@@ -14,6 +14,7 @@ mod signature;
 pub(crate) use expression::validate_expression;
 mod enumeration;
 mod event;
+mod law;
 mod nominal;
 mod operator;
 mod property;

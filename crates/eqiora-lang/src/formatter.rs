@@ -11,6 +11,7 @@ mod signature;
 use expression::format_expression;
 mod formulation;
 mod helpers;
+mod law;
 mod property;
 mod relation;
 mod value_type;

@@ -9,7 +9,9 @@ use eqiora_core::{
 use super::{BoundaryPhysicalConnector, ExprDag, RationalTime};
 use eqiora_core::{ValueFrame, ValueLiteral, ValueType};
 
+mod relation;
 mod spatial;
+pub use relation::{RelationDef, RelationMeaning};
 
 pub use spatial::{
     AxisBounds, BoundarySide, CartesianAxisDefinition, CartesianCoordinateSource, DomainDef,
@@ -292,74 +294,6 @@ impl PortDef {
             } => Some((connector, boundary)),
             PortPayload::Signal { .. } | PortPayload::ScalarPhysical { .. } => None,
         }
-    }
-}
-
-/// Simultaneous equations retaining both authored sides.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RelationDef {
-    id: Id<kinds::Relation>,
-    expression: ExprDag,
-    initial: bool,
-}
-
-impl RelationDef {
-    /// Define equations from consecutive `(left, right)` output-root pairs.
-    ///
-    /// # Errors
-    /// Rejects an odd number of output roots.
-    pub fn new(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
-        if !expression.roots().len().is_multiple_of(2) {
-            return Err(Diagnostic::error(
-                codes::INVALID_KERNEL_DEFINITION,
-                "Relation equations require consecutive left/right root pairs",
-            ));
-        }
-        Ok(Self {
-            id,
-            expression,
-            initial: false,
-        })
-    }
-
-    /// Define simultaneous fresh-initialization equations with paired output roots.
-    ///
-    /// # Errors
-    /// Rejects an odd number of output roots.
-    pub fn initial(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
-        let mut definition = Self::new(id, expression)?;
-        definition.initial = true;
-        Ok(definition)
-    }
-
-    /// Whether these equations apply only to fresh initialization, never restart.
-    #[must_use]
-    pub const fn is_initial(&self) -> bool {
-        self.initial
-    }
-
-    /// Typed Relation ID.
-    #[must_use]
-    pub const fn id(&self) -> Id<kinds::Relation> {
-        self.id
-    }
-
-    /// Shared expression arena retaining the authored equation sides.
-    #[must_use]
-    pub const fn expression(&self) -> &ExprDag {
-        &self.expression
-    }
-
-    /// Left/right sides in authored equation order.
-    pub fn equation_sides(
-        &self,
-    ) -> impl ExactSizeIterator<Item = (super::ExprId, super::ExprId)> + '_ {
-        self.expression
-            .roots()
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| (pair[0], pair[1]))
     }
 }
 

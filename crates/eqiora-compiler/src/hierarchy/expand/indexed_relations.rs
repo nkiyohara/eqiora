@@ -58,7 +58,7 @@ impl RootExpansion<'_, '_> {
                 name: internal_name(identity.entity.full),
                 activation,
                 domain,
-                equations,
+                body: equations,
                 range: family.range(),
                 identity,
             });

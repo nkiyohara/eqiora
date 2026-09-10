@@ -31,7 +31,7 @@ pub struct RelationDecl {
     pub(crate) name: String,
     pub(crate) activation: ActivationSyntax,
     pub(crate) domain: Option<String>,
-    pub(crate) equations: Vec<Equation>,
+    pub(crate) body: RelationBody,
     pub(crate) range: TextRange,
 }
 
@@ -54,10 +54,33 @@ impl RelationDecl {
         self.domain.as_deref()
     }
 
-    /// Simultaneous equalities in authored order, not sequential assignments.
+    /// Exclusive authored mathematical body.
     #[must_use]
-    pub fn equations(&self) -> &[Equation] {
-        &self.equations
+    pub const fn body(&self) -> &RelationBody {
+        &self.body
+    }
+
+    /// Ordered conditions, absent when this declaration is a physical Law.
+    #[must_use]
+    pub fn equations(&self) -> Option<&[Equation]> {
+        match &self.body {
+            RelationBody::Equations(conditions) => Some(conditions),
+            RelationBody::Conservation(_) => None,
+        }
+    }
+
+    /// Every authored expression, including all retained physical Law terms.
+    pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
+        let conditions = self
+            .equations()
+            .into_iter()
+            .flatten()
+            .flat_map(|condition| [condition.left(), condition.right()]);
+        let law = match &self.body {
+            RelationBody::Conservation(law) => Some(law),
+            _ => None,
+        };
+        conditions.chain(law.into_iter().flat_map(|law| [law.flux(), law.source()]))
     }
 
     /// Full declaration range.
@@ -65,6 +88,15 @@ impl RelationDecl {
     pub const fn range(&self) -> TextRange {
         self.range
     }
+}
+
+/// Exclusive mathematical syntax of a Relation declaration.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RelationBody {
+    /// Ordered equality conditions.
+    Equations(Vec<Equation>),
+    /// Physical flux and source terms on one domain.
+    Conservation(Box<super::ConservationSyntax>),
 }
 
 /// One ordered authored equality. Residual construction belongs to checked lowering.

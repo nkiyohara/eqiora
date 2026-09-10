@@ -43,14 +43,12 @@ impl super::SourceAstFactory {
                     ComponentItem::Observable(value) => {
                         expression(scope, &mut value.value, &mut visit)
                     }
-                    ComponentItem::Relation(value) => {
-                        equations(scope, &mut value.equations, &mut visit)
-                    }
+                    ComponentItem::Relation(value) => relation(scope, value, &mut visit),
                     ComponentItem::Initial(value) => {
                         equations(scope, &mut value.equations, &mut visit)
                     }
                     ComponentItem::RelationFamily(value) => {
-                        equations(scope, &mut value.relation.equations, &mut visit)
+                        relation(scope, &mut value.relation, &mut visit)
                     }
                     ComponentItem::Instance(value) => {
                         for binding in &mut value.bindings {
@@ -77,10 +75,8 @@ impl super::SourceAstFactory {
                     }
                     Item::Event(value) => expression(scope, &mut value.guard, &mut visit),
                     Item::Observable(value) => expression(scope, &mut value.value, &mut visit),
-                    Item::Relation(value) => equations(scope, &mut value.equations, &mut visit),
-                    Item::RelationFamily(value) => {
-                        equations(scope, &mut value.relation.equations, &mut visit)
-                    }
+                    Item::Relation(value) => relation(scope, value, &mut visit),
+                    Item::RelationFamily(value) => relation(scope, &mut value.relation, &mut visit),
                     Item::Initial(value) => equations(scope, &mut value.equations, &mut visit),
                     Item::Instance(value) => {
                         for binding in &mut value.bindings {
@@ -116,6 +112,19 @@ fn signature(
             && let Some(value) = &mut parameter.default
         {
             expression(scope, value, visit);
+        }
+    }
+}
+fn relation(
+    scope: Option<&str>,
+    value: &mut crate::RelationDecl,
+    visit: &mut impl FnMut(Option<&str>, &mut Expr),
+) {
+    match &mut value.body {
+        crate::RelationBody::Equations(values) => equations(scope, values, visit),
+        crate::RelationBody::Conservation(law) => {
+            expression(scope, &mut law.flux, visit);
+            expression(scope, &mut law.source, visit);
         }
     }
 }

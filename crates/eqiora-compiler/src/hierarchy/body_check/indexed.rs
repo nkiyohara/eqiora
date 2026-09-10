@@ -45,6 +45,9 @@ pub(super) fn relation(
     let declaration = family.relation();
     let equations = declaration
         .equations()
+        .ok_or_else(|| {
+            super::super::hierarchy_error("indexed Laws require retained term lowering")
+        })?
         .iter()
         .map(|equation| {
             let left = super::super::reductions::instantiate(

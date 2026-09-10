@@ -13,10 +13,12 @@ mod observable;
 pub use observable::{ObservableDef, ObservableMeasure, ObservableReduction};
 mod index_set;
 pub use index_set::IndexSetDef;
+mod conservation;
 pub mod physical_closure;
 pub mod property_table;
 pub mod pure_operator;
 pub mod scalar_connection;
+pub use conservation::ConservationTerms;
 mod time;
 pub mod typing;
 
@@ -31,8 +33,8 @@ pub use definition::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, CartesianAxisDefinition,
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionDef, ConnectionSemantics,
     DomainDef, DomainKind, EventDirection, FieldDef, FieldRole, GeometryDigest, KernelNode,
-    ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef, RepresentationKind,
-    SignalDirection,
+    ParameterDef, PortDef, PortPayload, RelationDef, RelationMeaning, RepresentationDef,
+    RepresentationKind, SignalDirection,
 };
 pub use expression::property::{PropertyDerivatives, PropertyMeaning, PropertyRelease};
 pub use expression::{

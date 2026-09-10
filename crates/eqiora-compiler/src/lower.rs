@@ -34,7 +34,8 @@ use binding::{
 use connection::{lower_connection, prepare_flat_physical_connections};
 use declaration::lower_port;
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
-use expression::lower_relation;
+mod relation_body;
+pub(crate) use relation_body::LoweringRelationBody;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -360,7 +361,7 @@ pub(crate) enum LoweringItem {
         name: String,
         activation: ActivationSyntax,
         domain: Option<String>,
-        equations: Vec<LoweringEquation>,
+        body: LoweringRelationBody,
         initial: bool,
         range: TextRange,
     },
@@ -784,76 +785,82 @@ pub(crate) fn lower_typed_model(
                 name,
                 activation,
                 domain,
-                equations,
+                body,
                 initial,
                 range,
-            } => lower_relation(
-                file,
-                *range,
-                activation,
-                domain.as_deref(),
-                equations,
-                *initial,
-                &bindings,
-            )
-            .and_then(|lowered| {
-                let Binding::Relation {
-                    relation,
-                    activation: activation_id,
-                } = bindings[name].clone()
-                else {
-                    unreachable!("first pass assigns Relation bindings");
-                };
-                nodes.push(
-                    if *initial {
-                        RelationDef::initial(relation, lowered.expression)
-                    } else {
-                        RelationDef::new(relation, lowered.expression)
-                    }?
-                    .into(),
-                );
-                let activation_definition = match activation {
-                    ActivationSyntax::Continuous => Some(ActivationDef::continuous(activation_id)),
-                    ActivationSyntax::Named(name) => match bindings.get(name) {
-                        Some(Binding::Event(_)) => None,
-                        Some(Binding::Clock(_, _)) => Some(ActivationDef::periodic(activation_id)),
-                        _ => unreachable!("named activation was resolved"),
-                    },
-                    _ => unreachable!("unsupported Activation was diagnosed"),
-                };
-                if !initial && let Some(definition) = activation_definition {
-                    nodes.push(definition.into());
-                }
-                for dependency in lowered.dependencies {
-                    edges.push((relation.erase(), dependency, EdgeKind::DependsOn));
-                }
-                structural::connect_relation(
+            } => body
+                .lower(
                     file,
                     *range,
-                    relation.erase(),
-                    equations,
+                    activation,
+                    domain.as_deref(),
+                    *initial,
                     &bindings,
-                    &mut edges,
-                )?;
-                for port in lowered.ports {
-                    edges.push((relation.erase(), port, EdgeKind::HasPort));
-                }
-                if !initial {
-                    edges.push((activation_id.erase(), relation.erase(), EdgeKind::Activates));
-                }
-                if let Some(domain_name) = domain {
-                    let Binding::Domain(domain, _) = bindings[domain_name].clone() else {
-                        unreachable!("Relation Domain was resolved while lowering");
+                )
+                .and_then(|(lowered, conservation)| {
+                    let Binding::Relation {
+                        relation,
+                        activation: activation_id,
+                    } = bindings[name].clone()
+                    else {
+                        unreachable!("first pass assigns Relation bindings");
                     };
-                    edges.push((relation.erase(), domain.erase(), EdgeKind::AppliesOn));
-                }
-                if let ActivationSyntax::Named(clock_name) = activation
-                    && let Some(Binding::Clock(clock, _)) = bindings.get(clock_name)
-                {
-                    edges.push((activation_id.erase(), clock.erase(), EdgeKind::ClockedBy));
-                }
-                Ok(())
-            }),
+                    nodes.push(
+                        if let Some(terms) = conservation {
+                            RelationDef::conservation(relation, lowered.expression, terms)
+                        } else if *initial {
+                            RelationDef::initial(relation, lowered.expression)
+                        } else {
+                            RelationDef::new(relation, lowered.expression)
+                        }?
+                        .into(),
+                    );
+                    let activation_definition = match activation {
+                        ActivationSyntax::Continuous => {
+                            Some(ActivationDef::continuous(activation_id))
+                        }
+                        ActivationSyntax::Named(name) => match bindings.get(name) {
+                            Some(Binding::Event(_)) => None,
+                            Some(Binding::Clock(_, _)) => {
+                                Some(ActivationDef::periodic(activation_id))
+                            }
+                            _ => unreachable!("named activation was resolved"),
+                        },
+                        _ => unreachable!("unsupported Activation was diagnosed"),
+                    };
+                    if !initial && let Some(definition) = activation_definition {
+                        nodes.push(definition.into());
+                    }
+                    for dependency in lowered.dependencies {
+                        edges.push((relation.erase(), dependency, EdgeKind::DependsOn));
+                    }
+                    structural::connect_relation(
+                        file,
+                        *range,
+                        relation.erase(),
+                        body,
+                        &bindings,
+                        &mut edges,
+                    )?;
+                    for port in lowered.ports {
+                        edges.push((relation.erase(), port, EdgeKind::HasPort));
+                    }
+                    if !initial {
+                        edges.push((activation_id.erase(), relation.erase(), EdgeKind::Activates));
+                    }
+                    if let Some(domain_name) = domain {
+                        let Binding::Domain(domain, _) = bindings[domain_name].clone() else {
+                            unreachable!("Relation Domain was resolved while lowering");
+                        };
+                        edges.push((relation.erase(), domain.erase(), EdgeKind::AppliesOn));
+                    }
+                    if let ActivationSyntax::Named(clock_name) = activation
+                        && let Some(Binding::Clock(clock, _)) = bindings.get(clock_name)
+                    {
+                        edges.push((activation_id.erase(), clock.erase(), EdgeKind::ClockedBy));
+                    }
+                    Ok(())
+                }),
             LoweringItem::Connection {
                 syntax,
                 ports,

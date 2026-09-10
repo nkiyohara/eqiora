@@ -29,7 +29,7 @@ impl RootExpansion<'_, '_> {
                         name: internal_name(identity.entity.full),
                         activation: eqiora_lang::ActivationSyntax::Continuous,
                         domain: None,
-                        equations,
+                        body: equations.into(),
                         initial: true,
                         range: declaration.range(),
                         identity,
@@ -252,7 +252,7 @@ impl RootExpansion<'_, '_> {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        equations,
+                        body: equations,
                         range: declaration.range(),
                         identity,
                     });
@@ -404,9 +404,9 @@ impl RootExpansion<'_, '_> {
                 boundary_family_display("", declaration.name(), side.axis(), side.side()),
                 &identity,
             )?;
-            let equations = rewrite_equations(
+            let equations = super::super::scope::rewrite_relation_body(
                 self.model.file,
-                declaration.equations(),
+                declaration,
                 scope,
                 Some(ActiveBoundaryMember::new(
                     family.binder().member(),
@@ -424,7 +424,7 @@ impl RootExpansion<'_, '_> {
                 name: internal_name(identity.entity.full),
                 activation: eqiora_lang::ActivationSyntax::Continuous,
                 domain: Some(member.target().to_owned()),
-                equations,
+                body: equations,
                 range: family.range(),
                 identity,
             });

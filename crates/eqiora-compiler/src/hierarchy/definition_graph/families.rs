@@ -158,7 +158,7 @@ mod tests {
         let equations = items
             .iter()
             .find_map(|item| match item {
-                Item::Relation(relation) => Some(relation.equations()),
+                Item::Relation(relation) => relation.equations(),
                 _ => None,
             })
             .unwrap();

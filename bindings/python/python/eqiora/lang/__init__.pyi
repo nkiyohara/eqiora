@@ -393,6 +393,17 @@ class Component:
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation: ...
+    def law(
+        self,
+        name: str,
+        *,
+        on: Support,
+        flux: Expression,
+        source: Expression,
+        doc: str | None = None,
+    ) -> Relation:
+        ...
+
     def primal_form(
         self,
         relation: Relation,

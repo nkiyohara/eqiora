@@ -11,6 +11,10 @@ pub(super) fn format_relation(
     indent: usize,
     output: &mut crate::formatter::comments::Output,
 ) {
+    if let crate::ast::RelationBody::Conservation(law) = declaration.body() {
+        super::law::format_law(declaration, law, indent, output);
+        return;
+    }
     write_indent(output, indent);
     write!(
         output,
@@ -52,7 +56,7 @@ fn format_body(
         write!(output, " at {clock}").expect("String write");
     }
     output.push_str(" {\n");
-    for equation in &declaration.equations {
+    for equation in declaration.equations().expect("ordinary Relation body") {
         format_equation(equation, indent, output);
     }
     write_indent(output, indent);

@@ -32,7 +32,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.entity.full),
                         activation: eqiora_lang::ActivationSyntax::Continuous,
                         domain: None,
-                        equations,
+                        body: equations.into(),
                         initial: true,
                         range: declaration.range(),
                         identity,
@@ -226,7 +226,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        equations,
+                        body: equations,
                         range: declaration.range(),
                         identity,
                     });
@@ -287,10 +287,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         ));
                         let equations = rewrite_equations(
                             component.file,
-                            declaration.equations(),
+                            declaration.equations().ok_or_else(|| {
+                                hierarchy_error(
+                                    "Law families require explicit retained term lowering",
+                                )
+                            })?,
                             scope,
                             active,
                         )?;
+                        let equations: crate::lower::LoweringRelationBody = equations.into();
                         self.record_physical_relation_owners(
                             component.file,
                             family.range(),
@@ -302,7 +307,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             name: internal_name(identity.entity.full),
                             activation: eqiora_lang::ActivationSyntax::Continuous,
                             domain: Some(member.target().to_owned()),
-                            equations,
+                            body: equations,
                             range: family.range(),
                             identity,
                         });

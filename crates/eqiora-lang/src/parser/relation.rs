@@ -75,7 +75,7 @@ impl Parser<'_> {
             name,
             activation,
             domain,
-            equations,
+            body: crate::ast::RelationBody::Equations(equations),
             range: TextRange::new(start, end),
         };
         let Some(binder) = binder else {

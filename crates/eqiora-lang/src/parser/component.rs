@@ -50,6 +50,8 @@ impl Parser<'_> {
             self.parse_event().map(ComponentItem::Event)
         } else if self.at_keyword("clock") {
             self.parse_clock().map(ComponentItem::Clock)
+        } else if self.at_keyword("law") {
+            self.parse_law().map(ComponentItem::Relation)
         } else if self.at_keyword("relation") {
             self.parse_component_relation()
                 .map(|relation| match relation {
@@ -68,7 +70,7 @@ impl Parser<'_> {
             self.parse_instance().map(ComponentItem::Instance)
         } else {
             self.error_here(
-                "expected parameter, port, variable, state, initial, clock, relation, connect, or instance in component",
+                "expected parameter, port, variable, state, initial, clock, relation, law, connect, or instance in component",
             );
             None
         }?;

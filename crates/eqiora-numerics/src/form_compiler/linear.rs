@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, RawId, ScalarDomain, ValueFrame, ValueType};
-use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef};
+use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, RelationMeaning, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use super::equation_roles::{EquationRoles, Role};
@@ -112,7 +112,12 @@ impl CompiledLinearBlockForm {
                 coefficients: &coefficients,
             };
             let mut row = context.terms(root, 0)?;
-            if context.diffusion_orientation(root, 0)? == Some(1) {
+            // Conservation fixes the physical outward flux orientation. Equations
+            // may reverse their entire row, but a Law must retain its sign.
+            let physical_balance = matches!(program.node(*relation),
+                Some(KernelNode::Relation(definition))
+                    if matches!(definition.meaning(), RelationMeaning::Conservation(_)));
+            if !physical_balance && context.diffusion_orientation(root, 0)? == Some(1) {
                 row = row.scale(Data::constant(dimension, -1.0))?;
             }
             if row.diffusion.len() != 1

@@ -345,6 +345,7 @@ mod boundary;
 mod descriptor_support;
 mod interface;
 mod recognize;
+mod retained;
 mod support;
 
 use balance::*;

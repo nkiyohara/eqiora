@@ -18,7 +18,7 @@ use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
     ConnectionSemantics, DomainKind, EventDirection, ExprDag, ExprNode, KernelNode, PortPayload,
-    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction,
+    RelationMeaning, RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction,
 };
 use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};
@@ -30,9 +30,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V19: &[u8] = b"eqiora.structural-semantic-fingerprint/v19\0";
+const FINGERPRINT_DOMAIN_V20: &[u8] = b"eqiora.structural-semantic-fingerprint/v20\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V19: u16 = 19;
+const GENERATION_V20: u16 = 20;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -47,7 +47,7 @@ pub enum SemanticFingerprintGeneration {
     /// nominal records with ordered heterogeneous member expressions, and typed
     /// Observables with exact expression and reduction support, and analytic/table
     /// property derivative profiles bound to their exact expression roots.
-    V19,
+    V20,
 }
 
 impl SemanticFingerprintGeneration {
@@ -55,19 +55,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V19 => "eqiora.structural-semantic-fingerprint/v19",
+            Self::V20 => "eqiora.structural-semantic-fingerprint/v20",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V19 => GENERATION_V19,
+            Self::V20 => GENERATION_V20,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V19 => FINGERPRINT_DOMAIN_V19,
+            Self::V20 => FINGERPRINT_DOMAIN_V20,
         }
     }
 }
@@ -210,7 +210,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V19;
+        let generation = SemanticFingerprintGeneration::V20;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -398,7 +398,7 @@ fn encode_node(
         KernelNode::Relation(relation) => {
             encoder.u8(6)?;
             encoder.u8(u8::from(relation.is_initial()))?;
-            encode_expression(
+            let canonical_index = encode_expression(
                 &mut encoder,
                 relation.expression(),
                 1,
@@ -406,6 +406,15 @@ fn encode_node(
                 references,
                 budget,
             )?;
+            match relation.meaning() {
+                RelationMeaning::Equations => encoder.u8(0)?,
+                RelationMeaning::Conservation(terms) => {
+                    encoder.u8(1)?;
+                    for term in [terms.flux(), terms.source()] {
+                        encoder.u32(canonical_expr_id(term, &canonical_index)?)?;
+                    }
+                }
+            }
         }
         KernelNode::Activation(activation) => {
             encoder.u8(7)?;
@@ -558,7 +567,7 @@ fn encode_expression(
     ids: &BTreeMap<RawId, usize>,
     references: &mut Vec<Reference>,
     budget: &mut ConstructionBudget,
-) -> Result<(), Diagnostic> {
+) -> Result<Vec<u32>, Diagnostic> {
     budget.account_expression_nodes(expression.nodes().len())?;
     let (order, canonical_index) = canonical_expression_order(expression)?;
     encoder.len(order.len())?;
@@ -706,7 +715,7 @@ fn encode_expression(
         encoder.bytes(&bytes)?;
     }
     property::encode(encoder, expression, &canonical_index)?;
-    Ok(())
+    Ok(canonical_index)
 }
 
 fn encode_symbol(
@@ -970,7 +979,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v19"
+        "{subject} is newer than structural semantic fingerprint generation v20"
     ))
 }
 

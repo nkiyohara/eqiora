@@ -6,12 +6,13 @@ use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, EnumDef,
     FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ObservableDef,
     ObservableMeasure, ObservableReduction, ParameterDef, PortDef, PortPayload, RecordDef,
-    RecordInstanceDef, RelationDef, RepresentationDef,
+    RecordInstanceDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{ArtifactDigest, invalid_artifact};
 
+use super::relation::WireRelationMeaning;
 use super::value_type::WireValueType;
 use super::*;
 use super::{expression::*, primitive::*, vocabulary::*};
@@ -80,6 +81,7 @@ impl WireNode {
             KernelNode::Relation(value) => WireNodeDefinition::Relation {
                 expression: WireExpression::encode(value.expression())?,
                 initial: value.is_initial(),
+                meaning: WireRelationMeaning::encode(value.meaning()),
             },
             KernelNode::Activation(value) => WireNodeDefinition::Activation {
                 activation: WireActivationKind::encode(value.kind())?,
@@ -197,16 +199,11 @@ impl WireNode {
             WireNodeDefinition::Relation {
                 expression,
                 initial,
+                meaning,
             } => {
                 let id = self.id.typed::<kinds::Relation>()?;
                 let expression = expression.decode()?;
-                Ok(if *initial {
-                    RelationDef::initial(id, expression)
-                } else {
-                    RelationDef::new(id, expression)
-                }
-                .map_err(|error| invalid_artifact(error.message()))?
-                .into())
+                Ok(meaning.decode(id, expression, *initial)?.into())
             }
             WireNodeDefinition::Activation { activation } => Ok(ActivationDef::new(
                 self.id.typed::<kinds::Activation>()?,
@@ -483,6 +480,7 @@ pub(crate) enum WireNodeDefinition {
     },
     Relation {
         initial: bool,
+        meaning: WireRelationMeaning,
         expression: WireExpression,
     },
     Activation {
@@ -664,7 +662,7 @@ impl WireFieldRole {
 mod equation_tests {
     use super::*;
     use eqiora_core::{DimExponents, DynQuantity};
-    use eqiora_schema::kernel::ExprDagBuilder;
+    use eqiora_schema::kernel::{ExprDagBuilder, RelationDef};
 
     #[test]
     fn relation_wire_preserves_side_pairs_and_rejects_unpaired_roots() {

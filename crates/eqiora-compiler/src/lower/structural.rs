@@ -5,13 +5,12 @@ pub(super) fn connect_relation(
     file: &str,
     range: TextRange,
     relation: eqiora_core::RawId,
-    equations: &[LoweringEquation],
+    body: &LoweringRelationBody,
     bindings: &BTreeMap<String, Binding>,
     edges: &mut Vec<(eqiora_core::RawId, eqiora_core::RawId, EdgeKind)>,
 ) -> Result<(), Diagnostic> {
-    let structural = equations
-        .iter()
-        .flat_map(|equation| [&equation.left, &equation.right])
+    let structural = body
+        .expressions()
         .flat_map(LoweringExpression::structural_parameters)
         .collect::<BTreeSet<_>>();
     for name in structural {

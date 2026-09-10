@@ -113,7 +113,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
                 domain: None,
                 initial: false,
                 range: TextRange::new(0, 1),
-                equations: vec![LoweringEquation {
+                body: vec![LoweringEquation {
                     left: literal,
                     right: LoweringExpression::number(
                         eqiora_lang::DecimalLiteral::parse("0").unwrap(),
@@ -122,7 +122,8 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
                     contextual_left_zero: false,
                     contextual_right_zero: true,
                     range: TextRange::new(0, 1),
-                }],
+                }]
+                .into(),
             }],
         };
         let compiled =
@@ -580,8 +581,8 @@ model assigned() {
         domain: None,
         // This unit exercises staged Kernel IDs, below lexical source lookup.
         // The frontend already resolves the two declared members to these roles.
-        equations: vec![LoweringEquation::rewritten(
-            &relation.equations()[0],
+        body: vec![LoweringEquation::rewritten(
+            &relation.equations().unwrap()[0],
             LoweringExpression::binary(
                 eqiora_lang::BinaryOp::Sub,
                 LoweringExpression::call(
@@ -600,7 +601,8 @@ model assigned() {
                 eqiora_lang::DecimalLiteral::parse("0").unwrap(),
                 relation.range(),
             ),
-        )],
+        )]
+        .into(),
         initial: false,
         range: relation.range(),
     });

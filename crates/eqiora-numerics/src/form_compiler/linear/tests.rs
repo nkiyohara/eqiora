@@ -381,3 +381,36 @@ fn rows_preserve_distinct_checked_physical_dimensions() {
         .unwrap();
     assert_eq!(local.matrix().len(), 16);
 }
+
+#[test]
+fn conservation_preserves_physical_flux_orientation() {
+    let source = source(&[vec![0.0]], false);
+    let law = source.replace(
+        "relation row0 on body { -div(2 * grad(f0)) - 1 * unit = 0; }",
+        "law row0 on body { flux -2 * grad(f0); source unit; }",
+    );
+    assert_ne!(source, law);
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+    for input in [&source, &law] {
+        let local = derive(input)
+            .unwrap()
+            .volume()
+            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .unwrap();
+        // h=2, diffusion=2: integral k N_i' N_j' = +/-1;
+        // constant source=1: integral N_i = 1.
+        for (actual, expected) in local.matrix().iter().zip([1.0, -1.0, -1.0, 1.0]) {
+            close(*actual, expected);
+        }
+        for actual in local.rhs() {
+            close(*actual, 1.0);
+        }
+    }
+    let backwards = law.replace("flux -2", "flux 2");
+    let error = derive(&backwards)
+        .unwrap()
+        .volume()
+        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .unwrap_err();
+    assert!(error.message().contains("positive finite diffusion"));
+}

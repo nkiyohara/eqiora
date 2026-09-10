@@ -16,6 +16,7 @@ mod event;
 mod expression;
 mod formulation;
 mod instance;
+mod law;
 mod nominal;
 mod notation;
 mod operator;
@@ -255,6 +256,8 @@ impl Parser<'_> {
             self.parse_event().map(Item::Event)
         } else if self.at_keyword("clock") {
             self.parse_clock().map(Item::Clock)
+        } else if self.at_keyword("law") {
+            self.parse_law().map(Item::Relation)
         } else if self.at_keyword("relation") {
             self.parse_component_relation()
                 .map(|relation| match relation {
@@ -271,7 +274,7 @@ impl Parser<'_> {
             self.parse_instance().map(Item::Instance)
         } else {
             self.error_here(
-                "expected domain, variable, state, initial, parameter, let, port, clock, relation, connect, boundary, or instance",
+                "expected domain, variable, state, initial, parameter, let, port, clock, relation, law, connect, boundary, or instance",
             );
             None
         }

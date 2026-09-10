@@ -1,9 +1,12 @@
+mod relation;
+pub(super) use relation::{validate_relation_expression, validate_relation_family_expression};
 mod aliases;
 mod observable;
 pub(super) use observable::validate_observable;
 mod channels;
 mod enumeration;
 mod integer;
+mod law;
 mod partial;
 mod reductions;
 mod transitions;
@@ -88,152 +91,6 @@ pub(super) fn validate_event_guard(
         ));
     }
     Ok(())
-}
-
-pub(super) fn validate_relation_expression(
-    scope: &DefinitionScope<'_, '_>,
-    declaration: &RelationDecl,
-    relation_support: Option<SpatialSupport<String>>,
-) -> Result<PhysicalEndpointSelections, Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    match declaration.activation() {
-        ActivationSyntax::Continuous => {}
-        ActivationSyntax::Named(clock) => match scope.symbols.get(clock) {
-            Some(SymbolContract::Clock | SymbolContract::Event) => {}
-            Some(_) => diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                scope.file,
-                declaration.range(),
-                format!("`{clock}` is not a ClockDomain or Event"),
-            )),
-            None => diagnostics.push(unresolved(
-                scope.file,
-                declaration.range(),
-                clock,
-                "ClockDomain or Event",
-            )),
-        },
-        _ => diagnostics.push(source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            scope.file,
-            declaration.range(),
-            "Activation syntax is newer than definition-body validation",
-        )),
-    }
-    if declaration.equations().is_empty() {
-        diagnostics.push(source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            scope.file,
-            declaration.range(),
-            "expression DAG requires at least one node and one residual root",
-        ));
-        return Err(diagnostics);
-    }
-    let discrete = matches!(declaration.activation(), ActivationSyntax::Named(_));
-    let mut checker = ExpressionChecker {
-        scope,
-        relation_support,
-        family_scope: None,
-        allow_discrete_symbols: discrete,
-        initial: false,
-        activation: declaration.activation(),
-        physical_endpoints: PhysicalEndpointSelections::new(),
-        intrinsic: false,
-        alias_dependencies: Vec::new(),
-        evolution: Vec::new(),
-        contextual: Vec::new(),
-        sampling: false,
-    };
-    for equation in declaration.equations() {
-        let inferred = match checker.check_equation(equation) {
-            Ok(inferred) => inferred,
-            Err(error) => {
-                diagnostics.push(error);
-                continue;
-            }
-        };
-        if let Err(error) = typing::residual(&inferred, checker.relation_support.as_ref()) {
-            diagnostics.push(type_error(scope.file, equation.left(), error));
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(checker.physical_endpoints)
-    } else {
-        Err(diagnostics)
-    }
-}
-
-pub(super) fn validate_relation_family_expression(
-    scope: &DefinitionScope<'_, '_>,
-    declaration: &RelationFamilyDecl,
-    family_scope: &BoundaryFamilyScope,
-) -> Result<PhysicalEndpointSelections, Vec<Diagnostic>> {
-    let relation = declaration.relation();
-    let mut diagnostics = Vec::new();
-    if !matches!(relation.activation(), ActivationSyntax::Continuous) {
-        diagnostics.push(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "boundary Relation family must be continuous",
-        ));
-    }
-    if declaration.binder() != family_scope.binder() {
-        diagnostics.push(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "boundary Relation family is not checked under its declared binder",
-        ));
-    }
-    if relation.domain() != Some(declaration.binder().member()) {
-        diagnostics.push(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "boundary Relation family support must name its binder member",
-        ));
-    }
-    if relation.equations().is_empty() {
-        diagnostics.push(source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            scope.file,
-            declaration.range(),
-            "expression DAG requires at least one node and one residual root",
-        ));
-        return Err(diagnostics);
-    }
-    let mut checker = ExpressionChecker {
-        scope,
-        relation_support: Some(family_scope.support()),
-        family_scope: Some(family_scope),
-        allow_discrete_symbols: false,
-        initial: false,
-        activation: relation.activation(),
-        physical_endpoints: PhysicalEndpointSelections::new(),
-        intrinsic: false,
-        alias_dependencies: Vec::new(),
-        evolution: Vec::new(),
-        contextual: Vec::new(),
-        sampling: false,
-    };
-    for equation in relation.equations() {
-        let inferred = match checker.check_equation(equation) {
-            Ok(inferred) => inferred,
-            Err(error) => {
-                diagnostics.push(error);
-                continue;
-            }
-        };
-        if let Err(error) = typing::residual(&inferred, checker.relation_support.as_ref()) {
-            diagnostics.push(type_error(scope.file, equation.left(), error));
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(checker.physical_endpoints)
-    } else {
-        Err(diagnostics)
-    }
 }
 
 struct ExpressionChecker<'a, 'e, 'd> {

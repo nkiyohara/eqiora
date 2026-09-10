@@ -262,12 +262,11 @@ impl RootExpansion<'_, '_> {
         file: &str,
         range: eqiora_lang::TextRange,
         relation: FullElaborationIdentity,
-        equations: &[LoweringEquation],
+        body: &crate::lower::LoweringRelationBody,
     ) -> Result<(), Diagnostic> {
         let mut names = BTreeSet::new();
-        if equations
-            .iter()
-            .flat_map(|equation| [&equation.left, &equation.right])
+        if body
+            .expressions()
             .any(|expression| !expression.collect_physical_port_names(&mut names))
         {
             return Err(source_error(

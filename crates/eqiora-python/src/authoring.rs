@@ -9,6 +9,7 @@ mod dimensions;
 mod expression;
 mod imported_properties;
 mod imports;
+mod law;
 mod module;
 mod records;
 pub(crate) use declaration::PyAstType;

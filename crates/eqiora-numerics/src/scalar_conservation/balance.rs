@@ -15,6 +15,13 @@ pub(super) fn recognize_balance(
     ),
     Diagnostic,
 > {
+    if let Some(KernelNode::Relation(definition)) = program.node(relation)
+        && let eqiora_schema::kernel::RelationMeaning::Conservation(terms) = definition.meaning()
+    {
+        return super::retained::retained_balance(
+            program, relation, field, dimensions, bounds, *terms,
+        );
+    }
     require_continuous_relation(program, relation)?;
     let typed = typed_relation(program, relation)?;
     let expression = typed.expression();
