@@ -793,9 +793,9 @@ fn rank_key(
 
 const fn selected_reason(objective: SolverPlanningObjective) -> &'static str {
     match objective {
-        SolverPlanningObjective::Robust => "candidate.selected.robust-reproducible",
-        SolverPlanningObjective::Fast => "candidate.selected.fast-direct",
-        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-krylov",
+        SolverPlanningObjective::Robust => "candidate.selected.robust-preference",
+        SolverPlanningObjective::Fast => "candidate.selected.fast-preference",
+        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-preference",
     }
 }
 

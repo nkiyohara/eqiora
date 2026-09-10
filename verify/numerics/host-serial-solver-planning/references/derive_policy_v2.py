@@ -44,9 +44,9 @@ POLICY_TABLE = {
 }
 
 SELECTED_REASON = {
-    "Robust": "candidate.selected.robust-reproducible",
-    "Fast": "candidate.selected.fast-direct",
-    "LowMemory": "candidate.selected.low-memory-krylov",
+    "Robust": "candidate.selected.robust-preference",
+    "Fast": "candidate.selected.fast-preference",
+    "LowMemory": "candidate.selected.low-memory-preference",
 }
 
 EXPECTED_SELECTION = {
@@ -121,9 +121,9 @@ REASON_VOCABULARY = (
     "capability.exact-tuple-required",
     "candidate.admitted",
     "candidate.not-selected",
-    "candidate.selected.robust-reproducible",
-    "candidate.selected.fast-direct",
-    "candidate.selected.low-memory-krylov",
+    "candidate.selected.robust-preference",
+    "candidate.selected.fast-preference",
+    "candidate.selected.low-memory-preference",
 )
 
 INVENTORY_FAILURES = (

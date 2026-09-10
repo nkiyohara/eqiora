@@ -655,9 +655,9 @@ fn assert_actual_canonical_operator_ledger(
 
 fn selected_reason(objective: SolverPlanningObjective) -> &'static str {
     match objective {
-        SolverPlanningObjective::Robust => "candidate.selected.robust-reproducible",
-        SolverPlanningObjective::Fast => "candidate.selected.fast-direct",
-        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-krylov",
+        SolverPlanningObjective::Robust => "candidate.selected.robust-preference",
+        SolverPlanningObjective::Fast => "candidate.selected.fast-preference",
+        SolverPlanningObjective::LowMemory => "candidate.selected.low-memory-preference",
     }
 }
 
@@ -727,19 +727,19 @@ fn expected_trace(objective: SolverPlanningObjective) -> Vec<(&'static str, &'st
             (FAER_SPARSE_LU_ID, "candidate.admitted"),
             (FAER_SPARSE_LU_ID, "candidate.not-selected"),
             (REFERENCE_ID, "candidate.admitted"),
-            (REFERENCE_ID, "candidate.selected.robust-reproducible"),
+            (REFERENCE_ID, "candidate.selected.robust-preference"),
         ],
         SolverPlanningObjective::Fast => vec![
             (FAER_BICGSTAB_ID, "candidate.admitted"),
             (FAER_BICGSTAB_ID, "candidate.not-selected"),
             (FAER_SPARSE_LU_ID, "candidate.admitted"),
-            (FAER_SPARSE_LU_ID, "candidate.selected.fast-direct"),
+            (FAER_SPARSE_LU_ID, "candidate.selected.fast-preference"),
             (REFERENCE_ID, "candidate.admitted"),
             (REFERENCE_ID, "candidate.not-selected"),
         ],
         SolverPlanningObjective::LowMemory => vec![
             (FAER_BICGSTAB_ID, "candidate.admitted"),
-            (FAER_BICGSTAB_ID, "candidate.selected.low-memory-krylov"),
+            (FAER_BICGSTAB_ID, "candidate.selected.low-memory-preference"),
             (FAER_SPARSE_LU_ID, "candidate.admitted"),
             (FAER_SPARSE_LU_ID, "candidate.not-selected"),
             (REFERENCE_ID, "candidate.admitted"),
@@ -1383,7 +1383,7 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
             vec![
                 (FAER_BICGSTAB_ID, "profile.complete-diagonal-required"),
                 (FAER_SPARSE_LU_ID, "candidate.admitted"),
-                (FAER_SPARSE_LU_ID, "candidate.selected.robust-reproducible"),
+                (FAER_SPARSE_LU_ID, "candidate.selected.robust-preference"),
                 (REFERENCE_ID, "profile.complete-diagonal-required"),
             ]
         );

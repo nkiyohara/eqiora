@@ -401,7 +401,7 @@ for plan in planned.values():
     for ranked_field, exact_field in zip(plan.fields, exact_plan.fields):
         ranked_output, exact_output = ranked_state.field(ranked_field), exact_state.field(exact_field)
         for association in ranked_output.associations:
-            assert ranked_output.values(association).numpy().tolist() == exact_output.values(association).numpy().tolist()
+            assert ranked_output.values(association).tolist() == exact_output.values(association).tolist()
 fvm_two = package.run(fvm, state=fvm_zero, steps=2, output_steps=(2,))
 assert fvm_two.trajectory.plan_identity == fvm.identity
 assert fvm_two.trajectory.realization_digest == fvm.realization_digest
