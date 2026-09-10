@@ -22,8 +22,8 @@ eqiora = "=0.1.0-alpha.8"
 ```
 
 Building from source requires a Rust toolchain and linker. The minimum supported
-Rust version is 1.89. The preceding 0.1.0-alpha.7 release's default-feature
-installation was tested on Linux x86-64 with Rust 1.98.0.
+Rust version is 1.89. This release's default-feature installation was tested on
+Linux x86-64 with Rust 1.97.1.
 
 ## Build command-line tools from this checkout
 
@@ -38,9 +38,8 @@ This installs `eqiora` and `eqiora-mcp`.
 
 ## Compile a model
 
-This example uses the current checkout's API. Set your dependency to
-`eqiora = { path = "/path/to/eqiora/crates/eqiora" }`, replacing the path with your
-checkout location. Put this in `src/main.rs`, then run `cargo run`:
+With the registry dependency above, put this in `src/main.rs`, then run
+`cargo run`:
 
 ```rust
 use eqiora::api::ModelDocument;
@@ -48,10 +47,9 @@ use eqiora::api::ModelDocument;
 fn main() {
     let _model = ModelDocument::compile(
         "decay.eqi",
-        r#"model decay {
+        r#"model decay(parameter rate: 1 / s = 1) {
             state x: 1;
             initial { x = 1; }
-            parameter rate: 1 / s = 1;
             relation flow {
                 derivative(x) + rate * x = 0;
             }
