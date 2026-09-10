@@ -1846,6 +1846,7 @@ def compile_package(
 
     ...
 
+@final
 class ProjectUpdate:
     """A validated selection that can be inspected and committed once.
 
