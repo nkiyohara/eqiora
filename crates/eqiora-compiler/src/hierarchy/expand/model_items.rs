@@ -241,7 +241,6 @@ impl RootExpansion<'_, '_> {
                     let identity = identities.relations[declaration.name()].clone();
                     let (activation, domain, equations) =
                         rewrite_relation(self.model.file, declaration, scope)?;
-                    let equations: crate::lower::LoweringRelationBody = equations.into();
                     self.record_physical_relation_owners(
                         self.model.file,
                         declaration.range(),
@@ -253,7 +252,7 @@ impl RootExpansion<'_, '_> {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        body: equations.into(),
+                        body: equations,
                         range: declaration.range(),
                         identity,
                     });

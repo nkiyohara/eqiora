@@ -215,7 +215,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.relations[declaration.name()].clone();
                     let (activation, domain, equations) =
                         rewrite_relation(component.file, declaration, scope)?;
-                    let equations: crate::lower::LoweringRelationBody = equations.into();
                     self.record_physical_relation_owners(
                         component.file,
                         declaration.range(),
@@ -227,7 +226,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        body: equations.into(),
+                        body: equations,
                         range: declaration.range(),
                         identity,
                     });
@@ -308,7 +307,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             name: internal_name(identity.entity.full),
                             activation: eqiora_lang::ActivationSyntax::Continuous,
                             domain: Some(member.target().to_owned()),
-                            body: equations.into(),
+                            body: equations,
                             range: family.range(),
                             identity,
                         });
