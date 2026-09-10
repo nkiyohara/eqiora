@@ -4,6 +4,8 @@
 //! outside its own list is refused rather than resolved elsewhere.
 
 use std::collections::{BTreeMap, BTreeSet};
+mod property;
+use property::WireProperty;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
@@ -24,6 +26,8 @@ use super::{primitive::*, vocabulary::*};
 pub(crate) struct WireExpression {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) definitions: Vec<WirePureOperatorDefinition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) properties: Vec<WireProperty>,
     pub(crate) nodes: Vec<WireExpressionNode>,
     pub(crate) roots: Vec<u32>,
 }
@@ -31,10 +35,17 @@ pub(crate) struct WireExpression {
 impl WireExpression {
     pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
         checked_count_sum(
-            self.nodes.iter().map(|node| match node {
-                WireExpressionNode::Constant { value } => value.component_payload_count(),
-                _ => 0,
-            }),
+            self.nodes
+                .iter()
+                .map(|node| match node {
+                    WireExpressionNode::Constant { value } => value.component_payload_count(),
+                    _ => 0,
+                })
+                .chain(
+                    self.properties
+                        .iter()
+                        .map(WireProperty::literal_component_count),
+                ),
             "literal component payload",
         )
     }
@@ -43,6 +54,9 @@ impl WireExpression {
         &self,
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
+        for property in &self.properties {
+            property.ensure_limits(limits)?;
+        }
         for node in &self.nodes {
             if let WireExpressionNode::Constant { value } = node {
                 value.ensure_limits(limits)?;
@@ -53,6 +67,11 @@ impl WireExpression {
 
     pub(crate) fn encode(expression: &ExprDag) -> Result<Self, Diagnostic> {
         Ok(Self {
+            properties: expression
+                .properties()
+                .iter()
+                .map(|(root, release)| WireProperty::encode(*root, release))
+                .collect::<Result<_, _>>()?,
             definitions: expression
                 .definitions()
                 .values()
@@ -73,12 +92,25 @@ impl WireExpression {
                 "wire expression requires non-empty nodes and roots",
             ));
         }
+        if self.properties.len() > self.nodes.len()
+            || self
+                .properties
+                .windows(2)
+                .any(|pair| pair[0].root >= pair[1].root)
+        {
+            return Err(invalid_artifact(
+                "property occurrences must be unique, ordered, and bounded by expression nodes",
+            ));
+        }
         let definitions = self.decode_definitions()?;
         let mut builder = ExprDagBuilder::new();
         let mut ids = Vec::with_capacity(self.nodes.len());
         for node in &self.nodes {
             let id = node.decode(&mut builder, &ids, &definitions)?;
             ids.push(id);
+        }
+        for property in &self.properties {
+            property.decode(&mut builder, &ids, &definitions)?;
         }
         let referenced_definitions = self
             .nodes

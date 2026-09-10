@@ -146,7 +146,7 @@ fn compiler_owned_math_root_cannot_be_a_package_alias() {
 fn compiler_owned_math_root_cannot_be_a_property_declaration() {
     for source in [
         "public property contract math(): 1 { derivatives value_only; } model Main() {}",
-        "public property contract C(): 1 { derivatives value_only; } public property release math implements C { value = 1; source_unit: 1 = 1; validity = unconditional; citation = org.example; license = spdx.CC0_1_0; } model Main() {}",
+        "public property contract C(): 1 { derivatives value_only; } public property release math: C { analytic { value = 1; source_unit: 1 = 1; } validity unconditional; outside reject; branch single; citation org.example; license spdx.CC0_1_0; } model Main() {}",
     ] {
         let root = namespace("root");
         let input = ResolvedHierarchyInput::new(

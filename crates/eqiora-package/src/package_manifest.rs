@@ -34,6 +34,8 @@ impl PackageDependencyV1 {
 pub enum BundleRoleV1 {
     ModelSource,
     Documentation,
+    /// Exact binary64 resolved-array JSON in the package-owned `data/` namespace.
+    ResolvedArray,
 }
 
 /// One generated source-bundle inventory entry.
@@ -125,6 +127,42 @@ impl PackageManifestV1 {
                     "duplicate direct dependency `{}`",
                     pair[0].target.name
                 )));
+            }
+        }
+        for entry in &self.bundle {
+            if entry.role == BundleRoleV1::ResolvedArray {
+                let name = entry
+                    .path
+                    .as_str()
+                    .strip_prefix("data/")
+                    .and_then(|path| path.strip_suffix(".json"))
+                    .ok_or_else(|| {
+                        ContractError::new(
+                            "resolved array path must use data/<NamePath segments>.json",
+                        )
+                    })?;
+                if name.split('/').any(|part| part.contains('.')) {
+                    return Err(ContractError::new(
+                        "resolved array path segments must be identifiers",
+                    ));
+                }
+                QualifiedName::parse(name.replace('/', "."))?;
+            }
+        }
+        for entry in &self.bundle {
+            if entry.role == BundleRoleV1::Documentation
+                && let Some(name) = entry
+                    .path
+                    .as_str()
+                    .strip_prefix("docs/")
+                    .and_then(|path| path.strip_suffix(".md"))
+            {
+                if name.split('/').any(|part| part.contains('.')) {
+                    return Err(ContractError::new(
+                        "documentation asset path segments must be identifiers",
+                    ));
+                }
+                QualifiedName::parse(name.replace('/', "."))?;
             }
         }
         self.bundle.sort();
@@ -282,6 +320,52 @@ mod tests {
                 ExactVersion::parse("1.0.0").expect("version"),
                 vec![],
                 vec![upper, lower],
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn resolved_array_role_has_one_portable_typed_path_grammar() {
+        let make = |path: &str| {
+            PackageManifestV1::new(
+                "main",
+                QualifiedName::parse("test.Arrays").unwrap(),
+                ExactVersion::parse("1.0.0").unwrap(),
+                vec![],
+                vec![
+                    BundleEntryV1::new(
+                        NormalizedRelativePath::parse("src/main.eqi").unwrap(),
+                        BundleRoleV1::ModelSource,
+                    ),
+                    BundleEntryV1::new(
+                        NormalizedRelativePath::parse(path).unwrap(),
+                        BundleRoleV1::ResolvedArray,
+                    ),
+                ],
+            )
+        };
+        let accepted = make("data/curves/Cp.json").unwrap();
+        let bytes = accepted.canonical_json().unwrap();
+        assert!(
+            String::from_utf8(bytes.clone())
+                .unwrap()
+                .contains("resolved_array")
+        );
+        assert_eq!(PackageManifestV1::from_json(&bytes).unwrap(), accepted);
+        for path in [
+            "other/Cp.json",
+            "data/Cp.csv",
+            "data/has.dot.json",
+            "data/bad-name.json",
+        ] {
+            assert!(make(path).is_err());
+        }
+        assert!(
+            PackageManifestV1::from_json(
+                &String::from_utf8(bytes)
+                    .unwrap()
+                    .replace("resolved_array", "unregistered_role")
+                    .into_bytes()
             )
             .is_err()
         );

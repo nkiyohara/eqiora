@@ -53,7 +53,13 @@ pub enum ResolvedArrayScalarV1 {
 /// mesh, field association, chunking, device residency, or storage identity.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedArrayV1 {
-    wire: WireResolvedArrayV1,
+    wire: AcceptedArray,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum AcceptedArray {
+    U64(WireResolvedArrayU64),
+    F64(eqiora_schema::resolved_array::ResolvedF64Array),
 }
 
 impl ResolvedArrayV1 {
@@ -72,7 +78,14 @@ impl ResolvedArrayV1 {
             values,
         });
         validate_wire(&wire, None)?;
-        Ok(Self { wire })
+        Ok(Self {
+            wire: match wire {
+                WireResolvedArrayV1::U64(wire) => AcceptedArray::U64(wire),
+                WireResolvedArrayV1::F64(wire) => AcceptedArray::F64(
+                    eqiora_schema::resolved_array::ResolvedF64Array::new(wire.shape, wire.values)?,
+                ),
+            },
+        })
     }
 
     /// Construct a row-major `f64` array and normalize every zero to `+0.0`.
@@ -80,26 +93,21 @@ impl ResolvedArrayV1 {
     /// # Errors
     /// Returns `EQ0901` when shape is invalid, value count differs from its
     /// exact product, or any value is NaN or infinite.
-    pub fn from_f64(shape: Vec<u64>, mut values: Vec<f64>) -> Result<Self, Diagnostic> {
-        if values.iter().any(|value| !value.is_finite()) {
-            return Err(invalid_artifact(
-                "resolved f64 array values must all be finite",
-            ));
+    pub fn from_f64(shape: Vec<u64>, values: Vec<f64>) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            wire: AcceptedArray::F64(eqiora_schema::resolved_array::ResolvedF64Array::new(
+                shape, values,
+            )?),
+        })
+    }
+
+    /// Immutable verified binary64 semantic value, if selected.
+    #[must_use]
+    pub const fn resolved_f64(&self) -> Option<&eqiora_schema::resolved_array::ResolvedF64Array> {
+        match &self.wire {
+            AcceptedArray::F64(array) => Some(array),
+            AcceptedArray::U64(_) => None,
         }
-        for value in &mut values {
-            if *value == 0.0 {
-                *value = 0.0;
-            }
-        }
-        let wire = WireResolvedArrayV1::F64(WireResolvedArrayF64 {
-            schema: RESOLVED_ARRAY_SCHEMA.to_owned(),
-            encoding: CANONICAL_ENCODING.to_owned(),
-            scalar: WireF64Scalar::F64,
-            shape,
-            values,
-        });
-        validate_wire(&wire, None)?;
-        Ok(Self { wire })
     }
 
     /// Decode the exact closed DTO under byte, nesting, rank, and value limits.
@@ -112,7 +120,14 @@ impl ResolvedArrayV1 {
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid resolved array JSON: {error}")))?;
         validate_wire(&wire, Some(limits))?;
-        Ok(Self { wire })
+        Ok(Self {
+            wire: match wire {
+                WireResolvedArrayV1::U64(wire) => AcceptedArray::U64(wire),
+                WireResolvedArrayV1::F64(wire) => AcceptedArray::F64(
+                    eqiora_schema::resolved_array::ResolvedF64Array::new(wire.shape, wire.values)?,
+                ),
+            },
+        })
     }
 
     /// Deterministic ordered DTO bytes.
@@ -120,8 +135,12 @@ impl ResolvedArrayV1 {
     /// # Errors
     /// Returns `EQ0901` if serialization unexpectedly fails.
     pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&self.wire)
-            .map_err(|error| invalid_artifact(format!("cannot serialize resolved array: {error}")))
+        match &self.wire {
+            AcceptedArray::F64(array) => array.canonical_json(),
+            AcceptedArray::U64(wire) => serde_json::to_vec(wire).map_err(|error| {
+                invalid_artifact(format!("cannot serialize resolved array: {error}"))
+            }),
+        }
     }
 
     /// Domain-separated SHA-256 identity of the complete normalized DTO.
@@ -129,6 +148,9 @@ impl ResolvedArrayV1 {
     /// # Errors
     /// Returns `EQ0901` if canonical serialization fails.
     pub fn digest(&self) -> Result<ArtifactDigest, Diagnostic> {
+        if let AcceptedArray::F64(array) = &self.wire {
+            return Ok(ArtifactDigest::from_sha256(array.digest()?));
+        }
         Ok(ArtifactDigest::compute(
             RESOLVED_ARRAY_SCHEMA.as_bytes(),
             &self.canonical_json()?,
@@ -139,8 +161,8 @@ impl ResolvedArrayV1 {
     #[must_use]
     pub const fn scalar(&self) -> ResolvedArrayScalarV1 {
         match &self.wire {
-            WireResolvedArrayV1::U64(_) => ResolvedArrayScalarV1::U64,
-            WireResolvedArrayV1::F64(_) => ResolvedArrayScalarV1::F64,
+            AcceptedArray::U64(_) => ResolvedArrayScalarV1::U64,
+            AcceptedArray::F64(_) => ResolvedArrayScalarV1::F64,
         }
     }
 
@@ -148,8 +170,8 @@ impl ResolvedArrayV1 {
     #[must_use]
     pub fn shape(&self) -> &[u64] {
         match &self.wire {
-            WireResolvedArrayV1::U64(wire) => &wire.shape,
-            WireResolvedArrayV1::F64(wire) => &wire.shape,
+            AcceptedArray::U64(wire) => &wire.shape,
+            AcceptedArray::F64(wire) => wire.shape(),
         }
     }
 
@@ -157,8 +179,8 @@ impl ResolvedArrayV1 {
     #[must_use]
     pub fn u64_values(&self) -> Option<&[u64]> {
         match &self.wire {
-            WireResolvedArrayV1::U64(wire) => Some(&wire.values),
-            WireResolvedArrayV1::F64(_) => None,
+            AcceptedArray::U64(wire) => Some(&wire.values),
+            AcceptedArray::F64(_) => None,
         }
     }
 
@@ -166,8 +188,8 @@ impl ResolvedArrayV1 {
     #[must_use]
     pub fn f64_values(&self) -> Option<&[f64]> {
         match &self.wire {
-            WireResolvedArrayV1::U64(_) => None,
-            WireResolvedArrayV1::F64(wire) => Some(&wire.values),
+            AcceptedArray::U64(_) => None,
+            AcceptedArray::F64(wire) => Some(wire.values()),
         }
     }
 }
@@ -251,7 +273,7 @@ fn require_count(label: &str, actual: usize, limit: usize) -> Result<(), Diagnos
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
 enum WireResolvedArrayV1 {
     U64(WireResolvedArrayU64),
@@ -268,7 +290,7 @@ struct WireResolvedArrayU64 {
     values: Vec<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireResolvedArrayF64 {
     schema: String,
@@ -284,7 +306,7 @@ enum WireU64Scalar {
     U64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireF64Scalar {
     F64,
@@ -316,6 +338,35 @@ mod tests {
             array.digest().unwrap().sha256_bytes(),
             <[u8; 32]>::from(oracle.finalize()),
         );
+    }
+
+    #[test]
+    fn f64_schema_owner_preserves_bytes_digest_and_bounded_decode() {
+        let semantic =
+            eqiora_schema::resolved_array::ResolvedF64Array::new(vec![2], vec![-0.0, 1.5]).unwrap();
+        let array = ResolvedArrayV1::from_f64(vec![2], vec![-0.0, 1.5]).unwrap();
+        assert_eq!(
+            array.canonical_json().unwrap(),
+            semantic.canonical_json().unwrap()
+        );
+        assert_eq!(
+            array.digest().unwrap().sha256_bytes(),
+            semantic.digest().unwrap()
+        );
+        let decoded = ResolvedArrayV1::from_json(
+            &semantic.canonical_json().unwrap(),
+            ResolvedArrayDecoderLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(decoded.resolved_f64(), Some(&semantic));
+        let limits = ResolvedArrayDecoderLimits {
+            array: ResolvedArrayLimits {
+                max_values: 1,
+                ..ResolvedArrayLimits::default()
+            },
+            ..ResolvedArrayDecoderLimits::default()
+        };
+        assert!(ResolvedArrayV1::from_json(&semantic.canonical_json().unwrap(), limits).is_err());
     }
 
     #[test]

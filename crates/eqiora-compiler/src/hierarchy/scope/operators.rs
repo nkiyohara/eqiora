@@ -22,6 +22,11 @@ pub(super) fn rewrite(
     scope: &Scope,
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<LoweringExpression, Diagnostic> {
+    if let Some(value) =
+        super::property::rewrite(file, expression, callee, arguments, scope, active)?
+    {
+        return Ok(value);
+    }
     let (definition, names) = scope.pure_operator(callee).cloned().ok_or_else(|| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,

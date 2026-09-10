@@ -1084,6 +1084,8 @@ name = "eqiora-schema"
 version = "0.1.0-alpha.7"
 dependencies = [
  "eqiora-core",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 

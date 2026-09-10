@@ -6,14 +6,15 @@ use eqiora_artifact::{
 use eqiora_compiler::projection::{PhysicalExposureContract, PhysicalExposureProjectionMap};
 use eqiora_compiler::provenance::ProvenanceMap;
 use eqiora_compiler::{AnalyzedResolvedHierarchy, analyze_resolved_hierarchy};
+use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ValueLiteral};
 use eqiora_package::{
     BoundRunManifestSchemaV1, CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest,
     CompilationToolchainV2, ExactResolver, ExactVersion, PackageCompilationRecordV2,
     PackageExecutionBindingV1, PackageRunBindingV1, PackageStore, QualifiedName,
     ResolutionRecordV1,
 };
+use eqiora_schema::kernel::PropertyMeaning;
 
 use super::{
     PackageCompilationError, PackageExecutionBindingError, PackageRunBindingError,
@@ -35,7 +36,7 @@ fn collect_property_bindings(
                 release,
                 component,
                 requirement,
-                normalized_value,
+                meaning,
                 validity,
                 citation,
                 license,
@@ -46,7 +47,7 @@ fn collect_property_bindings(
                     release: release.to_owned(),
                     component: component.to_owned(),
                     requirement: requirement.to_owned(),
-                    normalized_value: normalized_value.clone(),
+                    meaning: meaning.clone(),
                     validity: validity.to_owned(),
                     citation: citation.to_owned(),
                     license: license.to_owned(),
@@ -75,7 +76,7 @@ struct PropertyBindingProjection {
     release: String,
     component: String,
     requirement: String,
-    normalized_value: ValueLiteral,
+    meaning: PropertyMeaning,
     validity: String,
     citation: String,
     license: String,
@@ -178,7 +179,7 @@ impl PackagedModelDocument {
     /// Exact nominal property bindings used by this compilation.
     ///
     /// Each item is `(composition, contract, release, component, requirement,
-    /// normalized_value, validity, citation, license)`.
+    /// meaning, validity, citation, license)`.
     #[must_use]
     pub fn property_bindings(
         &self,
@@ -189,7 +190,7 @@ impl PackagedModelDocument {
             &str,
             &str,
             &str,
-            &ValueLiteral,
+            &PropertyMeaning,
             &str,
             &str,
             &str,
@@ -202,7 +203,7 @@ impl PackagedModelDocument {
                 value.release.as_str(),
                 value.component.as_str(),
                 value.requirement.as_str(),
-                &value.normalized_value,
+                &value.meaning,
                 value.validity.as_str(),
                 value.citation.as_str(),
                 value.license.as_str(),

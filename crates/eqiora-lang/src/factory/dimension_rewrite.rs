@@ -33,9 +33,18 @@ impl SourceAstFactory {
         }
         for declaration in &mut document.property_contracts {
             declaration.value_type.rewrite_dimension(&mut rewrite);
+            for (_, input) in &mut declaration.inputs {
+                input.rewrite_dimension(&mut rewrite);
+            }
         }
         for declaration in &mut document.property_releases {
-            declaration.source_dimension = rewrite(&declaration.source_dimension);
+            if let Some(dimension) = &mut declaration.source_dimension {
+                *dimension = rewrite(dimension);
+            }
+            if let crate::PropertySourceSyntax::Table(table) = &mut declaration.source_value {
+                table.axis_dimension = rewrite(&table.axis_dimension);
+                table.value_dimension = rewrite(&table.value_dimension);
+            }
         }
         for connector in &mut document.connectors {
             rewrite_connector(&mut connector.syntax, &mut rewrite);

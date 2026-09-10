@@ -1,3 +1,5 @@
+mod predicates;
+pub(crate) use predicates::comparison_operator;
 mod identities;
 #[cfg(test)]
 use identities::FreshLoweringIdentities;
@@ -281,6 +283,10 @@ enum LoweringExpressionNode {
     },
     Piecewise {
         name: String,
+        arguments: Vec<LoweringExpression>,
+    },
+    Property {
+        release: Arc<eqiora_schema::kernel::PropertyRelease>,
         arguments: Vec<LoweringExpression>,
     },
     PureOperator {
@@ -981,20 +987,4 @@ fn unresolved(file: &str, range: TextRange, name: &str, expected: &str) -> Diagn
 
 fn normalize_zero(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
-}
-
-/// Map authored comparison syntax to the one Kernel predicate vocabulary.
-pub(crate) fn comparison_operator(
-    operator: BinaryOp,
-) -> Option<eqiora_schema::kernel::ComparisonOp> {
-    use eqiora_schema::kernel::ComparisonOp;
-    Some(match operator {
-        BinaryOp::Equal => ComparisonOp::Equal,
-        BinaryOp::NotEqual => ComparisonOp::NotEqual,
-        BinaryOp::Less => ComparisonOp::Less,
-        BinaryOp::LessEqual => ComparisonOp::LessEqual,
-        BinaryOp::Greater => ComparisonOp::Greater,
-        BinaryOp::GreaterEqual => ComparisonOp::GreaterEqual,
-        _ => return None,
-    })
 }

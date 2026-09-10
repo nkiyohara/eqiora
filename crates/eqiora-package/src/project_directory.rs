@@ -19,6 +19,23 @@ const MAX_SOURCE_BYTES: usize = 256 * 1024 * 1024;
 pub(crate) fn discover_project_sources(
     root: &Dir,
 ) -> Result<BTreeMap<NormalizedRelativePath, String>, PackageDirectoryError> {
+    discover_project_files(root, ".eqi")?
+        .into_iter()
+        .map(|(path, bytes)| {
+            let source = String::from_utf8(bytes).map_err(|error| {
+                PackageDirectoryError::Contract(ContractError::new(format!(
+                    "project source {path} is not UTF-8: {error}"
+                )))
+            })?;
+            Ok((path, source))
+        })
+        .collect()
+}
+
+pub(crate) fn discover_project_files(
+    root: &Dir,
+    extension: &str,
+) -> Result<BTreeMap<NormalizedRelativePath, Vec<u8>>, PackageDirectoryError> {
     let mut pending = BTreeSet::<NormalizedRelativePath>::new();
     let mut root_pending = true;
     let mut sources = BTreeMap::new();
@@ -90,7 +107,7 @@ pub(crate) fn discover_project_sources(
             if !file_type.is_file() {
                 return Err(PackageDirectoryError::NonRegularFile { path });
             }
-            if !path.as_str().ends_with(".eqi") {
+            if !path.as_str().ends_with(extension) {
                 continue;
             }
             check_limit(
@@ -108,12 +125,7 @@ pub(crate) fn discover_project_sources(
                 source_bytes,
                 MAX_SOURCE_BYTES,
             )?;
-            let source = String::from_utf8(bytes).map_err(|error| {
-                PackageDirectoryError::Contract(ContractError::new(format!(
-                    "project source {path} is not UTF-8: {error}"
-                )))
-            })?;
-            sources.insert(path, source);
+            sources.insert(path, bytes);
         }
     }
     Ok(sources)

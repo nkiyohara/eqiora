@@ -316,7 +316,7 @@ def test_removed_source_choice_keywords_are_unexpected() -> None:
         contract_source.property_release(
             "ReferenceDiffusivity", **release_arguments, public=True
         )
-    with pytest.raises(TypeError, match="unexpected keyword argument 'validity'"):
+    with pytest.raises(TypeError, match="numeric literals must be finite int or float"):
         contract_source.property_release(
             "ReferenceDiffusivity",
             **release_arguments,

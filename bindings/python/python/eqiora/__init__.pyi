@@ -171,9 +171,9 @@ class PackageConformanceReport(NamedTuple):
 
 @final
 class PropertyBinding:
-    """Inspect a typed constant property binding in a package.
+    """Inspect an exact constant, analytic or table release bound to a Model occurrence.
 
-    Authority: ``crates/eqiora-python/src/model.rs::PyPropertyBinding``.
+    Authority: ``crates/eqiora-python/src/model/property.rs::PyPropertyBinding``.
     """
 
     @property
@@ -187,7 +187,15 @@ class PropertyBinding:
     @property
     def requirement(self) -> str: ...
     @property
-    def normalized_value(self) -> _TypedValue: ...
+    def normalized_value(self) -> _TypedValue | None: ...
+    @property
+    def inputs(self) -> list[str]: ...
+    @property
+    def branch(self) -> str | None: ...
+    @property
+    def first_partials(self) -> bool: ...
+    @property
+    def derivatives(self) -> str: ...
     @property
     def value_type(self) -> ValueType: ...
     @property

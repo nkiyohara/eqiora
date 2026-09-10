@@ -8,6 +8,8 @@ use crate::resolved::{
 
 struct PropertyScope<'a> {
     units: &'a [AnalyzedSourceUnit],
+    catalog: &'a crate::property::catalog::Catalog,
+    binding_namespace: &'a CompilationModuleId,
     aliases: &'a [ResolvedAlias],
     local_namespace: Option<&'a CompilationModuleId>,
 }
@@ -136,17 +138,22 @@ fn local_document_in(
         CompilationNamespaceId::new(["eqiora.local"]).map_err(|error| vec![error])?,
         ModuleName::new(["main"]).map_err(|error| vec![error])?,
     );
-    let mut units = vec![AnalyzedSourceUnit {
+    let units = vec![AnalyzedSourceUnit {
         native: native.cloned().map(std::sync::Arc::new),
+        resolved_arrays: Default::default(),
+        resolved_documents: Default::default(),
         module: module.clone(),
         file: file.to_owned(),
         source_bytes,
         authored_document: std::sync::Arc::new(document.clone()),
         document,
     }];
-    crate::property::validate_and_elaborate(&mut units, &[])?;
+    let property_catalog = std::sync::Arc::new(crate::property::catalog::build(&units, &[])?);
+    crate::property::validate_bindings(&units, &[], &property_catalog)?;
     let context = PropertyScope {
         units: &units,
+        catalog: &property_catalog,
+        binding_namespace: &module,
         aliases: &[],
         local_namespace: Some(&module),
     };
@@ -159,6 +166,8 @@ fn local_document_in(
         native,
         limits,
     )?;
+    elaborator.property_catalog = property_catalog.clone();
+    elaborator.property_local_module = Some(module.clone());
     if let Some(entry) = entry
         && !bindings.is_empty()
         && let Some(model) = elaborator
@@ -284,6 +293,8 @@ pub(crate) fn resolved(
     let mut elaborator = Elaborator::new_resolved(&hierarchy.analysis, HierarchyLimits::default())?;
     let context = PropertyScope {
         units: &hierarchy.analysis.units,
+        catalog: &hierarchy.analysis.property_catalog,
+        binding_namespace: &hierarchy.analysis.root,
         aliases: &hierarchy.analysis.aliases,
         local_namespace: None,
     };
@@ -406,7 +417,7 @@ fn compile(
         )?;
         return RootExpansion::new(elaborator, definition, size)
             .map_err(|error| vec![error])?
-            .expand_bound(prepared.supports(), &prepared.clocks)?
+            .expand_bound(prepared.supports(), &prepared.clocks, prepared.properties())?
             .compile(limits);
     }
     let path = NamePath::from_segments(entry.split('.'), TextRange::default())
@@ -493,19 +504,19 @@ fn property(
     file: &str,
     requirement: &eqiora_lang::ComponentPropertyDecl,
     value: &eqiora_lang::Expr,
-) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>> {
+) -> Result<eqiora_schema::kernel::PropertyRelease, Vec<Diagnostic>> {
     let namespace = scope.namespace(namespace).ok_or_else(|| {
         vec![hierarchy_error(
             "selected property scope is missing its source namespace",
         )]
     })?;
-    crate::property::selected_value(
-        scope.units,
-        scope.aliases,
+    scope.catalog.bind(
         namespace,
-        file,
         requirement,
+        scope.binding_namespace,
         value,
+        scope.aliases,
+        file,
     )
 }
 
@@ -518,7 +529,7 @@ fn prepare(
     mut property: impl FnMut(
         &eqiora_lang::ComponentPropertyDecl,
         &eqiora_lang::Expr,
-    ) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>>,
+    ) -> Result<eqiora_schema::kernel::PropertyRelease, Vec<Diagnostic>>,
 ) -> Result<ExternalComponentBinding, Vec<Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet};
     crate::external_compile::validate_selected_bindings(file, name, bindings)?;
@@ -579,10 +590,10 @@ fn prepare(
                 StaticBindingValue::Value(_) | StaticBindingValue::Expression(_),
             ) => {}
             (SignatureItem::Property(requirement), StaticBindingValue::Expression(value)) => {
-                parameters.push(ExternalParameterBinding::new(
-                    name,
-                    property(requirement, value)?,
-                ))
+                prepared.properties.insert(
+                    name.to_owned(),
+                    std::sync::Arc::new(property(requirement, value)?),
+                );
             }
             (SignatureItem::Clock(_), StaticBindingValue::Clock(clock))
                 if matches!(
@@ -736,8 +747,10 @@ fn prepare(
     parameters.sort_by(|a, b| a.parameter().cmp(b.parameter()));
     supports.sort_by(|a, b| a.slot().cmp(b.slot()));
     let clocks = prepared.clocks;
+    let properties = prepared.properties;
     prepared = ExternalComponentBinding::new(name, name, supports, parameters);
     prepared.clocks = clocks;
+    prepared.properties = properties;
     prepared.clocks.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(prepared)
 }

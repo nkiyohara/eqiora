@@ -62,6 +62,9 @@ impl LoweringExpression {
                 | LoweringExpressionNode::Piecewise {
                     arguments: values, ..
                 }
+                | LoweringExpressionNode::Property {
+                    arguments: values, ..
+                }
                 | LoweringExpressionNode::PureOperator {
                     arguments: values, ..
                 } => pending.extend(values),

@@ -139,6 +139,8 @@ pub(crate) struct ExternalComponentBinding {
     supports: Vec<ExternalGeometrySupportBinding>,
     parameters: Vec<ExternalParameterBinding>,
     pub(crate) clocks: Vec<(String, eqiora_schema::kernel::ClockDomainDef)>,
+    pub(crate) properties:
+        std::collections::BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
 }
 
 impl ExternalComponentBinding {
@@ -156,7 +158,15 @@ impl ExternalComponentBinding {
             supports,
             parameters,
             clocks: Vec::new(),
+            properties: Default::default(),
         }
+    }
+
+    pub(crate) fn properties(
+        &self,
+    ) -> &std::collections::BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>
+    {
+        &self.properties
     }
 
     pub(crate) fn model(&self) -> &str {

@@ -114,7 +114,8 @@ impl LoweringExpression {
                     pending.push(left);
                     pending.push(right);
                 }
-                LoweringExpressionNode::PureOperator { arguments, .. }
+                LoweringExpressionNode::Property { arguments, .. }
+                | LoweringExpressionNode::PureOperator { arguments, .. }
                 | LoweringExpressionNode::Piecewise { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Number(_)
                 | LoweringExpressionNode::Literal(_)

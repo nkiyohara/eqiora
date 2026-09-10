@@ -105,7 +105,7 @@ fn retained_piecewise_batch_and_derivatives_preserve_live_parameter_dependencies
         linear
             .jvp(RelationTangent::Parameter(&[1., 1.]), &mut tangent)
             .unwrap();
-        assert_eq!(tangent, [parameter.iter().sum()]);
+        assert_eq!(tangent, [parameter.iter().sum::<f64>()]);
         let mut unknown = [0.];
         let mut params = [0., 0.];
         linear

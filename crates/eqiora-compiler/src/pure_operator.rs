@@ -5,6 +5,7 @@
 //! source adapters from inventing a second interpretation of the bounded
 //! pure calculus.
 
+pub(crate) mod property;
 use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;

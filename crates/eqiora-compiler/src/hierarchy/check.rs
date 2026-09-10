@@ -89,6 +89,15 @@ fn validate_definition_bodies_and_parameters(
         ) {
             Ok(parameters) => {
                 let mut values = parameters.clone();
+                if let Err(errors) = elaborator.bind_symbolic_properties(
+                    &definition.namespace,
+                    definition.file,
+                    definition.declaration.signature(),
+                    &mut values,
+                ) {
+                    diagnostics.extend(errors);
+                    continue;
+                }
                 if let Err(errors) = resolve_component_lets(
                     definition.file,
                     definition.declaration,
@@ -380,6 +389,15 @@ fn validate_definition_bodies_and_parameters(
                 occurrences_valid = false;
                 diagnostics.extend(errors);
             }
+        }
+        if let Err(errors) = elaborator.bind_symbolic_properties(
+            &definition.namespace,
+            definition.file,
+            definition.declaration.signature(),
+            &mut parameters,
+        ) {
+            occurrences_valid = false;
+            diagnostics.extend(errors);
         }
         if let Err(errors) = resolve_model_lets(
             definition.file,

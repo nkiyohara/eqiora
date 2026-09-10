@@ -26,6 +26,7 @@ mod external;
 mod indexed;
 mod lets;
 mod operators;
+mod property;
 mod value_expression;
 pub(super) use value_expression::rewrite_expression_with_boundary_member;
 mod reductions;
@@ -145,6 +146,9 @@ impl<'a> ActiveBoundaryMember<'a> {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Scope {
+    pub(in crate::hierarchy) lexical_namespace: Option<super::preflight::DefinitionNamespace>,
+    pub(in crate::hierarchy) properties:
+        BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
     pub(super) record_context: super::parameters::RecordContext,
     pub(super) reduction_terms_limit: usize,
     index_sets: BTreeMap<String, indexed::ScopedIndexSet>,

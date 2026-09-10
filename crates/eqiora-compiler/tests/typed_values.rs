@@ -114,7 +114,7 @@ fn typed_properties_preserve_normalized_complex_channels_and_nominal_contracts()
         CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit,
         analyze_resolved_hierarchy,
     };
-    let source = "property contract Coefficients(): array<complex<V>,2> { derivatives value_only; } property release Reference implements Coefficients { value=[math.complex(2,3),math.complex(4,-1)]; source_unit: V=2; validity=unconditional; citation=org.example.reference; license=org.example.license; } component C(property data:Coefficients) {  variable x:complex<V>; relation r { x=data[0]; } } model M() { instance c:C(data =Reference); }";
+    let source = "property contract Coefficients(): array<complex<V>,2> { derivatives value_only; } property release Reference: Coefficients { analytic { value=[math.complex(2,3),math.complex(4,-1)]; source_unit: V=2; } validity unconditional; outside reject; branch single; citation org.example.reference; license org.example.license; } component C(property data:Coefficients) {  variable x:complex<V>; relation r { x=data[0]; } } model M() { instance c:C(data =Reference); }";
     let root = CompilationNamespaceId::new(["root", "1", "typed-property"]).unwrap();
     let input = ResolvedHierarchyInput::new(
         root.clone(),
@@ -128,6 +128,8 @@ fn typed_properties_preserve_normalized_complex_channels_and_nominal_contracts()
             .next()
             .unwrap()
             .5
+            .constant_value()
+            .unwrap()
             .components()
             .expect("real or complex fixture components")
             .collect::<Vec<_>>(),

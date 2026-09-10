@@ -13,6 +13,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, EntityKind, NamedSubgraph, OntologySchema, RawId};
 
 pub mod kernel;
+pub mod property_table;
+pub mod resolved_array;
 
 fn require_member_kind(
     schema: &str,

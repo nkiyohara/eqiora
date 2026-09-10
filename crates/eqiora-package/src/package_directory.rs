@@ -286,6 +286,28 @@ impl PackageDirectory {
         crate::project_directory::discover_project_sources(&self.root)
     }
 
+    /// Discover exact JSON array files under an already retained `data/` capability.
+    /// Uses the same no-follow path, depth, count and byte bounds as source discovery.
+    ///
+    /// # Errors
+    /// Returns the existing path-aware directory or resource diagnostic.
+    pub fn discover_resolved_arrays(
+        &self,
+    ) -> Result<BTreeMap<NormalizedRelativePath, Vec<u8>>, PackageDirectoryError> {
+        crate::project_directory::discover_project_files(&self.root, ".json")
+    }
+
+    /// Discover Markdown attribution payloads under an already retained `docs/` capability.
+    /// Uses the existing bounded no-follow source directory traversal.
+    ///
+    /// # Errors
+    /// Returns the existing path-aware directory or resource diagnostic.
+    pub fn discover_documentation_assets(
+        &self,
+    ) -> Result<BTreeMap<NormalizedRelativePath, Vec<u8>>, PackageDirectoryError> {
+        crate::project_directory::discover_project_files(&self.root, ".md")
+    }
+
     fn read_sources_with_limits(
         &self,
         limits: PackageDirectoryLimits,
@@ -728,5 +750,26 @@ mod tests {
 
         fs::remove_dir_all(&directory.0).expect("remove replacement root");
         fs::rename(moved, &directory.0).expect("restore original root for cleanup");
+    }
+    #[test]
+    fn resolved_array_discovery_uses_existing_bounded_directory_owner() {
+        let directory = TestDirectory::create("arrays");
+        write_entry(&directory, "curves/Cp.json", b"[1,2]");
+        write_entry(&directory, "ignored.eqi", b"model Main() {}");
+        let package = PackageDirectory::open_ambient(&directory.0).unwrap();
+        let arrays = package.discover_resolved_arrays().unwrap();
+        assert_eq!(arrays.len(), 1);
+        assert_eq!(
+            arrays[&NormalizedRelativePath::parse("curves/Cp.json").unwrap()],
+            b"[1,2]"
+        );
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("curves/Cp.json", directory.0.join("alias.json")).unwrap();
+            assert!(matches!(
+                package.discover_resolved_arrays(),
+                Err(PackageDirectoryError::NonRegularFile { .. })
+            ));
+        }
     }
 }

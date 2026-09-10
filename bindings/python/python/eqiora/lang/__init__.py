@@ -35,7 +35,7 @@ _MISSING = object()
 class PropertyContract:
     """An identity-bearing typed property contract declaration handle."""
 
-    __slots__ = ("_doc", "_name", "_owner", "_value_type")
+    __slots__ = ("_doc", "_name", "_owner", "_value_type", "_profile")
 
     def __init__(
         self,
@@ -43,6 +43,7 @@ class PropertyContract:
         _owner: object = _MISSING,
         _name_value: str = "",
         _value_type: ValueType | None = None,
+        _profile=None,
         _doc: tuple[str, ...] = (),
     ) -> None:
         if _token is not _CREATE or _value_type is None:
@@ -50,14 +51,20 @@ class PropertyContract:
         object.__setattr__(self, "_owner", _owner)
         object.__setattr__(self, "_name", _name_value)
         object.__setattr__(self, "_value_type", _value_type)
+        object.__setattr__(self, "_profile", _profile)
         object.__setattr__(self, "_doc", _doc)
+
+    def input(self, name: str) -> Expression:
+        """Reference one exact ordered typed formal of this contract."""
+        from ._property_profiles import formal
+        return formal(self, name)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("PropertyContract handles are immutable")
 
 
 class PropertyRelease:
-    """An identity-bearing constant typed property release handle."""
+    """An identity-bearing typed property release handle."""
 
     __slots__ = (
         "_citation",
@@ -67,8 +74,10 @@ class PropertyRelease:
         "_name",
         "_owner",
         "_source_scale",
+        "_profile",
         "_source_unit",
         "_value",
+        "_table",
     )
 
     def __init__(
@@ -81,6 +90,7 @@ class PropertyRelease:
         _value: Expression | None = None,
         _source_unit: Unit | None = None,
         _source_scale: int | float = 1,
+        _profile=None,
         _citation: str = "",
         _license: str = "",
         _doc: tuple[str, ...] = (),
@@ -91,8 +101,10 @@ class PropertyRelease:
         object.__setattr__(self, "_name", _name_value)
         object.__setattr__(self, "_contract", _contract)
         object.__setattr__(self, "_value", _value)
+        object.__setattr__(self, "_table", None)
         object.__setattr__(self, "_source_unit", _source_unit)
         object.__setattr__(self, "_source_scale", _source_scale)
+        object.__setattr__(self, "_profile", _profile)
         object.__setattr__(self, "_citation", _citation)
         object.__setattr__(self, "_license", _license)
         object.__setattr__(self, "_doc", _doc)
@@ -476,19 +488,26 @@ class Relation:
         raise AttributeError("Relation handles are immutable")
 
 
-class _PropertyRequirement(Expression):
+class PropertyRequirement(Expression):
     __slots__ = ("_component", "_contract", "_name")
 
     def __init__(
         self,
+        _token: object,
         component: object,
         name: str,
         contract: PropertyContract,
     ) -> None:
+        if _token is not _CREATE:
+            raise TypeError("property requirements are created by Component")
         super().__init__(_CREATE, _Ast.name(name), component)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
         object.__setattr__(self, "_contract", contract)
+
+    def __call__(self, /, **arguments: object) -> Expression:
+        from ._property_profiles import apply
+        return apply(self, arguments)
 
 
 class Support:
@@ -1051,7 +1070,7 @@ class Component:
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | Event | None, tuple[str, ...]]] = []
         self._properties: list[
-            tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
+            tuple[PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
         self._fields: list[
             tuple[
@@ -1412,12 +1431,12 @@ class Component:
         *,
         contract: PropertyContract,
         doc: str | None = None,
-    ) -> Expression:
+    ) -> PropertyRequirement:
         if not isinstance(contract, PropertyContract) or contract._owner is not self._owner:
             raise ModuleError("property contract must belong to this Module")
         admitted = self._add_name(name)
-        requirement = _PropertyRequirement(
-            self._component_token, admitted, contract
+        requirement = PropertyRequirement(
+            _CREATE, self._component_token, admitted, contract
         )
         self._properties.append((requirement, contract, _doc(doc)))
         return requirement
@@ -1629,7 +1648,7 @@ class Component:
                 handles[target._name] = target
                 role = ("support" if isinstance(target, Support)
                         else "clock" if isinstance(target, Clock)
-                        else "property" if isinstance(target, _PropertyRequirement)
+                        else "property" if isinstance(target, PropertyRequirement)
                         else "input" if component._causal.get(target) == "input"
                         else "field" if isinstance(target, _Field)
                         else "parameter")
@@ -1652,8 +1671,9 @@ class Component:
                 expression = _boundaries.support_expression(value) if role == "support" else _Ast.name(value._name)
             elif role == "property":
                 required_property = handles.get(target)
+                from ._imported_properties import same_contract
                 if (not isinstance(value, PropertyRelease) or value._owner is not self._owner
-                        or required_property is not None and value._contract is not required_property._contract):
+                        or required_property is not None and not same_contract(value._contract, required_property._contract)):
                     raise ModuleError("property binding requires the exact Module contract release")
                 expression = _Ast.name(value._name)
             else:
@@ -1799,6 +1819,16 @@ class ModuleRef:
 
     def __setattr__(self, name, value):
         raise AttributeError("ModuleRef is immutable")
+
+    def property_contract(self, name: str) -> PropertyContract:
+        """Reference one public property contract in this explicit import."""
+        from ._imported_properties import contract
+        return contract(self, name)
+
+    def property_release(self, name: str) -> PropertyRelease:
+        """Reference one public release without copying its scientific definition."""
+        from ._imported_properties import release
+        return release(self, name)
 
     def component(self, name: str) -> ComponentRef:
         name = _name(name)
@@ -2082,15 +2112,20 @@ class Module:
         name: str,
         *,
         value_type: ValueType,
+        inputs: Mapping[str, ValueType] | None = None,
+        derivatives: Literal["value_only", "first_partials", "first_open_intervals"] = "value_only",
+        branch: str | None = None,
         doc: str | None = None,
     ) -> PropertyContract:
-        """Declare a complete result type for constant value-only property releases."""
+        """Declare ordered typed inputs, result, branch and derivative requirements."""
         self._ensure_open()
         if self._components:
             raise ModuleError("property declarations must precede Components")
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
         self._type_syntax(value_type)
+        from ._property_profiles import contract_profile
+        profile = contract_profile(self, inputs, derivatives, branch)
         doc_lines = _doc(doc)
         admitted = self._add_top_name(name)
         contract = PropertyContract(
@@ -2098,36 +2133,48 @@ class Module:
             self._owner,
             admitted,
             value_type,
+            profile,
             doc_lines,
         )
         self._contracts.append(contract)
         return contract
+
+    def property_table_release(self, name: str, *, implements: PropertyContract,
+                               data: str, axis_unit: Unit, source_unit: Unit,
+                               validity: tuple[object, object], citation: str, license: str,
+                               branch: str = "single", doc: str | None = None) -> PropertyRelease:
+        """Reference a package-owned table; the compiler verifies its closed assets."""
+        from ._property_tables import release
+        return release(self, name, implements=implements, data=data, axis_unit=axis_unit,
+                       source_unit=source_unit, validity=validity, citation=citation,
+                       license=license, branch=branch, doc=doc)
 
     def property_release(
         self,
         name: str,
         *,
         implements: PropertyContract,
-        value: int | float | complex | Sequence[object],
+        value: Expression | int | float | complex | Sequence[object],
         source_unit: Unit,
         source_scale: int | float,
         citation: str,
         license: str,
+        validity: Expression | bool | None = None,
+        branch: str | None = None,
+        outside: Literal["reject"] = "reject",
         doc: str | None = None,
     ) -> PropertyRelease:
         """Declare ordered numeric components; the compiler scales every component to SI."""
         self._ensure_open()
         if self._components:
             raise ModuleError("property declarations must precede Components")
-        if (
-            not isinstance(implements, PropertyContract)
-            or implements._owner is not self._owner
-            or implements not in self._contracts
-        ):
+        from ._imported_properties import admitted_contract
+        if not admitted_contract(self, implements):
             raise ModuleError("release contract must be the exact contract from this Module")
         if not isinstance(source_unit, Unit):
             raise TypeError("source_unit must be an eqiora.units.Unit")
-        literal = _literal_expression(value)
+        from ._property_profiles import release_profile
+        literal, profile = release_profile(implements, value, validity, branch, outside)
         _number(source_scale)
         if source_scale <= 0:
             raise ModuleError("source_scale must be finite and strictly positive")
@@ -2143,6 +2190,7 @@ class Module:
             _value=literal,
             _source_unit=source_unit,
             _source_scale=source_scale,
+            _profile=profile,
             _citation=citation_identity,
             _license=license_identity,
             _doc=doc_lines,
@@ -2229,7 +2277,12 @@ class Module:
         dimensions = [(name, self._type_syntax(ValueType.real(value)),
                        allocate(doc, self._notations.get(name)))
                       for name, value, doc in self._dimensions]
-        graph = _AstModule(definitions, operators, connectors, field_connectors, dimensions)
+        graph = None if not (definitions or operators or connectors or field_connectors or dimensions) and (self._contracts or self._releases) else _AstModule(definitions, operators, connectors, field_connectors, dimensions)
+        for contract in self._contracts:
+            graph = _AstModule.with_contract(graph, contract._name, self._type_syntax(contract._value_type),
+                                        ([(name, self._type_syntax(kind)) for name, kind in contract._profile.inputs],
+                                         contract._profile.derivatives, contract._profile.branch),
+                                        allocate(contract._doc, self._notations.get(contract._name)))
         for record in self._records:
             graph = graph.with_record(record.name, [(name, kind, allocate()) for name, kind in record._syntax],
                                       allocate(record._doc, self._notations.get(record.name)))
@@ -2239,15 +2292,19 @@ class Module:
         for space, doc in self._spaces:
             graph = graph.with_space(space.name, space.labels,
                                      allocate(doc, self._notations.get(space.name)))
-        for contract in self._contracts:
-            graph = graph.with_contract(contract._name, self._type_syntax(contract._value_type),
-                                        allocate(contract._doc, self._notations.get(contract._name)))
         for release in self._releases:
-            graph = graph.with_release(
+            if release._table is not None:
+                from ._property_tables import emit
+                graph = emit(graph, release, allocate(release._doc, self._notations.get(release._name)))
+                continue
+            graph = _AstModule.with_release(
+                graph,
                 release._name, release._contract._name,
                 (release._value._ast, release._source_unit._ast,
                  _Ast.number(_number(release._source_scale))),
-                release._citation, release._license,
+                (release._citation, release._license),
+                (None if release._profile.validity is None else release._profile.validity._ast,
+                 release._profile.branch, release._profile.outside),
                 allocate(release._doc, self._notations.get(release._name)))
         for material in self._materials:
             graph = graph.with_material(
@@ -2348,6 +2405,7 @@ __all__ = [
     "Notation",
     "Operator",
     "PropertyContract",
+    "PropertyRequirement",
     "PropertyRelease",
     "Relation",
     "Module",

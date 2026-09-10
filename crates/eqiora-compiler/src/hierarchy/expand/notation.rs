@@ -44,6 +44,43 @@ impl RootExpansion<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn record_properties(
+        &mut self,
+        occurrence: ComponentOccurrence<'_, '_>,
+        bindings: &[SourceLocation],
+    ) -> Result<(), Diagnostic> {
+        let component = occurrence.definition;
+        for item in component.signature() {
+            let eqiora_lang::SignatureItem::Property(property) = item else {
+                continue;
+            };
+            let identity = self.entity_identity(
+                occurrence.instance_path,
+                definition_path(
+                    &component.namespace,
+                    "component",
+                    component.name(),
+                    property.name(),
+                ),
+                EntityKind::Parameter,
+                SourceLocation::new(component.file, property.range()),
+                SourceLocation::new(occurrence.instance_file, occurrence.instance.range()),
+                bindings.to_vec(),
+            )?;
+            self.record_notation(
+                &display_child(occurrence.display_prefix, property.name()),
+                &identity,
+                &SymbolKind::Parameter,
+            );
+            // Property expressions retain occurrence labels without a Parameter graph node.
+            self.notation_specs
+                .last_mut()
+                .expect("registered property label")
+                .graph_identity = None;
+        }
+        Ok(())
+    }
+
     pub(super) fn record_notation(
         &mut self,
         selector: &str,

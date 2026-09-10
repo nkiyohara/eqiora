@@ -27,8 +27,10 @@ mod rendering;
 pub(crate) use rendering::{PyMathReference, PyMathRendering};
 mod observable_ref;
 mod parameter_ref;
+mod property;
 pub(crate) use observable_ref::PyObservableRef;
 pub(crate) use parameter_ref::PyModelParameterRef;
+use property::{PyPropertyBinding, property_bindings};
 
 /// Exact identity of one immutable canonical Model artifact.
 #[pyclass(
@@ -58,96 +60,6 @@ pub(crate) struct PyRevision {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PyStructuralSemanticFingerprint {
     value: StructuralSemanticFingerprint,
-}
-
-/// Immutable inspection of one exact package-owned typed constant property binding.
-#[pyclass(
-    name = "PropertyBinding",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Debug, Clone)]
-pub(crate) struct PyPropertyBinding {
-    composition: Option<String>,
-    contract: String,
-    release: String,
-    component: String,
-    requirement: String,
-    normalized_value: eqiora::ValueLiteral,
-    validity: String,
-    citation: String,
-    license: String,
-}
-
-#[pymethods]
-impl PyPropertyBinding {
-    #[getter]
-    fn composition(&self) -> Option<&str> {
-        self.composition.as_deref()
-    }
-
-    #[getter]
-    fn contract(&self) -> &str {
-        &self.contract
-    }
-
-    #[getter]
-    fn release(&self) -> &str {
-        &self.release
-    }
-
-    #[getter]
-    fn component(&self) -> &str {
-        &self.component
-    }
-
-    #[getter]
-    fn requirement(&self) -> &str {
-        &self.requirement
-    }
-
-    #[getter]
-    fn normalized_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        crate::modeling::value_literal::to_python(py, &self.normalized_value)
-    }
-
-    #[getter]
-    fn value_type(&self) -> crate::modeling::PyValueType {
-        crate::modeling::PyValueType {
-            value: self.normalized_value.value_type().clone(),
-        }
-    }
-
-    #[getter]
-    fn validity(&self) -> &str {
-        &self.validity
-    }
-
-    #[getter]
-    fn citation(&self) -> &str {
-        &self.citation
-    }
-
-    #[getter]
-    fn license(&self) -> &str {
-        &self.license
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "PropertyBinding(composition={:?}, contract={:?}, release={:?}, component={:?}, requirement={:?}, normalized_value={:?}, validity={:?}, citation={:?}, license={:?})",
-            self.composition,
-            self.contract,
-            self.release,
-            self.component,
-            self.requirement,
-            self.normalized_value,
-            self.validity,
-            self.citation,
-            self.license,
-        )
-    }
 }
 
 #[pymethods]
@@ -398,6 +310,7 @@ impl PyModel {
             .canonical_json()
             .and_then(|bytes| ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()))
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        let property_bindings = property_bindings(document.program().nodes());
         Ok(Self {
             revision: PyRevision {
                 model_id: reference.model().ulid().to_string(),
@@ -407,7 +320,7 @@ impl PyModel {
             document: Some(document),
             artifact,
             package_compilation: None,
-            property_bindings: Box::new([]),
+            property_bindings,
             _geometry: None,
         })
     }
@@ -426,6 +339,17 @@ impl PyModel {
         let reference = artifact
             .artifact_reference()
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        // Typed artifact reconstruction authenticates expression metadata while
+        // preserving deferred admission of an external Geometry closure.
+        let (transaction, _) = artifact
+            .to_transaction()
+            .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))?;
+        let property_bindings = property_bindings(transaction.ops().iter().filter_map(
+            |operation| match operation {
+                Op::DefineKernelNode { node } => Some(node),
+                _ => None,
+            },
+        ));
         Ok(Self {
             revision: PyRevision {
                 model_id: reference.model().ulid().to_string(),
@@ -435,42 +359,15 @@ impl PyModel {
             document: None,
             artifact,
             package_compilation: None,
-            property_bindings: Box::new([]),
+            property_bindings,
             _geometry: None,
         })
     }
 
     pub(crate) fn from_packaged(py: Python<'_>, packaged: PackagedModelDocument) -> PyResult<Self> {
         let compilation = packaged.compilation().clone();
-        let property_bindings = packaged
-            .property_bindings()
-            .map(
-                |(
-                    composition,
-                    contract,
-                    release,
-                    component,
-                    requirement,
-                    normalized_value,
-                    validity,
-                    citation,
-                    license,
-                )| PyPropertyBinding {
-                    composition: composition.map(str::to_owned),
-                    contract: contract.to_owned(),
-                    release: release.to_owned(),
-                    component: component.to_owned(),
-                    requirement: requirement.to_owned(),
-                    normalized_value: normalized_value.clone(),
-                    validity: validity.to_owned(),
-                    citation: citation.to_owned(),
-                    license: license.to_owned(),
-                },
-            )
-            .collect();
         let mut model = Self::from_document(py, packaged.model().clone())?;
         model.package_compilation = Some(compilation);
-        model.property_bindings = property_bindings;
         Ok(model)
     }
 
@@ -654,7 +551,7 @@ impl PyModel {
         })
     }
 
-    /// Exact package-owned property bindings, absent without package lineage.
+    /// Exact release bindings retained on Model expression occurrences.
     #[getter]
     fn property_bindings(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let bindings = self

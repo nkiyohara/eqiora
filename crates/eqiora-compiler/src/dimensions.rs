@@ -661,12 +661,12 @@ model Example() {
         let source = r#"
 dimension DiffusionDimension = m ^ 2 / s;
 public property contract Diffusivity(): DiffusionDimension { derivatives value_only; }
-property release Reference implements Diffusivity {
-  value = 25;
-  source_unit: DiffusionDimension = 1 / 1000;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+property release Reference: Diffusivity {
+  analytic { value = 25;
+  source_unit: DiffusionDimension = 1 / 1000; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 public component Diffusion(property diffusivity: Diffusivity) {
   
@@ -689,6 +689,8 @@ model Main() { instance domain: Diffusion(diffusivity = Reference); }
                 .next()
                 .expect("binding")
                 .5
+                .constant_value()
+                .expect("constant property")
                 .component(0)
                 .unwrap()
                 .0,

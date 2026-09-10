@@ -5,6 +5,7 @@
 //! rules come from the same identity-parametric kernel contract used by the
 //! semantic oracle.
 
+mod property;
 use eqiora_core::Diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 

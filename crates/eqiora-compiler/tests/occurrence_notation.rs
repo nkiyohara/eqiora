@@ -111,7 +111,7 @@ fn explicit_qualifiers_and_derived_suffixes_cannot_capture_each_other() {
 #[test]
 fn fluid_and_solid_properties_use_occurrences_not_contract_names() {
     let source = r"property contract Density():1 {derivatives value_only;}
-    property release Measured implements Density {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;}
+    property release Measured: Density {analytic { value=2;source_unit:1=1; }validity unconditional; outside reject; branch single;citation org.example.measurement;license spdx.CC0_1_0;}
     component Material(property density @{\rho}:Density, output y:1) {relation law {y=density;}}
     model M() {instance fluid:Material(density=Measured);instance solid:Material(density=Measured);}";
     let compiled = model(source);

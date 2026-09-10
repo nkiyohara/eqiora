@@ -48,3 +48,14 @@ are listed for discovery, without implying a Python solve workflow for each.
 
 The source and its package manifest own the declarations and dependencies. To
 author your own relations, use the [language reference](/reference/language/equations/).
+
+## Exact property specimens
+
+The <ExactSourceLink kind="blob" path="bindings/python/tests/test_table_property_authoring.py">maintained Python table specimen</ExactSourceLink>
+creates a locked local `org.example.PythonTable` package with exact conductivity samples
+and separate Fourier-flux and slab-conductance Components. It executes fluxes −24/−32 W/m²
+and conductances 1.2/1.6 W/K at 310/340 K and reopens the Model artifact. The
+<ExactSourceLink kind="blob" path="crates/eqiora/tests/source_property_tables.rs">Rust source/package specimen</ExactSourceLink>
+checks independent secant slopes, validity, knot rejection and authenticated asset closure.
+These specimen packages are constructed by their tests; they are not distributed releases
+in `packages/`. A heated-body Law and transient thermal solve are outside this example.

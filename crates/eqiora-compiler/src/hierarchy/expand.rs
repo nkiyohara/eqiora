@@ -282,62 +282,23 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(Some(name))
     }
 
-    fn record_physical_relation_owners(
-        &mut self,
-        file: &str,
-        range: eqiora_lang::TextRange,
-        relation: FullElaborationIdentity,
-        equations: &[LoweringEquation],
-    ) -> Result<(), Diagnostic> {
-        let mut names = BTreeSet::new();
-        if equations
-            .iter()
-            .flat_map(|equation| [&equation.left, &equation.right])
-            .any(|expression| !expression.collect_physical_port_names(&mut names))
-        {
-            return Err(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                range,
-                "Relation expression is newer than physical ownership analysis",
-            ));
-        }
-        let mut selected = BTreeSet::new();
-        for name in names {
-            if let Some(port) = self.physical_ports_by_name.get(&name) {
-                selected.insert(*port);
-            }
-        }
-        for port in selected {
-            let owners = self.physical_owner_relations.entry(port).or_default();
-            owners.insert(relation);
-            if owners.len() > 1 {
-                let display = &self.physical_ports[&port].display_name;
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    format!("physical Port `{display}` cannot have more than one owning Relation"),
-                ));
-            }
-        }
-        Ok(())
-    }
-
     pub(super) fn expand(self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
-        self.expand_bound(&[], &[])
+        self.expand_bound(&[], &[], &BTreeMap::new())
     }
 
     pub(super) fn expand_bound(
         mut self,
         supports: &[crate::external::ExternalGeometrySupportBinding],
         clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
+        properties: &BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
+        root_scope.extend_properties(properties);
         root_scope.record_context =
             super::parameters::RecordContext::model(self.elaborator, &model);
         root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
+        root_scope.lexical_namespace = Some(model.namespace.clone());
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
         self.allocate_external_clocks(&mut root_scope, clocks)
             .map_err(one_diagnostic)?;
@@ -477,6 +438,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         ));
         normalize_binding_locations(&mut forwarded_boundary_set_resolution_bindings);
         let mut scope = Scope::child(parent_scope);
+        scope.lexical_namespace = Some(component.namespace.clone());
+        scope.bind_properties(
+            self.elaborator,
+            &component.namespace,
+            component.declaration,
+            instance,
+            parent_scope,
+            instance_file,
+        )?;
         scope.record_context =
             super::parameters::RecordContext::component(self.elaborator, &component);
         scope.set_pure_operators(self.elaborator.visible_pure_operators(&component.namespace));
@@ -641,6 +611,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .insert(slot.clone(), (requirement.role, activation));
             scope.insert_field_type(slot, field_type);
         }
+        self.record_properties(
+            ComponentOccurrence {
+                definition: &component,
+                instance,
+                instance_file,
+                instance_path: &instance_path,
+                display_prefix: &display_prefix,
+            },
+            &bindings,
+        )
+        .map_err(one_diagnostic)?;
         self.record_borrowed_fields(
             ComponentOccurrence {
                 definition: &component,

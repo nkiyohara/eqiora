@@ -41,7 +41,7 @@ projection_catalog_retains_source_lineage = true
 observation_binding_is_post_run_and_value_free = true
 
 [numerical_contract]
-relative_tolerance = 1e-12
+relative_tolerance = 1e-13
 absolute_tolerance = 1e-14
 maximum_iterations = 100
 maximum_value_error = 2e-11

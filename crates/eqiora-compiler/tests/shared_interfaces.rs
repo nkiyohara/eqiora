@@ -141,7 +141,7 @@ fn selected_property_values_require_the_exact_release_owner() {
     use eqiora_compiler::{CompiledModel, StaticBindingValue};
     use eqiora_lang::{ExprKind, NamePath, SourceAstFactory as F, TextRange};
     let range = TextRange::default();
-    let declarations = "property contract Gain():1 {derivatives value_only;} property contract Other():1 {derivatives value_only;} property release Measured implements Gain {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;} property release Wrong implements Other {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;} material composition Material {property gain=Measured;}";
+    let declarations = "property contract Gain():1 {derivatives value_only;} property contract Other():1 {derivatives value_only;} property release Measured: Gain {analytic { value=2;source_unit:1=1; }validity unconditional; outside reject; branch single;citation org.example.measurement;license spdx.CC0_1_0;} property release Wrong: Other {analytic { value=2;source_unit:1=1; }validity unconditional; outside reject; branch single;citation org.example.measurement;license spdx.CC0_1_0;} material composition Material {property gain=Measured;}";
     for container in ["model M", "public component M"] {
         let source = format!(
             "{declarations} {container}(property gain:Gain,output y:1) {{relation equation {{y=gain;}}}}"
@@ -235,7 +235,7 @@ fn borrowed_alias_clocks_are_checked_at_the_exact_occurrence() {
 #[test]
 fn closed_and_selected_compilation_share_local_property_admission() {
     use eqiora_compiler::CompiledModel;
-    let source = "property contract Gain():1 {derivatives value_only;} property release Measured implements Gain {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;} material composition Material {property gain=Measured;} component Amplifier(property gain:Gain,output y:1) {relation value {y=gain;}} model First() {instance amplifier:Amplifier(gain=Material.gain);} model Second() {instance amplifier:Amplifier(gain=Measured);}";
+    let source = "property contract Gain():1 {derivatives value_only;} property release Measured: Gain {analytic { value=2;source_unit:1=1; }validity unconditional; outside reject; branch single;citation org.example.measurement;license spdx.CC0_1_0;} material composition Material {property gain=Measured;} component Amplifier(property gain:Gain,output y:1) {relation value {y=gain;}} model First() {instance amplifier:Amplifier(gain=Material.gain);} model Second() {instance amplifier:Amplifier(gain=Measured);}";
     let closed = eqiora_compiler::compile("local.eqi", source).unwrap();
     assert_eq!(closed.len(), 2);
     for (model, entry) in closed.iter().zip(["First", "Second"]) {

@@ -1,8 +1,9 @@
 # Specimen: consume a data-backed conductivity
 
 This [target-language](core.md) specimen binds one exact property release into two components.
-Constant property contracts already have a source owner; callable contracts, table-backed
-releases, and the complete converged source below await their implementation slices.
+Callable real contracts and exact one-dimensional table releases now have source, package,
+Python and Model-replay owners. The complete converged consumer surface below remains a
+target: executable scalar and Parameter-bound Component tests use the same table and laws.
 
 ## Contract and complete consumer
 
@@ -132,27 +133,25 @@ law, independently of table implementation.
 Inside the first segment, `dk/dT = 0.2 W/(m*K^2)`; inside the second,
 `dk/dT = 0.1 W/(m*K^2)`. Multiplication by `area/thickness = 0.1 m` gives conductance slopes
 0.02 W/K^2 and 0.01 W/K^2. The endpoint conductivities are exactly 10 and 18 W/(m*K).
-Tests should derive these values from the two line segments, not copy evaluator output.
+The maintained tests derive these expectations from the two line segments.
 
 ## Ordinary package use and substitutions
 
-Once the contract, release, and consumer are exported by an exact package, the short composition
-uses the same property binding as any other named requirement:
+The maintained [Rust source/package specimen](../../crates/eqiora/tests/source_property_tables.rs)
+constructs `org.example.Table` with the exact array and attribution documents. The
+[installed Python specimen](../../bindings/python/tests/test_table_property_authoring.py)
+authors `org.example.PythonTable`, writes its source and assets, resolves the local project
+into an explicit store, compiles the resulting lock, and reopens Model bytes. Both use
+separate Fourier-flux and slab-conductance Components at 310 K and 340 K, with the independent
+values and slopes derived above. The Python specimen executes the four outputs through the
+ordinary supplied-clock execution session.
 
-```eqiora
-import org.example.thermal_properties.properties as properties;
-
-model Example() {
-  instance pair: properties.PropertyConsumers(conductivity = properties.SyntheticConductivity);
-  relation operating_point {
-    pair.operating_temperature = 310 [K];
-  }
-}
-```
-
-This names the intended specimen package, not an existing published release. Its exported
-contract must be the exact one used by its consumer; copying the contract under a different
-package identity does not make it the same requirement.
+These are reproducible local specimen packages, not published standard-library releases.
+The [standard source reference](../site/src/content/docs/reference/standard-packages/index.mdx)
+links the maintained examples separately from distributed packages. See
+[Python property authoring](../python/modeling.md#exact-analytic-and-table-properties) for
+its public construction seam. Contract identity must match the consumer's exact declaration;
+copying its spelling and units under a different package identity does not satisfy it.
 
 | Substitution or request | Required outcome |
 |---|---|

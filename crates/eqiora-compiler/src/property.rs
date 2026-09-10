@@ -1,15 +1,15 @@
-mod catalog;
+pub(crate) mod catalog;
+pub(crate) mod descriptor;
 mod resolution;
+pub(crate) mod table;
+use eqiora_schema::kernel::PropertyMeaning;
 use resolution::resolve_path;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{
-    ComponentItem, Expr, InstanceDecl, Item, NamePath, SourceAstFactory, TextRange,
-    VisibilitySyntax,
-};
+use eqiora_lang::{ComponentItem, Expr, InstanceDecl, Item, NamePath, TextRange, VisibilitySyntax};
 
 use crate::diagnostics::source_error;
 use crate::dimensions::lower_dimension;
@@ -24,7 +24,7 @@ pub(crate) struct ResolvedPropertyBinding {
     release: String,
     component: String,
     requirement: String,
-    normalized_value: eqiora_core::ValueLiteral,
+    meaning: PropertyMeaning,
     validity: &'static str,
     citation: String,
     license: String,
@@ -52,8 +52,8 @@ impl ResolvedPropertyBinding {
         &self.requirement
     }
     #[must_use]
-    pub const fn normalized_value(&self) -> &eqiora_core::ValueLiteral {
-        &self.normalized_value
+    pub const fn meaning(&self) -> &PropertyMeaning {
+        &self.meaning
     }
     #[must_use]
     pub const fn validity(&self) -> &'static str {
@@ -69,28 +69,36 @@ impl ResolvedPropertyBinding {
     }
 }
 
-struct Contract {
-    file: String,
-    visibility: VisibilitySyntax,
-    value_type: eqiora_lang::ValueTypeSyntax,
+#[derive(Clone, Debug)]
+pub(crate) struct Contract {
+    pub(crate) file: String,
+    pub(crate) visibility: VisibilitySyntax,
+    pub(crate) value_type: eqiora_lang::ValueTypeSyntax,
+    pub(crate) inputs: Vec<(String, eqiora_lang::ValueTypeSyntax)>,
+    pub(crate) derivatives: eqiora_schema::kernel::PropertyDerivatives,
+    pub(crate) branch: Option<String>,
 }
 
-struct Release {
-    visibility: VisibilitySyntax,
-    contract: Key,
-    value: eqiora_core::ValueLiteral,
-    citation: String,
-    license: String,
+#[derive(Clone, Debug)]
+pub(crate) struct Release {
+    pub(crate) visibility: VisibilitySyntax,
+    pub(crate) contract: Key,
+    pub(crate) meaning: PropertyMeaning,
+    pub(crate) branch: Option<String>,
+    pub(crate) citation: String,
+    pub(crate) license: String,
 }
 
+#[derive(Clone, Debug)]
 struct Composition {
     visibility: VisibilitySyntax,
     properties: Vec<(String, Key, TextRange)>,
 }
 
-pub(crate) fn validate_and_elaborate(
-    units: &mut [AnalyzedSourceUnit],
+pub(crate) fn validate_bindings(
+    units: &[AnalyzedSourceUnit],
     aliases: &[ResolvedAlias],
+    catalog: &catalog::Catalog,
 ) -> Result<Box<[ResolvedPropertyBinding]>, Vec<Diagnostic>> {
     let has_property_syntax = units.iter().any(|unit| {
         unit.document.property_contract_syntax().len() != 0
@@ -113,7 +121,6 @@ pub(crate) fn validate_and_elaborate(
         return Ok(Box::new([]));
     }
     let mut diagnostics = Vec::new();
-    let catalog = catalog::build(units, aliases)?;
     let catalog::Catalog {
         contracts,
         releases,
@@ -132,8 +139,7 @@ pub(crate) fn validate_and_elaborate(
         })
         .collect::<BTreeMap<_, _>>();
     let mut projections = Vec::new();
-    for unit in units.iter_mut() {
-        let mut dimensions = BTreeMap::new();
+    for unit in units.iter() {
         for signature in unit
             .document
             .components()
@@ -150,20 +156,15 @@ pub(crate) fn validate_and_elaborate(
                     &unit.module,
                     contract_path,
                     aliases,
-                    &contracts,
+                    contracts,
                     |value| value.visibility,
                     &unit.file,
                     &mut diagnostics,
                 ) {
-                    dimensions.insert(
-                        contract_path.to_string(),
-                        contracts[&key].value_type.clone(),
-                    );
+                    let _ = &contracts[&key];
                 }
             }
         }
-        let mut values = BTreeMap::new();
-        let mut property_targets = BTreeMap::new();
         let instances = unit
             .document
             .components()
@@ -187,24 +188,12 @@ pub(crate) fn validate_and_elaborate(
                 &unit.file,
                 aliases,
                 &components,
-                &contracts,
-                &releases,
-                &compositions,
-                &mut values,
-                &mut property_targets,
+                contracts,
+                releases,
+                compositions,
                 &mut projections,
                 &mut diagnostics,
             );
-        }
-        if diagnostics.is_empty()
-            && let Err(failure) = SourceAstFactory::elaborate_property_terms(
-                &mut unit.document,
-                &dimensions,
-                &values,
-                &property_targets,
-            )
-        {
-            diagnostics.push(error(&unit.file, TextRange::default(), failure.to_string()));
         }
     }
     if diagnostics.is_empty() {
@@ -231,8 +220,6 @@ fn validate_instance(
     contracts: &BTreeMap<Key, Contract>,
     releases: &BTreeMap<Key, Release>,
     compositions: &BTreeMap<Key, Composition>,
-    values: &mut BTreeMap<String, Expr>,
-    property_targets: &mut BTreeMap<String, Vec<String>>,
     projections: &mut Vec<ResolvedPropertyBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -256,13 +243,6 @@ fn validate_instance(
             _ => None,
         })
         .collect::<Vec<_>>();
-    property_targets.insert(
-        instance.definition().to_string(),
-        requirements
-            .iter()
-            .map(|value| value.name().to_owned())
-            .collect(),
-    );
     for requirement in requirements {
         let bindings = instance
             .bindings()
@@ -329,23 +309,14 @@ fn validate_instance(
             ));
             continue;
         }
-        let quantity = SourceAstFactory::value_literal(
-            &release.value,
-            None,
-            binding_range,
-            |_| None,
-            |_| None,
-        )
-        .expect("validated property value and source range");
-        values.insert(path.to_string(), quantity);
         projections.push(ResolvedPropertyBinding {
             composition: composition_key.as_ref().map(qualified),
             contract: qualified(&required_contract),
             release: qualified(&release_key),
             component: qualified(&component_key),
             requirement: requirement.name().to_owned(),
-            normalized_value: release.value.clone(),
-            validity: "unconditional",
+            meaning: release.meaning.clone(),
+            validity: if matches!(&release.meaning, PropertyMeaning::Analytic(definition) if matches!(definition.nodes()[definition.root().index() as usize], eqiora_schema::kernel::pure_operator::CalculusNode::Require { .. })) { "checked" } else { "unconditional" },
             citation: release.citation.clone(),
             license: release.license.clone(),
         });
@@ -440,62 +411,6 @@ fn error(file: &str, range: TextRange, message: impl Into<String>) -> Diagnostic
     source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message)
 }
 
-/// Resolve a selected signature's property argument before scalar projection.
-pub(crate) fn selected_value(
-    units: &[AnalyzedSourceUnit],
-    aliases: &[ResolvedAlias],
-    namespace: &CompilationModuleId,
-    file: &str,
-    requirement: &eqiora_lang::ComponentPropertyDecl,
-    value: &Expr,
-) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>> {
-    let path = match value.kind() {
-        eqiora_lang::ExprKind::Name(name) => {
-            NamePath::from_segments([name.as_str()], value.range()).expect("checked name")
-        }
-        eqiora_lang::ExprKind::Path(path) => path.clone(),
-        _ => {
-            return Err(vec![error(
-                file,
-                value.range(),
-                "property binding requires an exact release or composition member reference",
-            )]);
-        }
-    };
-    let catalog = catalog::build(units, aliases)?;
-    let mut diagnostics = Vec::new();
-    let required = resolve_path(
-        namespace,
-        requirement.contract(),
-        aliases,
-        &catalog.contracts,
-        |value| value.visibility,
-        file,
-        &mut diagnostics,
-    );
-    let supplied = resolve_property_value(
-        namespace,
-        &path,
-        aliases,
-        &catalog.releases,
-        &catalog.compositions,
-        file,
-        &mut diagnostics,
-    );
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    let release = &catalog.releases[&supplied.expect("resolved release").0];
-    if Some(&release.contract) != required.as_ref() {
-        return Err(vec![error(
-            file,
-            value.range(),
-            "property release implements a different nominal contract",
-        )]);
-    }
-    Ok(release.value.clone())
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -510,12 +425,12 @@ mod tests {
         let source = r#"
 operator square(input x: scalar): scalar = component(x) * component(x);
 property contract Amplitude(): m ^ (-1 / 2) { derivatives value_only; }
-property release Reference implements Amplitude {
-  value = 8;
-  source_unit: m ^ (-2 / 4) = 1 / 4;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+property release Reference: Amplitude {
+  analytic { value = 8;
+  source_unit: m ^ (-2 / 4) = 1 / 4; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 component Wave(support body: volume(ambient_dimension = 1), property amplitude: Amplitude) {
   variable value: m ^ (-1 / 2) on body; initial { value = 0; }
@@ -543,6 +458,8 @@ model Main() {
                 .next()
                 .unwrap()
                 .5
+                .constant_value()
+                .expect("constant property")
                 .component(0)
                 .unwrap()
                 .0,
@@ -568,12 +485,12 @@ model Main() {
         let root = CompilationNamespaceId::new(["root", "1.0.0", "semantic-digest"]).unwrap();
         let source = r#"
 public property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
-property release ReferenceDiffusivity implements Diffusivity {
-  value = 25;
-  source_unit: m ^ 2 / s = 1 / 1000;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+property release ReferenceDiffusivity: Diffusivity {
+  analytic { value = 25;
+  source_unit: m ^ 2 / s = 1 / 1000; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 public component Diffusion(property diffusivity: Diffusivity) {
   relation law { diffusivity = 0; }
@@ -595,6 +512,8 @@ model Main() { instance domain: Diffusion(diffusivity = ReferenceDiffusivity); }
                 .next()
                 .unwrap()
                 .5
+                .constant_value()
+                .expect("constant property")
                 .component(0)
                 .unwrap()
                 .0,
@@ -653,13 +572,13 @@ model Main() { instance domain: Diffusion(diffusivity = 0.025[m ^ 2 / s]); }
         let source = r#"
 public property contract Conductivity(): 1 { derivatives value_only; }
 public property contract Capacity(): 1 { derivatives value_only; }
-public property release ConductivityA implements Conductivity {
-  value = 2; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example.a; license = spdx.CC0_1_0;
+public property release ConductivityA: Conductivity {
+  analytic { value = 2; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example.a; license spdx.CC0_1_0;
 }
-public property release CapacityA implements Capacity {
-  value = 4; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example.a; license = spdx.CC0_1_0;
+public property release CapacityA: Capacity {
+  analytic { value = 4; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example.a; license spdx.CC0_1_0;
 }
 public material composition MaterialA {
   property capacity = CapacityA;
@@ -724,9 +643,9 @@ model Main() { instance domain: DiffusionLaw(conductivity = MaterialA.conductivi
         let root = CompilationNamespaceId::new(["root", "1.0.0", "semantic-digest"]).unwrap();
         let wrong_dimension = r#"
 property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
-property release Wrong implements Diffusivity {
-  value = 1; source_unit: kg = 1; validity = unconditional;
-  citation = org.example.measurement; license = spdx.CC0_1_0;
+property release Wrong: Diffusivity {
+  analytic { value = 1; source_unit: kg = 1; } validity unconditional; outside reject; branch single;
+  citation org.example.measurement; license spdx.CC0_1_0;
 }
 model Main() {}
 "#;
@@ -768,9 +687,9 @@ model Main() { instance domain: Diffusion(); }
             (
                 r#"
 property contract A(): 1 { derivatives value_only; }
-property release A1 implements A {
-  value = 1; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example; license = spdx.CC0_1_0;
+property release A1: A {
+  analytic { value = 1; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example; license spdx.CC0_1_0;
 }
 material composition Duplicate {
   property value = A1;
@@ -785,9 +704,9 @@ model Main() { instance law: Law(value = Duplicate.value); }
                 r#"
 property contract A(): 1 { derivatives value_only; }
 property contract B(): 1 { derivatives value_only; }
-property release B1 implements B {
-  value = 1; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example; license = spdx.CC0_1_0;
+property release B1: B {
+  analytic { value = 1; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example; license spdx.CC0_1_0;
 }
 material composition Foreign { property value = B1; }
 component Law(property value: A) { relation law { value = 0; } }
@@ -798,9 +717,9 @@ model Main() { instance law: Law(value = Foreign.value); }
             (
                 r#"
 property contract A(): 1 { derivatives value_only; }
-property release A1 implements A {
-  value = 1; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example; license = spdx.CC0_1_0;
+property release A1: A {
+  analytic { value = 1; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example; license spdx.CC0_1_0;
 }
 material composition EmptyForLaw { property other = A1; }
 component Law(property value: A) { relation law { value = 0; } }
@@ -811,9 +730,9 @@ model Main() { instance law: Law(value = EmptyForLaw.value); }
             (
                 r#"
 property contract A(): 1 { derivatives value_only; }
-property release A1 implements A {
-  value = 1; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example; license = spdx.CC0_1_0;
+property release A1: A {
+  analytic { value = 1; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example; license spdx.CC0_1_0;
 }
 material composition MaterialA { property value = A1; }
 component Law(property value: A) { relation law { value = 0; } }

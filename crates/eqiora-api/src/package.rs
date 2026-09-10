@@ -6,6 +6,7 @@
 //! release before elaboration, and admits the resulting transaction through
 //! the ordinary [`ModelDocument`](crate::ModelDocument) artifact boundary.
 
+mod assets;
 #[cfg(feature = "project-filesystem")]
 mod local_directory;
 mod model_document;
@@ -754,6 +755,8 @@ fn append_preparation_sources(
     namespace: &CompilationNamespaceId,
     files: &[eqiora_package::SourceFileV1],
 ) -> Result<(), PackagePreparationError> {
+    let arrays = assets::arrays(files)?;
+    let documents = assets::documents(files)?;
     for file in files
         .iter()
         .filter(|file| file.role() == BundleRoleV1::ModelSource)
@@ -767,11 +770,11 @@ fn append_preparation_sources(
                 ),
             )])
         })?;
-        units.push(ResolvedSourceUnit::new(
-            namespace.clone(),
-            file.path().as_str(),
-            source,
-        )?);
+        units.push(
+            ResolvedSourceUnit::new(namespace.clone(), file.path().as_str(), source)?
+                .with_resolved_arrays(arrays.clone())?
+                .with_resolved_documents(documents.clone())?,
+        );
     }
     Ok(())
 }
@@ -809,6 +812,8 @@ fn compiler_input(
     let mut units = Vec::new();
     for (identity, release) in resolved.packages() {
         let namespace = namespace(namespaces, identity)?;
+        let arrays = assets::arrays(release.source().files())?;
+        let documents = assets::documents(release.source().files())?;
         for file in release
             .source()
             .files()
@@ -824,11 +829,11 @@ fn compiler_input(
                     ),
                 )])
             })?;
-            units.push(ResolvedSourceUnit::new(
-                namespace.clone(),
-                file.path().as_str(),
-                source,
-            )?);
+            units.push(
+                ResolvedSourceUnit::new(namespace.clone(), file.path().as_str(), source)?
+                    .with_resolved_arrays(arrays.clone())?
+                    .with_resolved_documents(documents.clone())?,
+            );
         }
     }
 

@@ -1,18 +1,23 @@
 //! One checked nominal property catalog reused by authored and selected bindings.
 use super::*;
-pub(super) struct Catalog {
-    pub(super) contracts: BTreeMap<Key, Contract>,
-    pub(super) releases: BTreeMap<Key, Release>,
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Catalog {
+    pub(crate) contracts: BTreeMap<Key, Contract>,
+    pub(crate) releases: BTreeMap<Key, Release>,
     pub(super) compositions: BTreeMap<Key, Composition>,
 }
-pub(super) fn build(
+pub(crate) fn build(
     units: &[AnalyzedSourceUnit],
     aliases: &[ResolvedAlias],
 ) -> Result<Catalog, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut contracts = BTreeMap::new();
     for unit in units.iter() {
-        for (visibility, name, value_type, range) in unit.document.property_contract_syntax() {
+        for ((visibility, name, value_type, range), (_, inputs, derivatives, branch)) in unit
+            .document
+            .property_contract_syntax()
+            .zip(unit.document.property_contract_profiles())
+        {
             if name == crate::math::ROOT {
                 diagnostics.push(error(
                     &unit.file,
@@ -35,6 +40,9 @@ pub(super) fn build(
                         file: unit.file.clone(),
                         visibility,
                         value_type: value_type.clone(),
+                        inputs: inputs.to_vec(),
+                        derivatives,
+                        branch: branch.map(ToString::to_string),
                     },
                 )
                 .is_some()
@@ -82,13 +90,6 @@ pub(super) fn build(
                 continue;
             };
             let contract = &contracts[&contract_key];
-            let source_dimension = match lower_dimension(&unit.file, source_dimension_expr) {
-                Ok(value) => value,
-                Err(value) => {
-                    diagnostics.push(value);
-                    continue;
-                }
-            };
             let contract_type = match crate::value_types::lower_value_type::<()>(
                 &contract.file,
                 &contract.value_type,
@@ -100,14 +101,144 @@ pub(super) fn build(
                     continue;
                 }
             };
+            let source_dimension = match source_dimension_expr {
+                Some(expression) => match lower_dimension(&unit.file, expression) {
+                    Ok(value) => value,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        continue;
+                    }
+                },
+                None => contract_type.dimension(),
+            };
             if source_dimension != contract_type.dimension() {
                 diagnostics.push(error(
                     &unit.file,
-                    source_dimension_expr.range(),
+                    source_dimension_expr.map_or(range, Expr::range),
                     "property release source unit does not match its contract dimension",
                 ));
                 continue;
             }
+            let (_, validity, branch) = unit
+                .document
+                .property_release_profiles()
+                .find(|profile| profile.0 == name)
+                .expect("one profile per declaration");
+            let expected_branch = contract.branch.as_deref().or(Some("single"));
+            if expected_branch != branch.map(NamePath::as_str) {
+                diagnostics.push(error(
+                    &unit.file,
+                    range,
+                    "property release branch does not match its nominal contract",
+                ));
+                continue;
+            }
+            let attribution = if matches!(
+                source_value_expr,
+                eqiora_lang::PropertySourceSyntax::Table(_)
+            ) {
+                super::table::attribution(unit, citation).and_then(|citation| {
+                    super::table::attribution(unit, license).map(|license| (citation, license))
+                })
+            } else {
+                Ok((citation.to_string(), license.to_string()))
+            };
+            let (citation, license) = match attribution {
+                Ok(value) => value,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            if !contract.inputs.is_empty() {
+                let scale = constant(&unit.file, scale_expr);
+                if !matches!(scale, Ok(value) if value.is_finite() && value > 0.0) {
+                    diagnostics.push(error(
+                        &unit.file,
+                        scale_expr.range(),
+                        "coherent-SI scale must be finite and strictly positive",
+                    ));
+                    continue;
+                }
+                let meaning = match source_value_expr {
+                    eqiora_lang::PropertySourceSyntax::Expression(value) => {
+                        crate::pure_operator::property::compile_property(
+                            &unit.file,
+                            &unit.document,
+                            &contract.inputs,
+                            &contract.value_type,
+                            value,
+                            scale_expr,
+                            validity,
+                        )
+                        .map(PropertyMeaning::Analytic)
+                    }
+                    eqiora_lang::PropertySourceSyntax::Table(table) => {
+                        super::table::compile(unit, table, contract, scale_expr)
+                    }
+                };
+                match meaning {
+                    Ok(meaning) => {
+                        let key = (unit.module.clone(), name.to_owned());
+                        match eqiora_schema::kernel::PropertyRelease::new(
+                            (qualified(&contract_key), qualified(&key)),
+                            contract
+                                .inputs
+                                .iter()
+                                .map(|(name, _)| name.clone())
+                                .collect(),
+                            expected_branch.map(str::to_owned),
+                            contract.derivatives,
+                            (citation.to_string(), license.to_string()),
+                            meaning.clone(),
+                        ) {
+                            Ok(_) => {
+                                if releases
+                                    .insert(
+                                        key,
+                                        Release {
+                                            visibility,
+                                            contract: contract_key,
+                                            meaning,
+                                            branch: expected_branch.map(str::to_owned),
+                                            citation: citation.to_string(),
+                                            license: license.to_string(),
+                                        },
+                                    )
+                                    .is_some()
+                                {
+                                    diagnostics.push(error(
+                                        &unit.file,
+                                        range,
+                                        format!("duplicate property release `{name}`"),
+                                    ));
+                                }
+                            }
+                            Err(diagnostic) => {
+                                diagnostics.push(error(&unit.file, range, diagnostic.message()))
+                            }
+                        }
+                    }
+                    Err(diagnostic) => diagnostics.push(diagnostic),
+                }
+                continue;
+            }
+            if contract.derivatives != eqiora_schema::kernel::PropertyDerivatives::ValueOnly
+                || validity.is_some()
+            {
+                diagnostics.push(error(&unit.file, range, "constant property requires unconditional validity and no input partial products"));
+                continue;
+            }
+            let eqiora_lang::PropertySourceSyntax::Expression(source_value_expr) =
+                source_value_expr
+            else {
+                diagnostics.push(error(
+                    &unit.file,
+                    range,
+                    "table requires one independent input",
+                ));
+                continue;
+            };
             let source_value = match crate::hierarchy::closed_value(
                 &unit.file,
                 source_value_expr,
@@ -173,7 +304,8 @@ pub(super) fn build(
                     Release {
                         visibility,
                         contract: contract_key,
-                        value,
+                        meaning: PropertyMeaning::Constant(value),
+                        branch: expected_branch.map(str::to_owned),
                         citation: citation.to_string(),
                         license: license.to_string(),
                     },
@@ -256,4 +388,130 @@ pub(super) fn build(
         releases,
         compositions,
     })
+}
+
+impl Catalog {
+    pub(crate) fn contract(
+        &self,
+        namespace: &CompilationModuleId,
+        path: &NamePath,
+        aliases: &[ResolvedAlias],
+        file: &str,
+    ) -> Result<&Contract, Diagnostic> {
+        let mut diagnostics = Vec::new();
+        let key = resolve_path(
+            namespace,
+            path,
+            aliases,
+            &self.contracts,
+            |value| value.visibility,
+            file,
+            &mut diagnostics,
+        )
+        .ok_or_else(|| {
+            diagnostics
+                .into_iter()
+                .next()
+                .expect("failed resolution diagnostic")
+        })?;
+        Ok(&self.contracts[&key])
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn bind(
+        &self,
+        requirement_namespace: &CompilationModuleId,
+        requirement: &eqiora_lang::ComponentPropertyDecl,
+        binding_namespace: &CompilationModuleId,
+        value: &Expr,
+        aliases: &[ResolvedAlias],
+        file: &str,
+    ) -> Result<eqiora_schema::kernel::PropertyRelease, Vec<Diagnostic>> {
+        let path = match value.kind() {
+            eqiora_lang::ExprKind::Name(name) => {
+                NamePath::from_segments([name], value.range()).expect("parsed name")
+            }
+            eqiora_lang::ExprKind::Path(path) => path.clone(),
+            _ => {
+                return Err(vec![error(
+                    file,
+                    value.range(),
+                    "property binding requires an exact nominal release or composition member",
+                )]);
+            }
+        };
+        let mut diagnostics = Vec::new();
+        let required = resolve_path(
+            requirement_namespace,
+            requirement.contract(),
+            aliases,
+            &self.contracts,
+            |value| value.visibility,
+            file,
+            &mut diagnostics,
+        );
+        let supplied = resolve_property_value(
+            binding_namespace,
+            &path,
+            aliases,
+            &self.releases,
+            &self.compositions,
+            file,
+            &mut diagnostics,
+        );
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        let required = required.expect("resolved contract");
+        let (supplied, composition) = supplied.expect("resolved release");
+        let contract = &self.contracts[&required];
+        let release = &self.releases[&supplied];
+        if required != release.contract {
+            return Err(vec![error(
+                file,
+                value.range(),
+                "property release implements a different nominal contract",
+            )]);
+        }
+        eqiora_schema::kernel::PropertyRelease::new(
+            (qualified(&required), qualified(&supplied)),
+            contract
+                .inputs
+                .iter()
+                .map(|(name, _)| name.clone())
+                .collect(),
+            release.branch.clone(),
+            contract.derivatives,
+            (release.citation.clone(), release.license.clone()),
+            release.meaning.clone(),
+        )
+        .and_then(|release| release.with_composition(composition.as_ref().map(qualified)))
+        .map_err(|diagnostic| vec![error(file, value.range(), diagnostic.message())])
+    }
+
+    pub(crate) fn contract_identity(
+        &self,
+        namespace: &CompilationModuleId,
+        path: &NamePath,
+        aliases: &[ResolvedAlias],
+        file: &str,
+    ) -> Result<String, Diagnostic> {
+        let mut diagnostics = Vec::new();
+        let key = resolve_path(
+            namespace,
+            path,
+            aliases,
+            &self.contracts,
+            |value| value.visibility,
+            file,
+            &mut diagnostics,
+        )
+        .ok_or_else(|| {
+            diagnostics
+                .into_iter()
+                .next()
+                .expect("failed resolution diagnostic")
+        })?;
+        Ok(qualified(&key))
+    }
 }

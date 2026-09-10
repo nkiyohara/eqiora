@@ -511,4 +511,64 @@ mod tests {
         );
         assert!(result.is_err());
     }
+    #[test]
+    fn exact_bundle_binds_array_and_attribution_bytes_paths_and_roles() {
+        let (original, package) = setup();
+        let make = |value: u8, document: &[u8]| {
+            let manifest = PackageManifestV1::new(
+                "basic",
+                original.name().clone(),
+                original.version().clone(),
+                vec![],
+                vec![
+                    BundleEntryV1::new(
+                        NormalizedRelativePath::parse("src/basic.eqi").unwrap(),
+                        BundleRoleV1::ModelSource,
+                    ),
+                    BundleEntryV1::new(
+                        NormalizedRelativePath::parse("data/Cp.json").unwrap(),
+                        BundleRoleV1::ResolvedArray,
+                    ),
+                    BundleEntryV1::new(
+                        NormalizedRelativePath::parse("docs/license.md").unwrap(),
+                        BundleRoleV1::Documentation,
+                    ),
+                ],
+            )
+            .unwrap();
+            SourceBundleV1::new(
+                package.clone(),
+                manifest,
+                vec![
+                    SourceFileV1::new(
+                        NormalizedRelativePath::parse("src/basic.eqi").unwrap(),
+                        BundleRoleV1::ModelSource,
+                        b"model Main() {}".to_vec(),
+                    ),
+                    SourceFileV1::new(
+                        NormalizedRelativePath::parse("data/Cp.json").unwrap(),
+                        BundleRoleV1::ResolvedArray,
+                        vec![value],
+                    ),
+                    SourceFileV1::new(
+                        NormalizedRelativePath::parse("docs/license.md").unwrap(),
+                        BundleRoleV1::Documentation,
+                        document.to_vec(),
+                    ),
+                ],
+            )
+            .unwrap()
+        };
+        let original = make(b'1', b"license");
+        let bytes = original.canonical_json().unwrap();
+        assert_eq!(SourceBundleV1::from_json(&bytes).unwrap(), original);
+        assert_ne!(
+            original.identity().unwrap(),
+            make(b'2', b"license").identity().unwrap()
+        );
+        assert_ne!(
+            original.identity().unwrap(),
+            make(b'1', b"license\n").identity().unwrap()
+        );
+    }
 }

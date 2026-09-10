@@ -54,21 +54,7 @@ impl KernelProgram {
                 }
             }
         }
-        let mut builder = ExprDagBuilder::new();
-        for node in definition.expression().nodes() {
-            match node {
-                ExprNode::PureOperatorApplication(application) => {
-                    let pure = definition
-                        .expression()
-                        .definition(application.definition())
-                        .expect("validated pure definition");
-                    builder.pure_operator(pure, application.arguments().iter().copied())?;
-                }
-                _ => {
-                    builder.push(node.clone())?;
-                }
-            }
-        }
+        let mut builder = ExprDagBuilder::from_dag(definition.expression());
         let mut roots = Vec::with_capacity(definition.equation_sides().len());
         for (left, right) in definition.equation_sides() {
             let left_type = typed.node_type(left).expect("validated side");

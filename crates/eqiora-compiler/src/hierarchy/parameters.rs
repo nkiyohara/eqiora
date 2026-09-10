@@ -48,11 +48,11 @@ pub(super) struct ResolvedParameter {
     pub(super) lineage: ParameterLineage,
 }
 
-/// One component Parameter after definition-time symbolic resolution.
+/// One static value after definition-time symbolic resolution.
 ///
 /// The checked type is retained through symbolic resolution. `value`
 /// is absent exactly when the expression depends on at least one required
-/// public Parameter whose value belongs to a future component occurrence.
+/// public Parameter or zero-input property whose value belongs to a future occurrence.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct SymbolicParameterValue {
     pub(super) value: Option<ValueLiteral>,

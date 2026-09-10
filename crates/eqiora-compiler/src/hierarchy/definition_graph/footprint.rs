@@ -584,6 +584,12 @@ fn family_component_values(
             |name| clocks::component(definition.file, definition.declaration, name),
             &parameters::RecordContext::component(elaborator, definition),
         )?;
+        elaborator.bind_symbolic_properties(
+            &definition.namespace,
+            definition.file,
+            definition.declaration.signature(),
+            &mut values,
+        )?;
         parameters::resolve_component_lets(
             definition.file,
             definition.declaration,
@@ -612,6 +618,12 @@ fn family_model_values(
             definition.declaration,
             |name| clocks::model(definition.file, definition.declaration, name),
             &parameters::RecordContext::model(elaborator, definition),
+        )?;
+        elaborator.bind_symbolic_properties(
+            &definition.namespace,
+            definition.file,
+            definition.declaration.signature(),
+            &mut values,
         )?;
         parameters::resolve_model_lets(
             definition.file,

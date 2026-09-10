@@ -59,7 +59,7 @@ fn dimensioned_property_contract_and_release_reach_an_independent_locked_consume
     let provider = prepare_package_release_v1(
         sources(
             "org.example.properties",
-            "public dimension Speed = m/s; public property contract SpeedValue(): Speed { derivatives value_only; } public property release ReferenceSpeed implements SpeedValue { value = 2; source_unit: Speed = 1; validity = unconditional; citation = org.example.measurement; license = spdx.CC0_1_0; }",
+            "public dimension Speed = m/s; public property contract SpeedValue(): Speed { derivatives value_only; } public property release ReferenceSpeed: SpeedValue { analytic { value = 2; source_unit: Speed = 1; } validity unconditional; outside reject; branch single; citation org.example.measurement; license spdx.CC0_1_0; }",
             vec![],
         ),
         &[],
@@ -85,9 +85,13 @@ fn dimensioned_property_contract_and_release_reach_an_independent_locked_consume
     let compiled = PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap();
     let bindings = compiled.property_bindings().collect::<Vec<_>>();
     assert_eq!(bindings.len(), 1);
-    assert_eq!(bindings[0].5.component(0), Some((2.0, 0.0)));
+    let constant = bindings[0]
+        .5
+        .constant_value()
+        .expect("zero-input constant release");
+    assert_eq!(constant.component(0), Some((2.0, 0.0)));
     assert_eq!(
-        bindings[0].5.value_type().dimension(),
+        constant.value_type().dimension(),
         eqiora::DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap()
     );
     compiled

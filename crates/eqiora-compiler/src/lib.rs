@@ -11,6 +11,7 @@ mod diagnostics;
 mod dimensions;
 mod external;
 pub use external::StaticBindingValue;
+pub use property::descriptor::PropertyContractDescriptor;
 mod enumeration;
 mod external_compile;
 mod formulation;
