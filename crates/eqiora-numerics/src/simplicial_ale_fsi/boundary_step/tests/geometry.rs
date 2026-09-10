@@ -73,6 +73,5 @@ pub(super) fn authored_region(
             contact[face].iter().copied().collect(),
         ));
     }
-    let region = PlanarRegion::new(vertices, faces, sets, 1e-15).unwrap();
-    region
+    PlanarRegion::new(vertices, faces, sets, 1e-15).unwrap()
 }
