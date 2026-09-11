@@ -30,6 +30,7 @@ class CandidateRunTests(unittest.TestCase):
     repository = "nkiyohara/eqiora"
     run_id = 12345
     commit = "a" * 40
+    tag = "v0.1.0a9"
 
     def accepted_payload(self) -> dict[str, object]:
         return {
@@ -58,7 +59,18 @@ class CandidateRunTests(unittest.TestCase):
                     repository=self.repository,
                     run_id=self.run_id,
                     expected_commit=self.commit,
+                    expected_tag=self.tag,
                 )
+
+        payload = self.accepted_payload()
+        payload["head_branch"] = self.tag
+        validate_candidate_run(
+            payload,
+            repository=self.repository,
+            run_id=self.run_id,
+            expected_commit=self.commit,
+            expected_tag=self.tag,
+        )
 
     def test_rejects_incomplete_failed_or_unrelated_runs(self) -> None:
         mutations = {
@@ -88,6 +100,7 @@ class CandidateRunTests(unittest.TestCase):
                         repository=self.repository,
                         run_id=self.run_id,
                         expected_commit=self.commit,
+                        expected_tag=self.tag,
                     )
 
     def test_rejects_a_run_from_another_repository(self) -> None:
@@ -103,6 +116,7 @@ class CandidateRunTests(unittest.TestCase):
                         repository=self.repository,
                         run_id=self.run_id,
                         expected_commit=self.commit,
+                        expected_tag=self.tag,
                     )
 
     def test_fetch_uses_the_read_only_run_endpoint_and_bearer_token(self) -> None:
@@ -139,13 +153,14 @@ class ProductionWorkflowTests(unittest.TestCase):
         )[0]
 
         authentication = verify_job.index(
-            "python3 tools/release/validate_candidate_run.py"
+            'python3 "$RUNNER_TEMP/validate_candidate_run.py"'
         )
         download = verify_job.index("actions/download-artifact@")
         self.assertLess(authentication, download)
         self.assertIn("actions: read", verify_job)
         self.assertIn('--repository "$GITHUB_REPOSITORY"', verify_job)
         self.assertIn('--expected-commit "$RELEASE_COMMIT"', verify_job)
+        self.assertIn('--expected-tag "${{ inputs.tag }}"', verify_job)
         self.assertIn('git cat-file -t "$tag_object"', verify_job)
         self.assertIn('git cat-file -t "$peeled_commit"', verify_job)
         self.assertIn("run-name: Python candidate / ${{ inputs.commit }}", candidate)

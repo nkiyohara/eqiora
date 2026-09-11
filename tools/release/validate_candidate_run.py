@@ -16,6 +16,7 @@ from typing import Any
 
 
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
+RELEASE_TAG = re.compile(r"v[0-9A-Za-z][0-9A-Za-z.-]*")
 EXPECTED_EVENT = "workflow_dispatch"
 EXPECTED_HEAD_BRANCH = "main"
 EXPECTED_WORKFLOW_PATH = ".github/workflows/python-release-candidate.yml"
@@ -38,8 +39,9 @@ def validate_candidate_run(
     repository: str,
     run_id: int,
     expected_commit: str,
+    expected_tag: str,
 ) -> None:
-    """Require one successful candidate run from the protected release commit."""
+    """Require one successful candidate run from the exact release source."""
 
     run = _object(payload, "workflow run")
     if run.get("id") != run_id:
@@ -52,10 +54,8 @@ def validate_candidate_run(
         f"{EXPECTED_WORKFLOW_PATH}@{EXPECTED_HEAD_BRANCH}",
     }:
         raise CandidateRunError("candidate run used an unexpected workflow")
-    if run.get("head_branch") != EXPECTED_HEAD_BRANCH:
-        raise CandidateRunError(
-            "candidate workflow was not dispatched from protected main"
-        )
+    if run.get("head_branch") not in {EXPECTED_HEAD_BRANCH, expected_tag}:
+        raise CandidateRunError("candidate workflow used an unrelated source ref")
     if run.get("head_sha") != expected_commit:
         raise CandidateRunError(
             "candidate workflow definition is not bound to the release commit"
@@ -125,6 +125,7 @@ def main() -> int:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--run-id", required=True, type=int)
     parser.add_argument("--expected-commit", required=True)
+    parser.add_argument("--expected-tag", required=True)
     parser.add_argument(
         "--api-url",
         default=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
@@ -136,6 +137,8 @@ def main() -> int:
             raise CandidateRunError(
                 "expected release commit must be a full lowercase SHA"
             )
+        if RELEASE_TAG.fullmatch(arguments.expected_tag) is None:
+            raise CandidateRunError("expected release tag is malformed")
         payload = fetch_candidate_run(
             api_url=arguments.api_url,
             repository=arguments.repository,
@@ -147,6 +150,7 @@ def main() -> int:
             repository=arguments.repository,
             run_id=arguments.run_id,
             expected_commit=arguments.expected_commit,
+            expected_tag=arguments.expected_tag,
         )
     except (
         CandidateRunError,

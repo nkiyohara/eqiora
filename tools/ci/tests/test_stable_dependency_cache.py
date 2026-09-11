@@ -32,7 +32,7 @@ def script(source: str) -> str:
 class StableDependencyCacheTests(unittest.TestCase):
     def test_dispatch_guard_executes_before_selected_source_in_every_workflow(self) -> None:
         sha = "a" * 40
-        for filename in ("ci.yml", "python-release-candidate.yml", "python-production-publish.yml"):
+        for filename in ("ci.yml", "python-release-candidate.yml"):
             source = workflow(filename)
             guard = step(source, "Bind manual source to the dispatch revision")
             self.assertIn("SELECTED_COMMIT: ${{ inputs.commit }}", guard)
@@ -51,6 +51,31 @@ class StableDependencyCacheTests(unittest.TestCase):
                             text=True,
                         )
                         self.assertEqual(result.returncode == 0, accepted, result.stderr)
+
+        source = workflow("python-production-publish.yml")
+        guard = step(source, "Bind publication authority to protected main")
+        self.assertIn("SELECTED_COMMIT: ${{ inputs.commit }}", guard)
+        self.assertIn("SELECTED_TAG: ${{ inputs.tag }}", guard)
+        self.assertLess(source.index(guard), source.index("uses: actions/checkout@"))
+        for ref, tag, accepted in (
+            ("refs/heads/main", "v0.1.0a9", True),
+            ("refs/heads/candidate-review", "v0.1.0a9", False),
+            ("refs/heads/main", "", False),
+        ):
+            with self.subTest(workflow="python-production-publish.yml", ref=ref, tag=tag):
+                result = subprocess.run(
+                    ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script(guard)],
+                    env={
+                        **os.environ,
+                        "SELECTED_COMMIT": sha,
+                        "SELECTED_TAG": tag,
+                        "GITHUB_REF": ref,
+                    },
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode == 0, accepted, result.stderr)
 
     def test_production_checks_tag_object_before_importing_selected_code(self) -> None:
         guard = script(step(workflow("python-production-publish.yml"), "Require exact annotated tag and source commit"))
