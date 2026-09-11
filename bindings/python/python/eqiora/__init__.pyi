@@ -1658,6 +1658,46 @@ class ObservableStateTangent:
     def result_identity(self) -> str: ...
 
 @final
+class ProfilePhase:
+    """Aggregate timing for one hierarchical execution phase.
+
+    Authority: ``crates/eqiora-python/src/profile.rs::PyProfilePhase``.
+    """
+    @property
+    def path(self) -> list[str]: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def count(self) -> int: ...
+    @property
+    def total_seconds(self) -> float: ...
+
+@final
+class ProfileEvent:
+    """Structured metadata for one phase or solver observation.
+
+    Authority: ``crates/eqiora-python/src/profile.rs::PyProfileEvent``.
+    """
+    @property
+    def path(self) -> list[str]: ...
+    @property
+    def fields(self) -> dict[str, str]: ...
+
+@final
+class Profile:
+    """Process-local timings and events for one profiled Run.
+
+    Authority: ``crates/eqiora-python/src/profile.rs::PyProfile``.
+    """
+    @property
+    def phases(self) -> list[ProfilePhase]: ...
+    @property
+    def events(self) -> list[ProfileEvent]: ...
+    @property
+    def total_seconds(self) -> float: ...
+    def summary(self) -> str: ...
+
+@final
 class Result:
     """Accepted execution occurrence with typed output relationships.
 
@@ -1678,6 +1718,8 @@ class Result:
     def adapter_version(self) -> str: ...
     @property
     def elapsed_seconds(self) -> float: ...
+    @property
+    def profile(self) -> Profile | None: ...
     def to_bytes(self) -> bytes: ...
     @staticmethod
     def from_bytes(plan: Plan, data: bytes) -> Result: ...
@@ -2031,6 +2073,7 @@ def run(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    profile: bool = False,
 ) -> Result:
     """Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
@@ -2047,6 +2090,7 @@ def submit(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    profile: bool = False,
 ) -> Run[Result]:
     """Submit a steady Plan or a transient Plan with a specified time interval.
 
@@ -2156,6 +2200,9 @@ __all__ = [
     "Initial",
     "Relation",
     "Result",
+    "Profile",
+    "ProfileEvent",
+    "ProfilePhase",
     "Revision",
     "ResolvedExecution",
     "ScalarPlanView",

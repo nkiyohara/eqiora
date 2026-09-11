@@ -116,7 +116,13 @@ def solve() -> tuple[
             ),
         ),
     )
-    result = eqiora.run(plan, state=state, steps=10, output_steps=tuple(range(1, 11)))
+    result = eqiora.run(
+        plan,
+        state=state,
+        steps=10,
+        output_steps=tuple(range(1, 11)),
+        profile=True,
+    )
     accepted = result.trajectory.state(10)
     vorticity = accepted.curl(plan.capability.velocity)
     cylinder_force = accepted.boundary_force(geometry.selection("cylinder"))
@@ -145,6 +151,7 @@ def main() -> None:
     print("force on cylinder", cylinder_force.on_selection, "N/m")
     print("pressure probes", front_pressure.value, rear_pressure.value, "Pa")
     print("pressure difference", front_pressure.value - rear_pressure.value, "Pa")
+    print(result.profile.summary())
     if arguments.vorticity_png is not None:
         import eqiora.matplotlib as eqplot
 

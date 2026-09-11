@@ -432,6 +432,23 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             artifact, identities = _ordinary(root)
+            rust_index = artifact / RUSTDOC_ROOT / "eqiora/index.html"
+            _append_main(
+                rust_index,
+                '<section id="impl-Instrument-for-T">'
+                '<a href="crate::Span">Span</a>'
+                '<a href="super::Span::current()">current span</a>'
+                "</section>"
+                '<section id="impl-WithSubscriber-for-T">'
+                '<a href="super::Subscriber">subscriber</a>'
+                '<a href="dispatcher#setting-the-default-subscriber">default</a>'
+                "</section>",
+            )
+            self.assertEqual(_artifact_errors(artifact, identities), [])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, identities = _ordinary(root)
             added_route = "/reference/python/new-module/"
             source = (artifact / "guides/index.html").read_text(encoding="utf-8")
             _write(
@@ -1120,6 +1137,22 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         first_source, first_reference = ABSENT_REFERENCES[0]
         absent_source = RUSTDOC_ROOT / first_source
+        reject(
+            "tracing span link without blanket implementation",
+            lambda artifact: _append_main(
+                artifact / RUSTDOC_ROOT / "eqiora/index.html",
+                '<a href="crate::Span">Span</a>',
+            ),
+            "unsafe Rustdoc reference",
+        )
+        reject(
+            "tracing dispatcher link without blanket implementation",
+            lambda artifact: _append_main(
+                artifact / RUSTDOC_ROOT / "eqiora/index.html",
+                '<a href="dispatcher#setting-the-default-subscriber">default</a>',
+            ),
+            "unadmitted missing Rustdoc reference",
+        )
         reject(
             "extra absent Rustdoc target",
             lambda artifact: _append_main(

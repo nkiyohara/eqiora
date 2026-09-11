@@ -39,6 +39,29 @@ terminal state. `progress` is an execution-family-specific coalesced snapshot,
 not a percentage or event log. Repeated `result()` calls return the same
 immutable Python result object.
 
+## Phase-level profiling
+
+Pass `profile=True` to `run` or `submit` to collect process-local execution
+telemetry without changing the Model, Plan, numerical result, or persisted
+Result artifact:
+
+```python
+result = eqiora.run(plan, profile=True)
+print(result.profile.summary())
+for event in result.profile.events:
+    print(event.path, event.fields)
+```
+
+The summary aggregates nested `run`, `setup`, `solve` or `time_step`,
+`assembly`, `nonlinear_iteration`, `linear_solve`, backend, and `postprocess`
+spans that occur on the selected path. Structured events retain available step,
+solver/provider/backend, residual, target, and convergence fields. Faer SparseLU
+distinguishes symbolic factorization, numeric factorization, and backsolve. A
+Result decoded from bytes has no profile because telemetry is deliberately not
+part of artifact or semantic identity. Leave profiling disabled for ordinary
+runs; library crates emit spans while subscriber configuration and presentation
+stay at the application boundary.
+
 Awaiting does not introduce another native runtime:
 
 ```python

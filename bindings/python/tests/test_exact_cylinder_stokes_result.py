@@ -42,7 +42,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
     return geometry, eqiora.meshing.generate(mesh_plan)
 
 
-def accepted() -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:
+def accepted(*, profile: bool = False) -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:
     geometry, mesh = geometry_and_mesh()
     model = eqiora.compile(path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **{'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}})
     plan = eqiora.resolve(
@@ -60,7 +60,7 @@ def accepted() -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqi
         ),
         scaling=None,
     )
-    return geometry, model, plan, eqiora.run(plan)
+    return geometry, model, plan, eqiora.run(plan, profile=profile)
 
 
 def test_root_plan_result_and_observation_close_exact_lineage() -> None:
@@ -163,3 +163,107 @@ def test_checked_in_python_demo_runs_with_packaged_component_resource() -> None:
     )
     assert "cylinder force on fluid" in completed.stdout
     assert "net flux" in completed.stdout
+
+
+def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan() -> None:
+    geometry, _, steady_plan, steady_result = accepted(profile=True)
+    result = steady_result
+    assert result.profile is not None
+    paths = {tuple(phase.path) for phase in result.profile.phases}
+    assert ("run",) in paths
+    assert ("run", "setup") in paths
+    assert ("run", "solve") in paths
+    assert ("run", "solve", "linear_solve") in paths
+    assert ("run", "solve", "linear_solve", "symbolic_factorization") in paths
+    assert ("run", "solve", "linear_solve", "numeric_factorization") in paths
+    assert ("run", "solve", "linear_solve", "backsolve") in paths
+    assert result.profile.total_seconds >= 0.0
+    assert "numeric_factorization" in result.profile.summary()
+    linear_events = [
+        event.fields
+        for event in result.profile.events
+        if event.fields.get("phase") == "linear_solve"
+    ]
+    assert any(
+        event.get("linear_solver") == "SparseLu"
+        and event.get("solver_provider") == "eqiora.faer"
+        for event in linear_events
+    ), linear_events
+    replayed = eqiora.Result.from_bytes(steady_plan, result.to_bytes())
+    assert replayed.profile is None
+    assert replayed.plan_key == result.plan_key
+
+    model = eqiora.compile(
+        path=files(eqiora).joinpath('examples', 'transient-flow-past-cylinder.eqi'),
+        geometry=geometry,
+        entry='TransientFlowPastCylinder',
+        bindings={
+            **support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]),
+            **{'density': 1.0, 'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]},
+        },
+    )
+    linear = eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast,
+        provider=eqiora.solve.SolverProvider.faer(),
+        relative_tolerance=1.0e-6,
+        absolute_tolerance=1.0e-9,
+        maximum_iterations=20_000,
+    )
+    plan = eqiora.resolve(
+        model,
+        mesh=steady_plan.mesh,
+        spatial=eqiora.fem.MiniP1(),
+        temporal=eqiora.time.BackwardEuler(0.0001),
+        solve=eqiora.solve.Newton(linear=linear),
+        scaling=eqiora.fluid.IncompressibleScaling(
+            length_m=0.41,
+            velocity_m_per_s=0.3,
+            pressure_pa=0.09,
+        ),
+    )
+    velocity = steady_result.output(steady_plan.capability.velocity)
+    pressure = steady_result.output(steady_plan.capability.pressure)
+    state = eqiora.State.initial(
+        plan,
+        time_s=0.0,
+        fields=(
+            eqiora.InitialField(
+                plan.capability.velocity,
+                vertex_values=np.asarray(velocity.values("vertex")).reshape(
+                    plan.mesh.vertex_count, 2
+                ),
+                cell_values=np.asarray(velocity.values("cell-bubble")).reshape(
+                    plan.mesh.cell_count, 2
+                ),
+            ),
+            eqiora.InitialField(
+                plan.capability.pressure,
+                vertex_values=np.asarray(pressure.values("vertex")),
+            ),
+        ),
+    )
+    transient = eqiora.run(
+        plan, state=state, steps=1, output_steps=(1,), profile=True
+    )
+    assert transient.profile is not None
+    events = transient.profile.events
+    step = next(event for event in events if event.fields.get("phase") == "time_step")
+    assert step.fields["step"] == "1"
+    assert float(step.fields["time_s"]) == 0.0001
+    assert float(step.fields["dt_s"]) == 0.0001
+    assert any(
+        event.fields.get("event") == "nonlinear_status"
+        and event.fields.get("nonlinear_solver") == "newton"
+        and "residual_norm" in event.fields
+        and "converged" in event.fields
+        for event in events
+    )
+    assert (
+        "run",
+        "time_step",
+        "nonlinear_iteration",
+        "linear_solve",
+        "numeric_factorization",
+    ) in {tuple(phase.path) for phase in transient.profile.phases}

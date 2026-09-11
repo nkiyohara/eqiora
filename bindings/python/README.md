@@ -178,6 +178,11 @@ implicitly cancel native work. Call `run.cancel()` explicitly. Cancellation
 is cooperative: it takes effect when execution reaches a cancellation point.
 A cancelled run does not publish a partial Result.
 
+Pass `profile=True` to `run` or `submit` when investigating runtime cost. The
+returned `result.profile` provides a hierarchical timing summary and structured
+phase/solver events. Profiling is process-local telemetry and is omitted from
+persisted Result artifacts.
+
 ## PyTorch and JAX
 
 Compile a differentiable program by selecting the parameters and output field

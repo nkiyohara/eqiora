@@ -14,6 +14,7 @@ eqiora-distributed = { workspace = true }
 eqiora-realization = { workspace = true }
 eqiora-solver = { workspace = true }
 sha2 = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

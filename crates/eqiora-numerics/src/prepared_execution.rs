@@ -10,15 +10,20 @@ pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     mut context: C,
     maximum_actions: usize,
     prepare: impl FnOnce(&C) -> Result<P, E>,
+    mut step_span: impl FnMut(usize, &C) -> tracing::Span,
     mut advance: impl FnMut(&P, &C) -> Result<A, E>,
     mut accept: impl FnMut(&mut C, usize, A) -> Result<(), E>,
     mut stop_at_boundary: impl FnMut(usize, &C) -> Option<B>,
 ) -> Result<ControlFlow<B, C>, E> {
-    let prepared = prepare(&context)?;
+    let prepared = {
+        let _setup = eqiora_execution::telemetry_span!(setup).entered();
+        prepare(&context)?
+    };
     if let Some(stopped) = stop_at_boundary(0, &context) {
         return Ok(ControlFlow::Break(stopped));
     }
     for accepted_actions in 1..=maximum_actions {
+        let _step = step_span(accepted_actions, &context).entered();
         let candidate = advance(&prepared, &context)?;
         accept(&mut context, accepted_actions, candidate)?;
         if let Some(stopped) = stop_at_boundary(accepted_actions, &context) {
@@ -47,6 +52,7 @@ mod tests {
                 preparations.set(preparations.get() + 1);
                 Ok::<_, &'static str>(())
             },
+            |step, _| eqiora_execution::telemetry_span!(time_step(step, step as f64, 1.0)),
             |(), state| {
                 advances.set(advances.get() + 1);
                 if *state == 4 {
@@ -76,6 +82,7 @@ mod tests {
                 0_u64,
                 10,
                 |_| Ok::<_, ()>(()),
+                |step, _| eqiora_execution::telemetry_span!(time_step(step, step as f64, 1.0)),
                 |(), state| Ok(*state + 1),
                 |state, _, candidate| {
                     *state = candidate;

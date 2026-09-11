@@ -145,3 +145,32 @@ def test_cancellation_claim_stops_at_the_available_adapter_boundary() -> None:
     result = submitted.result()
     assert submitted.status == eqiora.RunStatus.Completed
     assert result is submitted.result()
+
+
+def test_profile_is_opt_in_and_does_not_change_ode_values_or_plan_identity() -> None:
+    _, field, plan, state = admitted()
+    plan_identity = plan.identity
+    ordinary = eqiora.run(
+        plan, state=state, until_s=0.2, output_times_s=(0.1, 0.2)
+    )
+    profiled = eqiora.run(
+        plan,
+        state=state,
+        until_s=0.2,
+        output_times_s=(0.1, 0.2),
+        profile=True,
+    )
+    assert ordinary.profile is None
+    assert profiled.profile is not None
+    assert {tuple(phase.path) for phase in profiled.profile.phases} == {
+        ("run",),
+        ("run", "setup"),
+        ("run", "solve"),
+        ("run", "postprocess"),
+    }
+    assert profiled.profile.events
+    assert profiled.plan_key == ordinary.plan_key
+    assert plan.identity == plan_identity
+    np.testing.assert_array_equal(
+        profiled.series(field).values.numpy(), ordinary.series(field).values.numpy()
+    )

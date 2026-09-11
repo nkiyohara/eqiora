@@ -141,6 +141,8 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             self.assertIn("BackwardEuler(0.01)", source)
             self.assertIn("steps=10", source)
             self.assertIn("output_steps=tuple(range(1, 11))", source)
+            self.assertIn("profile=True", source)
+            self.assertIn("result.profile.summary()", source)
             self.assertIn("trajectory.state(10)", source)
 
     def test_colab_has_the_public_composition(self) -> None:

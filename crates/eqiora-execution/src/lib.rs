@@ -29,6 +29,8 @@ mod distributed;
 mod prepared;
 mod receipt;
 
+mod telemetry;
+
 pub use binding::{
     CUDA_LINEAR_DEVICE_CAPABILITIES, CUDA_PARTITION_CSR_DEVICE_CAPABILITIES,
     CudaExecutorDescriptor, CudaPartitionPlacement, DeploymentBinding, DistributedDeviceTransport,
