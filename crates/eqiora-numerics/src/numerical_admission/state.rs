@@ -62,7 +62,11 @@ fn advance_common_prepared_actions<P>(
         maximum_actions,
         |context| prepare(&context.state),
         |step, context| {
-            eqiora_execution::telemetry::time_step(step, context.state.time_s() + step_s, step_s)
+            eqiora_execution::telemetry::phase(eqiora_execution::telemetry::Phase::TimeStep {
+                step,
+                time_s: context.state.time_s() + step_s,
+                dt_s: step_s,
+            })
         },
         |prepared, context| advance(prepared, &context.state),
         |context, accepted_actions, candidate| {

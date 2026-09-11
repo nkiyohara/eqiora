@@ -196,7 +196,9 @@ where
     let mut point = initial_point_prepared(mesh, prepared, previous)?;
     require_consistent_initial_state(mesh, cell_quadrature, previous, plan)?;
     let mut current = {
-        let _assembly = eqiora_execution::telemetry::assembly().entered();
+        let _assembly =
+            eqiora_execution::telemetry::phase(eqiora_execution::telemetry::Phase::Assembly)
+                .entered();
         assemble_step_linearization_prepared(
             mesh,
             prepared,
@@ -239,9 +241,14 @@ where
     let mut reports = Vec::new();
     for iteration in 1..=plan.maximum_newton_iterations().get() {
         let previous_norm = current.residual_norm()?;
-        let _iteration =
-            eqiora_execution::telemetry::nonlinear_iteration("newton", iteration, previous_norm)
-                .entered();
+        let _iteration = eqiora_execution::telemetry::phase(
+            eqiora_execution::telemetry::Phase::NonlinearIteration {
+                solver: "newton",
+                iteration,
+                residual_norm: previous_norm,
+            },
+        )
+        .entered();
         let right_hand_side = current
             .residual
             .iter()
@@ -263,7 +270,10 @@ where
                 .map(|(point, correction)| point + scale * correction)
                 .collect::<Vec<_>>();
             let assembled = {
-                let _assembly = eqiora_execution::telemetry::assembly().entered();
+                let _assembly = eqiora_execution::telemetry::phase(
+                    eqiora_execution::telemetry::Phase::Assembly,
+                )
+                .entered();
                 assemble_step_linearization_prepared(
                     mesh,
                     prepared,

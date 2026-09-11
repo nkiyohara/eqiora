@@ -161,11 +161,6 @@ pub mod device {
     pub use eqiora_device::*;
 }
 
-/// Process-local execution telemetry and phase boundaries.
-pub mod execution {
-    pub use eqiora_execution::telemetry;
-}
-
 /// Numerical realizations kept separate from canonical model meaning.
 pub mod numerics {
     pub use eqiora_numerics::ale::{

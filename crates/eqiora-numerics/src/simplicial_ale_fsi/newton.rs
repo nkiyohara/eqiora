@@ -314,11 +314,11 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
                 .states()
                 .last()
                 .expect("ALE FSI trajectory owns its initial state");
-            eqiora_execution::telemetry::time_step(
+            eqiora_execution::telemetry::phase(eqiora_execution::telemetry::Phase::TimeStep {
                 step,
-                current.time() + plan.time_step(),
-                plan.time_step(),
-            )
+                time_s: current.time() + plan.time_step(),
+                dt_s: plan.time_step(),
+            })
         },
         |prepared, trajectory| {
             prepared.advance(

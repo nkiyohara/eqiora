@@ -114,7 +114,7 @@ where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        if attrs.metadata().target() != eqiora::execution::telemetry::TARGET {
+        if attrs.metadata().target() != eqiora::runtime::telemetry::TARGET {
             return;
         }
         let mut visitor = FieldVisitor::default();
@@ -194,7 +194,7 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        if event.metadata().target() != eqiora::execution::telemetry::TARGET {
+        if event.metadata().target() != eqiora::runtime::telemetry::TARGET {
             return;
         }
         let mut visitor = FieldVisitor::default();

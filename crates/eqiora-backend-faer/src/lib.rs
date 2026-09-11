@@ -8,6 +8,7 @@
 
 mod sparse_lu;
 mod sparse_lu_factor;
+mod sparse_lu_identity;
 mod sparse_lu_reuse;
 
 use std::sync::{Arc, Mutex};
@@ -142,8 +143,11 @@ impl LinearSolverBackend for FaerLinearSolver {
     ) -> Result<LinearSolution, Diagnostic> {
         let algorithm = format!("{:?}", plan.algorithm());
         let _linear =
-            eqiora_execution::telemetry::linear_solve(&algorithm, self.provider().id().as_str())
-                .entered();
+            eqiora_execution::telemetry::phase(eqiora_execution::telemetry::Phase::LinearSolve {
+                solver: &algorithm,
+                provider: self.provider().id().as_str(),
+            })
+            .entered();
         if execution.report() != ExecutionReport::host_serial() {
             return Err(invalid_realization(
                 "the faer adapter currently admits only direct serial execution",

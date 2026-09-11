@@ -368,7 +368,9 @@ ceiling = 18
 
 [[public_surface]]
 crate = "eqiora-execution"
-ceiling = 22
+ceiling = 26
+reason = "Issue #1168 adds one typed Phase vocabulary, one span constructor, one convergence event, and the stable tracing target. Numerical kernels and backend adapters emit the same process-local protocol without exporting collector or storage types."
+removal = "Lower the measured count if structured profiling is removed or if tracing gains a shared typed phase protocol that preserves phase-specific fields without Eqiora-owned public items."
 
 [[public_surface]]
 crate = "eqiora-geometry"
@@ -504,7 +506,7 @@ ceiling = 116
 
 [[public_surface]]
 crate = "eqiora-runtime"
-ceiling = 8
+ceiling = 9
 
 [[public_surface]]
 crate = "eqiora-schema"
