@@ -1029,7 +1029,6 @@ name = "eqiora-runtime"
 version = "0.1.0-alpha.8"
 dependencies = [
  "eqiora-core",
- "eqiora-execution",
  "eqiora-graph",
  "eqiora-ir",
  "eqiora-schema",

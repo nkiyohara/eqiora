@@ -13,6 +13,8 @@ use tracing_subscriber::layer::{Context, SubscriberExt};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::{Layer, Registry};
 
+pub(crate) const TELEMETRY_TARGET: &str = "eqiora::execution";
+
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePhaseData {
     pub(crate) path: Vec<String>,
@@ -114,7 +116,7 @@ where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        if attrs.metadata().target() != eqiora::runtime::telemetry::TARGET {
+        if attrs.metadata().target() != TELEMETRY_TARGET {
             return;
         }
         let mut visitor = FieldVisitor::default();
@@ -194,7 +196,7 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        if event.metadata().target() != eqiora::runtime::telemetry::TARGET {
+        if event.metadata().target() != TELEMETRY_TARGET {
             return;
         }
         let mut visitor = FieldVisitor::default();

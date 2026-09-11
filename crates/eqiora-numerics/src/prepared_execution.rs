@@ -16,8 +16,7 @@ pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     mut stop_at_boundary: impl FnMut(usize, &C) -> Option<B>,
 ) -> Result<ControlFlow<B, C>, E> {
     let prepared = {
-        let _setup =
-            eqiora_execution::telemetry::phase(eqiora_execution::telemetry::Phase::Setup).entered();
+        let _setup = eqiora_execution::telemetry_span!(setup).entered();
         prepare(&context)?
     };
     if let Some(stopped) = stop_at_boundary(0, &context) {
@@ -53,13 +52,7 @@ mod tests {
                 preparations.set(preparations.get() + 1);
                 Ok::<_, &'static str>(())
             },
-            |step, _| {
-                eqiora_execution::telemetry::phase(eqiora_execution::telemetry::Phase::TimeStep {
-                    step,
-                    time_s: step as f64,
-                    dt_s: 1.0,
-                })
-            },
+            |step, _| eqiora_execution::telemetry_span!(time_step(step, step as f64, 1.0)),
             |(), state| {
                 advances.set(advances.get() + 1);
                 if *state == 4 {
@@ -89,15 +82,7 @@ mod tests {
                 0_u64,
                 10,
                 |_| Ok::<_, ()>(()),
-                |step, _| {
-                    eqiora_execution::telemetry::phase(
-                        eqiora_execution::telemetry::Phase::TimeStep {
-                            step,
-                            time_s: step as f64,
-                            dt_s: 1.0,
-                        },
-                    )
-                },
+                |step, _| eqiora_execution::telemetry_span!(time_step(step, step as f64, 1.0)),
                 |(), state| Ok(*state + 1),
                 |state, _, candidate| {
                     *state = candidate;

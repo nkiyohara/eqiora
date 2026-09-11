@@ -18,7 +18,6 @@ mod implicit_time;
 mod initialization;
 mod time;
 
-pub use eqiora_execution::telemetry;
 pub use hybrid::{CanonicalEventLinearization, CanonicalEventProgram, CanonicalRootSet};
 pub use implicit_time::{GeneralImplicitProgram, ImplicitEulerStepLinearization};
 pub use time::FirstOrderProgram;

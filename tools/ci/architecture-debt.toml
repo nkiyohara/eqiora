@@ -368,9 +368,7 @@ ceiling = 18
 
 [[public_surface]]
 crate = "eqiora-execution"
-ceiling = 26
-reason = "Structured profiling adds one typed Phase vocabulary, one span constructor, one convergence event, and the stable tracing target. Numerical kernels and backend adapters emit the same process-local protocol without exporting collector or storage types."
-removal = "Lower the measured count if structured profiling is removed or if tracing gains a shared typed phase protocol that preserves phase-specific fields without Eqiora-owned public items."
+ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
@@ -506,7 +504,7 @@ ceiling = 116
 
 [[public_surface]]
 crate = "eqiora-runtime"
-ceiling = 9
+ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"

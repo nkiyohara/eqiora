@@ -29,7 +29,7 @@ mod distributed;
 mod prepared;
 mod receipt;
 
-pub mod telemetry;
+mod telemetry;
 
 pub use binding::{
     CUDA_LINEAR_DEVICE_CAPABILITIES, CUDA_PARTITION_CSR_DEVICE_CAPABILITIES,

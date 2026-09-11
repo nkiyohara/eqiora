@@ -64,8 +64,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-eqiora-execution = { workspace = true }
 eqiora-backend-faer = { workspace = true }
+eqiora-execution = { workspace = true }
 eqiora-backend-rayon = { workspace = true }
 eqiora-spatial-distribution = { workspace = true }
 num-rational = { workspace = true }
