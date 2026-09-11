@@ -933,6 +933,7 @@ dependencies = [
  "eqiora-device",
  "eqiora-differentiation",
  "eqiora-distributed",
+ "eqiora-execution",
  "eqiora-geometry",
  "eqiora-graph",
  "eqiora-io-gmsh",
