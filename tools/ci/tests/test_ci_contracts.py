@@ -421,7 +421,8 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertIn(f"packages-dir: {publish_family_path}", publish)
 
     def test_role_d_production_workflow_binds_its_dispatch_revision(self) -> None:
-        equality = 'test "$GITHUB_SHA" = "$RELEASE_COMMIT"'
+        authority = 'test "$GITHUB_REF" = "refs/heads/main"'
+        release = 'test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"'
         acquisition = "uses: actions/download-artifact@"
 
         def job(workflow: str, name: str) -> str:
@@ -436,13 +437,11 @@ class HostedTriggerTests(unittest.TestCase):
         def require_definition_binding(workflow: str) -> None:
             verify = job(workflow, "verify")
             publish = job(workflow, "publish")
-            self.assertEqual(
-                verify.count(equality),
-                1,
-                "production workflow definition is not bound to RELEASE_COMMIT",
-            )
+            self.assertEqual(verify.count(authority), 1)
+            self.assertEqual(verify.count(release), 1)
             self.assertIn(acquisition, verify)
-            self.assertLess(verify.index(equality), verify.index(acquisition))
+            self.assertLess(verify.index(authority), verify.index(acquisition))
+            self.assertLess(verify.index(release), verify.index(acquisition))
             self.assertRegex(publish, r"(?m)^    needs: (?:verify|\[verify, prepare_rust\])$")
 
         reference = f"""\
@@ -452,7 +451,9 @@ jobs:
       - name: Bind workflow definition
         env:
           RELEASE_COMMIT: ${{{{ inputs.commit }}}}
-        run: {equality}
+        run: |
+          {authority}
+          {release}
       - name: Acquire candidate
         {acquisition}pinned
   publish:
@@ -462,13 +463,13 @@ jobs:
 """
         require_definition_binding(reference)
         mutants = (
-            reference.replace("$GITHUB_SHA", "$(git rev-parse HEAD)"),
-            reference.replace(f"        run: {equality}\n", ""),
+            reference.replace("refs/heads/main", "refs/heads/release"),
+            reference.replace(f"          {release}\n", ""),
             reference.replace(
-                f"        run: {equality}\n      - name: Acquire candidate\n"
+                f"          {release}\n      - name: Acquire candidate\n"
                 f"        {acquisition}pinned\n",
                 f"      - name: Acquire candidate\n        {acquisition}pinned\n"
-                f"      - name: Late binding\n        run: {equality}\n",
+                f"      - name: Late binding\n        run: {release}\n",
             ),
             reference.replace("    needs: verify\n", ""),
         )
