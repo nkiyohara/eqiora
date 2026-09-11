@@ -1,7 +1,24 @@
 # Release notes
 
-Eqiora `0.1.0a8` is the current public alpha. APIs and saved-file formats may
+Eqiora `0.1.0a9` is the current public alpha. APIs and saved-file formats may
 change before 1.0; review the changes below when upgrading.
+
+## 0.1.0a9 — structured execution profiling
+
+Python runs accept `profile=True` and return an immutable, hierarchical timing
+profile with the result. The profile separates run, setup, solve, time-step,
+assembly, nonlinear-iteration, linear-solve, backend, and post-processing work,
+and retains structured nonlinear convergence observations. The transient
+cylinder example prints a compact summary from the same data.
+
+Profiling is disabled by default. Disabled runs install no collector and retain
+the same numerical result bits. Timings describe the current process only;
+profiles are not serialized with Results and do not claim distributed or global
+timing coverage. The common flow paths, ODE execution, Newton iteration, and
+Faer factorization/backsolve boundaries are covered in this alpha.
+
+The Rust quick start now uses the current `eqiora::compiler` facade and canonical
+source syntax.
 
 ## 0.1.0a8 — unified authoring and explicit numerical execution
 

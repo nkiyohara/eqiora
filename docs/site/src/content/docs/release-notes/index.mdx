@@ -9,6 +9,22 @@ Find new features and migration changes below. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
 contains the detailed release history. APIs may change during the pre-1.0 series.
 
+## 0.1.0a9 — structured execution profiling
+
+[Eqiora 0.1.0a9](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a9)
+adds opt-in `profile=True` execution to Python. Results retain an immutable,
+hierarchical timing profile across run, setup, solve, time-step, assembly,
+nonlinear-iteration, linear-solve, backend, and post-processing phases, together
+with structured nonlinear convergence observations. The transient cylinder
+example can print a compact summary from the same profile.
+
+Profiling is disabled by default and disabled runs retain identical numerical
+result bits without installing a collector. Timings cover the current process;
+profiles are not serialized with Results and do not claim distributed or global
+timing coverage. This alpha covers common flow paths, ODE execution, Newton
+iteration, and Faer factorization/backsolve boundaries. The Rust quick start is
+also corrected for the current compiler facade and source syntax.
+
 ## 0.1.0a8 — unified authoring and explicit numerical execution
 
 [Eqiora 0.1.0a8](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a8) expands source and Python modeling through `eqiora.Module`,
