@@ -6,6 +6,26 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a9] - 2026-09-11
+
+### Added
+
+- Added opt-in structured execution profiling to Python `run()` and `submit()`.
+  Immutable profiles report nested run, setup, solve, time-step, assembly,
+  nonlinear-iteration, linear-solve, backend, and post-processing phases plus
+  nonlinear convergence observations.
+- Added shared static tracing callsites across numerical kernels and the Faer
+  backend, with exact profiling checks for ODE and steady/transient cylinder
+  execution.
+
+### Changed
+
+- The transient cylinder example can print a compact timing summary. Profiling
+  remains disabled by default and disabled runs preserve the same numerical
+  result bits without installing a collector.
+- Corrected the Rust quick start to use the current `eqiora::compiler` facade
+  and the canonical source syntax accepted by the published alpha.
+
 ## [0.1.0a8] - 2026-09-10
 
 ### Added
